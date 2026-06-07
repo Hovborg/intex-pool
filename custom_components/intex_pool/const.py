@@ -31,8 +31,6 @@ from homeassistant.const import (
     EntityCategory,
     Platform,
     UnitOfElectricPotential,
-    UnitOfEnergy,
-    UnitOfPower,
     UnitOfTemperature,
     UnitOfTime,
 )
@@ -231,17 +229,10 @@ SENSORS: tuple[IntexSensorDescription, ...] = (
         value_fn=decode.normalize_error, entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:alert-octagon-outline",
     ),
-    # Pump (tuya) optional power/energy
-    IntexSensorDescription(
-        key="pump_power", translation_key="pump_power", device=DEVICE_PUMP, source=CONF_PUMP_POWER,
-        native_unit_of_measurement=UnitOfPower.WATT, device_class=SensorDeviceClass.POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    IntexSensorDescription(
-        key="pump_energy", translation_key="pump_energy", device=DEVICE_PUMP, source=CONF_PUMP_ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL_INCREASING,
-    ),
+    # NOTE: a Tuya pump only exposes the on/off switch + connectivity here.
+    # Pump power/energy/temperature come from the user's *existing* HA entities
+    # (Shelly, Zigbee relay, any brand) linked in pump "entity" mode and shown
+    # by the dashboard card — so non-Intex pumps work alongside the rest.
 )
 
 # --------------------------------------------------------------------------
@@ -285,7 +276,7 @@ SELECTS: tuple[IntexSelectDescription, ...] = (
     ),
     IntexSelectDescription(
         key="temp_unit", translation_key="temp_unit", device=DEVICE_SALT, source="124",
-        value_map={0: "c", 1: "f", False: "c", True: "f"}, icon="mdi:thermometer",
+        value_map={False: "c", True: "f"}, icon="mdi:thermometer",
         entity_category=EntityCategory.CONFIG,
     ),
 )
