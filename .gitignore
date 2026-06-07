@@ -1,0 +1,15 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node / card build
+card/node_modules/
+card/dist/
+
+# Local
+.DS_Store
+*.log

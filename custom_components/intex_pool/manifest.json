@@ -1,0 +1,14 @@
+{
+  "domain": "intex_pool",
+  "name": "Intex Pool",
+  "codeowners": ["@Hovborg"],
+  "config_flow": true,
+  "dependencies": ["frontend", "http"],
+  "documentation": "https://github.com/Hovborg/intex-pool",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/Hovborg/intex-pool/issues",
+  "loggers": ["tinytuya"],
+  "requirements": ["tinytuya==1.18.1"],
+  "version": "0.1.0"
+}
