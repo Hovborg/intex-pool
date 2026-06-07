@@ -1,0 +1,34 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: pip install pytest-homeassistant-custom-component "tinytuya==1.18.1"
+      - name: Run tests
+        run: pytest -q
+
+  build-card:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build card
+        working-directory: card
+        run: |
+          npm ci
+          npm run build
+      - name: Ensure committed card bundle is up to date
+        run: git diff --exit-code custom_components/intex_pool/frontend/intex-pool-card.js
