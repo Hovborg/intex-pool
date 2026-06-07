@@ -1,0 +1,175 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Intex Pool",
+        "description": "Select the equipment you have. You can pick any combination.",
+        "data": {
+          "has_sensor": "Water quality sensor",
+          "has_salt": "Saltwater system",
+          "has_pump": "Sand filter pump"
+        }
+      },
+      "sensor": {
+        "title": "Water sensor (cloud)",
+        "description": "Enter your Tuya IoT developer-cloud credentials and the sensor's device id.",
+        "data": {
+          "region": "Region",
+          "access_id": "Access ID",
+          "access_secret": "Access secret",
+          "device_id": "Device ID"
+        }
+      },
+      "salt": {
+        "title": "Saltwater system (local)",
+        "data": {
+          "device_id": "Device ID",
+          "local_key": "Local key",
+          "host": "IP address",
+          "version": "Protocol version"
+        }
+      },
+      "pump": {
+        "title": "Sand filter pump",
+        "description": "How is your pump controlled?",
+        "data": { "pump_mode": "Pump type" }
+      },
+      "pump_tuya": {
+        "title": "Tuya pump (local)",
+        "data": {
+          "device_id": "Device ID",
+          "local_key": "Local key",
+          "host": "IP address",
+          "version": "Protocol version",
+          "pump_on_dp": "On/off data point"
+        }
+      },
+      "pump_entity": {
+        "title": "Existing pump entity",
+        "description": "Link any pump (any brand) by selecting its switch and, optionally, its power/energy sensors.",
+        "data": {
+          "pump_switch": "Pump switch",
+          "pump_power": "Power sensor (optional)",
+          "pump_energy": "Energy sensor (optional)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect — check the details and that the device is reachable.",
+      "no_device": "Select at least one device."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Polling intervals",
+        "data": {
+          "local_interval": "Local poll interval (seconds)",
+          "cloud_interval": "Cloud poll interval (seconds)"
+        }
+      }
+    }
+  },
+  "selector": {
+    "pump_mode": {
+      "options": {
+        "entity": "Existing Home Assistant entity (any brand)",
+        "tuya": "Tuya / Intex smart pump (local)"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "salinity": { "name": "Salinity" },
+      "water_temp": { "name": "Water temperature" },
+      "cell_runtime": { "name": "Cell runtime" },
+      "time_remaining": { "name": "Time remaining" },
+      "status": {
+        "name": "Status",
+        "state": {
+          "working": "Working",
+          "fp_mode": "Frost protection",
+          "sleep": "Sleep",
+          "boost": "Boost"
+        }
+      },
+      "alarm": {
+        "name": "Alarm",
+        "state": {
+          "normal": "Normal",
+          "e90": "Low pump flow (E90)",
+          "e93": "Standby (E93)",
+          "e01e02": "Electrode fault (E01/E02)",
+          "e03e04": "Water temperature out of range (E03/E04)",
+          "e91e92": "Salt out of range (E91/E92)",
+          "e05": "E05",
+          "e94": "E94",
+          "e95": "E95",
+          "e96": "E96",
+          "e97": "Internal PCB fault (E97)",
+          "e99": "Salt/temp sensor fault (E99)"
+        }
+      },
+      "error_code": {
+        "name": "Error code",
+        "state": {
+          "none": "None",
+          "e1": "E1", "e2": "E2", "e3": "E3", "e4": "E4", "e5": "E5",
+          "e80": "E80", "e81": "E81",
+          "e90": "E90", "e91": "E91", "e92": "E92", "e93": "E93", "e94": "E94",
+          "e95": "E95", "e96": "E96", "e97": "E97", "e99": "E99", "end": "End"
+        }
+      },
+      "ph": { "name": "pH" },
+      "orp": { "name": "ORP" },
+      "free_chlorine": { "name": "Free chlorine" },
+      "battery": { "name": "Battery" },
+      "ph_indicator": {
+        "name": "pH indicator",
+        "state": { "off": "Off", "red": "Out of range", "green": "OK" }
+      },
+      "orp_indicator": {
+        "name": "ORP indicator",
+        "state": { "off": "Off", "red": "Out of range", "green": "OK", "saltwater_abnormal": "Saltwater abnormal" }
+      },
+      "chlorine_indicator": {
+        "name": "Chlorine indicator",
+        "state": { "off": "Off", "red": "Out of range", "green": "OK" }
+      },
+      "maintenance": {
+        "name": "Maintenance",
+        "state": { "off": "OK", "red": "Service needed" }
+      }
+    },
+    "binary_sensor": {
+      "connectivity": { "name": "Connectivity" },
+      "mesh": { "name": "Mesh" },
+      "pump_mesh": { "name": "Pump mesh status" }
+    },
+    "switch": {
+      "power": { "name": "Power" },
+      "chlorination": { "name": "Chlorine production" },
+      "pump": { "name": "Pump" }
+    },
+    "select": {
+      "self_clean": {
+        "name": "Self-clean cycle",
+        "state": { "2": "Every 2 h", "4": "Every 4 h", "6": "Every 6 h", "10": "Every 10 h" }
+      },
+      "temp_unit": {
+        "name": "Temperature unit",
+        "state": { "c": "°C", "f": "°F" }
+      }
+    },
+    "number": {
+      "ph_target": { "name": "pH target" },
+      "orp_target": { "name": "ORP target" }
+    },
+    "button": {
+      "refresh": { "name": "Refresh measurement" }
+    }
+  }
+}

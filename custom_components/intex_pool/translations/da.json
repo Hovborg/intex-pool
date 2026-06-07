@@ -1,0 +1,175 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Intex Pool",
+        "description": "Vælg det udstyr du har. Du kan vælge enhver kombination.",
+        "data": {
+          "has_sensor": "Vandkvalitets-sensor",
+          "has_salt": "Saltvandssystem",
+          "has_pump": "Sandfilter-pumpe"
+        }
+      },
+      "sensor": {
+        "title": "Vandsensor (cloud)",
+        "description": "Indtast dine Tuya IoT developer-cloud-oplysninger og sensorens device-id.",
+        "data": {
+          "region": "Region",
+          "access_id": "Access ID",
+          "access_secret": "Access secret",
+          "device_id": "Device ID"
+        }
+      },
+      "salt": {
+        "title": "Saltvandssystem (lokalt)",
+        "data": {
+          "device_id": "Device ID",
+          "local_key": "Local key",
+          "host": "IP-adresse",
+          "version": "Protokol-version"
+        }
+      },
+      "pump": {
+        "title": "Sandfilter-pumpe",
+        "description": "Hvordan styres din pumpe?",
+        "data": { "pump_mode": "Pumpe-type" }
+      },
+      "pump_tuya": {
+        "title": "Tuya-pumpe (lokalt)",
+        "data": {
+          "device_id": "Device ID",
+          "local_key": "Local key",
+          "host": "IP-adresse",
+          "version": "Protokol-version",
+          "pump_on_dp": "Tænd/sluk datapunkt"
+        }
+      },
+      "pump_entity": {
+        "title": "Eksisterende pumpe-entitet",
+        "description": "Tilknyt enhver pumpe (alle mærker) ved at vælge dens kontakt og evt. effekt-/energi-sensorer.",
+        "data": {
+          "pump_switch": "Pumpe-kontakt",
+          "pump_power": "Effekt-sensor (valgfri)",
+          "pump_energy": "Energi-sensor (valgfri)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kunne ikke forbinde — tjek oplysningerne og at enheden er tilgængelig.",
+      "no_device": "Vælg mindst én enhed."
+    },
+    "abort": {
+      "already_configured": "Denne enhed er allerede konfigureret."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Poll-intervaller",
+        "data": {
+          "local_interval": "Lokalt poll-interval (sekunder)",
+          "cloud_interval": "Cloud poll-interval (sekunder)"
+        }
+      }
+    }
+  },
+  "selector": {
+    "pump_mode": {
+      "options": {
+        "entity": "Eksisterende Home Assistant-entitet (alle mærker)",
+        "tuya": "Tuya / Intex smart-pumpe (lokalt)"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "salinity": { "name": "Salinitet" },
+      "water_temp": { "name": "Vandtemperatur" },
+      "cell_runtime": { "name": "Celle-driftstid" },
+      "time_remaining": { "name": "Resterende driftstid" },
+      "status": {
+        "name": "Driftsstatus",
+        "state": {
+          "working": "Arbejder",
+          "fp_mode": "Frostsikring",
+          "sleep": "Dvale",
+          "boost": "Boost"
+        }
+      },
+      "alarm": {
+        "name": "Alarm",
+        "state": {
+          "normal": "Normal",
+          "e90": "Lavt pumpe-flow (E90)",
+          "e93": "Standby (E93)",
+          "e01e02": "Elektrode-fejl (E01/E02)",
+          "e03e04": "Vandtemperatur uden for interval (E03/E04)",
+          "e91e92": "Salt uden for interval (E91/E92)",
+          "e05": "E05",
+          "e94": "E94",
+          "e95": "E95",
+          "e96": "E96",
+          "e97": "Intern PCB-fejl (E97)",
+          "e99": "Salt-/temp-sensor defekt (E99)"
+        }
+      },
+      "error_code": {
+        "name": "Fejlkode",
+        "state": {
+          "none": "Ingen",
+          "e1": "E1", "e2": "E2", "e3": "E3", "e4": "E4", "e5": "E5",
+          "e80": "E80", "e81": "E81",
+          "e90": "E90", "e91": "E91", "e92": "E92", "e93": "E93", "e94": "E94",
+          "e95": "E95", "e96": "E96", "e97": "E97", "e99": "E99", "end": "Slut"
+        }
+      },
+      "ph": { "name": "pH" },
+      "orp": { "name": "ORP" },
+      "free_chlorine": { "name": "Frit klor" },
+      "battery": { "name": "Batteri" },
+      "ph_indicator": {
+        "name": "pH-indikator",
+        "state": { "off": "Slukket", "red": "Uden for interval", "green": "OK" }
+      },
+      "orp_indicator": {
+        "name": "ORP-indikator",
+        "state": { "off": "Slukket", "red": "Uden for interval", "green": "OK", "saltwater_abnormal": "Saltvand unormalt" }
+      },
+      "chlorine_indicator": {
+        "name": "Klor-indikator",
+        "state": { "off": "Slukket", "red": "Uden for interval", "green": "OK" }
+      },
+      "maintenance": {
+        "name": "Vedligehold",
+        "state": { "off": "OK", "red": "Service påkrævet" }
+      }
+    },
+    "binary_sensor": {
+      "connectivity": { "name": "Forbindelse" },
+      "mesh": { "name": "Mesh" },
+      "pump_mesh": { "name": "Pumpe-mesh-status" }
+    },
+    "switch": {
+      "power": { "name": "Tænd/sluk" },
+      "chlorination": { "name": "Klor-produktion" },
+      "pump": { "name": "Pumpe" }
+    },
+    "select": {
+      "self_clean": {
+        "name": "Self-clean-cyklus",
+        "state": { "2": "Hver 2. time", "4": "Hver 4. time", "6": "Hver 6. time", "10": "Hver 10. time" }
+      },
+      "temp_unit": {
+        "name": "Temperatur-enhed",
+        "state": { "c": "°C", "f": "°F" }
+      }
+    },
+    "number": {
+      "ph_target": { "name": "pH-mål" },
+      "orp_target": { "name": "ORP-mål" }
+    },
+    "button": {
+      "refresh": { "name": "Opdater måling" }
+    }
+  }
+}

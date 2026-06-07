@@ -1,9 +1,10 @@
 {
   "domain": "intex_pool",
   "name": "Intex Pool",
+  "after_dependencies": ["frontend"],
   "codeowners": ["@Hovborg"],
   "config_flow": true,
-  "dependencies": ["frontend", "http"],
+  "dependencies": ["http"],
   "documentation": "https://github.com/Hovborg/intex-pool",
   "integration_type": "hub",
   "iot_class": "local_polling",

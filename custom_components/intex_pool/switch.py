@@ -10,6 +10,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import decode
 from .const import (
+    CONF_PUMP_MODE,
     DEFAULT_PUMP_ON_DP,
     DEVICE_PUMP,
     PUMP_MODE_TUYA,
@@ -37,7 +38,7 @@ async def async_setup_entry(
         if device_id is None:
             continue
         if desc.device == DEVICE_PUMP:
-            if pump_cfg.get("mode") != PUMP_MODE_TUYA:
+            if pump_cfg.get(CONF_PUMP_MODE) != PUMP_MODE_TUYA:
                 continue
             # resolve the configured on/off DP for the Tuya pump
             desc = replace(desc, source=str(pump_cfg.get("on_dp", DEFAULT_PUMP_ON_DP)))
