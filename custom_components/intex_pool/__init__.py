@@ -51,11 +51,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await hass.http.async_register_static_paths(
             [StaticPathConfig(url, str(card), False)]
         )
-        add_extra_js_url(hass, url)
-        _LOGGER.debug("Registered Intex Pool card at %s", url)
     except RuntimeError:
         # Already registered (e.g. integration reloaded) — harmless.
         pass
+    # add_extra_js_url needs the frontend component to be set up first.
+    if "frontend" in hass.config.components:
+        add_extra_js_url(hass, url)
+        _LOGGER.debug("Registered Intex Pool card at %s", url)
     return True
 
 
