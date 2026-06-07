@@ -1,0 +1,102 @@
+"""Tests for the thin tinytuya wrappers (fake tinytuya, no network)."""
+import types
+
+import pytest
+
+from custom_components.intex_pool import tuya
+
+
+class FakeDevice:
+    last: "FakeDevice | None" = None
+
+    def __init__(self, dev_id, host, key, version=None):
+        FakeDevice.last = self
+        self.dev_id, self.host, self.key, self.version = dev_id, host, key, version
+        self.persistent = None
+        self.timeout = None
+        self.set_calls = []
+        self._status = {"dps": {"104": True, "109": 1490, "111": 19}}
+
+    def set_socketPersistent(self, v):
+        self.persistent = v
+
+    def set_socketTimeout(self, t):
+        self.timeout = t
+
+    def status(self):
+        return self._status
+
+    def set_value(self, dp, val):
+        self.set_calls.append((dp, val))
+
+
+class FakeCloud:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.requests = []
+
+    def cloudrequest(self, path, post=None):
+        self.requests.append((path, post))
+        if path.endswith("/shadow/properties"):
+            return {"success": True, "result": {"properties": [
+                {"code": "PH_Number", "value": 740},
+                {"code": "battery_capacity", "value": 97},
+                {"code": None, "value": "ignored"},
+            ]}}
+        return {"success": True, "result": {}}
+
+
+@pytest.fixture
+def fake_tinytuya(monkeypatch):
+    fake = types.SimpleNamespace(Device=FakeDevice, Cloud=FakeCloud)
+    monkeypatch.setattr(tuya, "tinytuya", fake)
+    return fake
+
+
+def test_local_status_uses_fresh_nonpersistent_socket(fake_tinytuya):
+    client = tuya.LocalClient("dev", "key", "1.2.3.4", version=3.5)
+    dps = client.status()
+    assert dps == {"104": True, "109": 1490, "111": 19}
+    assert FakeDevice.last.persistent is False
+    assert FakeDevice.last.timeout == 5
+    assert FakeDevice.last.version == 3.5
+
+
+def test_local_status_bad_response_raises(fake_tinytuya, monkeypatch):
+    client = tuya.LocalClient("dev", "key", "1.2.3.4")
+    monkeypatch.setattr(FakeDevice, "status", lambda self: "Error 905")
+    with pytest.raises(tuya.TuyaError):
+        client.status()
+
+
+def test_local_set_value_casts_dp_to_int(fake_tinytuya):
+    client = tuya.LocalClient("dev", "key", "1.2.3.4", version=3.5)
+    client.set_value("104", True)
+    assert FakeDevice.last.set_calls == [(104, True)]
+
+
+def test_set_version(fake_tinytuya):
+    client = tuya.LocalClient("dev", "key", "1.2.3.4", version=3.3)
+    client.set_version(3.5)
+    assert client.version == 3.5
+
+
+def test_cloud_properties_parses_codes(fake_tinytuya):
+    client = tuya.CloudClient("eu", "id", "secret")
+    props = client.properties("devid")
+    assert props == {"PH_Number": 740, "battery_capacity": 97}  # None-code dropped
+
+
+def test_cloud_issue_builds_json_body(fake_tinytuya):
+    client = tuya.CloudClient("eu", "id", "secret")
+    client.issue("devid", "ph_set", 750)
+    path, post = client._cloud.requests[-1]
+    assert path == "/v2.0/cloud/thing/devid/shadow/properties/issue"
+    assert post == {"properties": '{"ph_set": 750}'}
+
+
+def test_cloud_failure_raises(fake_tinytuya, monkeypatch):
+    client = tuya.CloudClient("eu", "id", "secret")
+    monkeypatch.setattr(FakeCloud, "cloudrequest", lambda self, p, post=None: {"success": False})
+    with pytest.raises(tuya.TuyaError):
+        client.properties("devid")
