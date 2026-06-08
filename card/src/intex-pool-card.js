@@ -139,6 +139,14 @@ class IntexPoolCard extends LitElement {
     const s = this._st(id);
     return s?.attributes?.friendly_name || id;
   }
+  _fmt(s) {
+    // localized state + unit (e.g. "Working", "1500 ppm", "94 %")
+    try {
+      return this._hass.formatEntityState(s);
+    } catch (e) {
+      return s.state;
+    }
+  }
   _moreInfo(id) {
     if (id) fireEvent(this, "hass-more-info", { entityId: id });
   }
@@ -182,7 +190,7 @@ class IntexPoolCard extends LitElement {
       <button class="chip" @click=${() => this._moreInfo(id)}>
         ${icon ? html`<ha-icon icon=${icon}></ha-icon>` : nothing}
         <span class="chip-label">${label}</span>
-        <span class="chip-val">${s.state}</span>
+        <span class="chip-val">${this._fmt(s)}</span>
       </button>`;
   }
 
@@ -228,7 +236,7 @@ class IntexPoolCard extends LitElement {
     const alarm = this._st(c.salt_alarm);
     const maint = this._st(c.maintenance);
     if (alarm && alarm.state !== "normal" && alarm.state !== "unknown" && alarm.state !== "unavailable")
-      return html`<span class="pill alarm">${alarm.attributes.friendly_name?.includes(":") ? alarm.state : alarm.state}</span>`;
+      return html`<span class="pill alarm">${this._fmt(alarm)}</span>`;
     if (maint && maint.state === "red")
       return html`<span class="pill warn">Service</span>`;
     return html`<span class="pill ok">OK</span>`;
@@ -256,7 +264,7 @@ class IntexPoolCard extends LitElement {
   }
 
   _chlorinator(c) {
-    const sal = this._num(c.salinity);
+    const salt = this._st(c.salinity);
     const status = this._st(c.salt_status);
     return html`
       <div class="section">
@@ -266,12 +274,12 @@ class IntexPoolCard extends LitElement {
           ${this._toggleBtn(c.chlorination_switch, "mdi:flash", "Chlorine")}
         </div>
         <div class="chips">
-          ${sal != null ? html`<button class="chip" @click=${() => this._moreInfo(c.salinity)}>
+          ${salt ? html`<button class="chip" @click=${() => this._moreInfo(c.salinity)}>
               <ha-icon icon="mdi:shaker-outline"></ha-icon><span class="chip-label">Salt</span>
-              <span class="chip-val">${sal} ppm</span></button>` : nothing}
+              <span class="chip-val">${this._fmt(salt)}</span></button>` : nothing}
           ${status ? html`<button class="chip" @click=${() => this._moreInfo(c.salt_status)}>
               <ha-icon icon="mdi:state-machine"></ha-icon><span class="chip-label">Status</span>
-              <span class="chip-val">${status.state}</span></button>` : nothing}
+              <span class="chip-val">${this._fmt(status)}</span></button>` : nothing}
           ${this._chip(c.salt_temp, { label: "Temp", icon: "mdi:thermometer" })}
           ${this._chip(c.time_remaining, { label: "Left", icon: "mdi:timer-sand" })}
           ${this._chip(c.self_clean, { label: "Clean", icon: "mdi:broom" })}

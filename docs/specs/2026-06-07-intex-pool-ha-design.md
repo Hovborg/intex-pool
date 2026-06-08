@@ -32,8 +32,8 @@ Each is independent: the user can have one, two, or all three, in any combinatio
 The DP maps, property maps, scaling, error-code decoding, salt/chemistry tables, and the **non-persistent-socket** fix come from the proven `01-drift/13-pool-kontrol` bridge (`bridge.py`, `config.json`, `manuals/REFERENCE.md`), live-verified 2026-06-07. This project ports that knowledge into a native integration; it does **not** depend on the bridge at runtime.
 
 Verified device facts (the developer's live testbed):
-- Saltwater `bf27688366776fef13qwvu` @ `192.168.1.87`, Tuya **v3.5**, local key present. DPs per `REFERENCE.md §2`.
-- Smart Sensor `bf45ac94bec3763e25t77r`, **cloud-only** (no local port). Tuya developer project region `eu`. Properties per `REFERENCE.md §3`.
+- Saltwater `<salt-device-id>` @ `<salt-ip>`, Tuya **v3.5**, local key present. DPs per `REFERENCE.md §2`.
+- Smart Sensor `<sensor-device-id>`, **cloud-only** (no local port). Tuya developer project region `eu`. Properties per `REFERENCE.md §3`.
 - Pump = a **Shelly Plus 2PM** (`switch.sandfilter_pumpe` + power/energy + `sensor.pool_vandtemperatur`) → exercises the **entity-link** pump mode.
 
 ## 3. Architecture

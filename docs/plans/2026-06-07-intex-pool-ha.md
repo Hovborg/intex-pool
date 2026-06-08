@@ -108,7 +108,7 @@ Descriptor tables (`const.py`) carry, per entity: `key`, `dp`/`code`, `name`/`tr
 - [ ] Minimal Lit card: `setConfig`, `set hass` (per-entity diff), `getCardSize`, `getGridOptions`, `window.customCards`, renders one section. Build with esbuild (Lit bundled). Commit built file.
 
 ### Task 11: Deploy to HA + live verify (real hardware)
-- [ ] cifs-mount `//192.168.1.190/config`; copy `custom_components/intex_pool`; `check_config`; restart HA.
+- [ ] cifs-mount `//<ha-ip>/config`; copy `custom_components/intex_pool`; `check_config`; restart HA.
 - [ ] Add integration via config flow (sensor=cloud creds, salt=local id/key/v3.5, pump=entity `switch.sandfilter_pumpe`).
 - [ ] Stop bridge salt poll to avoid contention; verify: salt entities populate + a chlorination toggle round-trips; cloud sensor pH/ORP/battery populate; pump toggle works; card renders. Capture screenshot.
 
