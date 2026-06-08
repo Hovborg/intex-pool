@@ -59,6 +59,19 @@ async def test_schedule_write_round_trips(hass):
     assert (decoded[4]["hour"], decoded[4]["minute"], decoded[4]["duration"]) == (23, 30, 4)
 
 
+async def test_schedule_slot_sensors(hass):
+    from custom_components.intex_pool.sensor import IntexScheduleSlotSensor
+    coord, _ = _coord(hass, REAL)
+    await coord.async_refresh()
+    slot1 = IntexScheduleSlotSensor(coord, "saltid", 1)   # active (Daily 03:00)
+    assert "Daily 03:00" in slot1.native_value
+    assert slot1.extra_state_attributes["active"] is True
+    assert slot1.unique_id == "saltid_schedule_2"
+    empty = IntexScheduleSlotSensor(coord, "saltid", 6)   # empty slot
+    assert empty.native_value == "—"
+    assert empty.extra_state_attributes["active"] is False
+
+
 async def test_schedule_write_identical_is_noop_blob(hass):
     """Writing the current slots back yields the exact same blob (safe no-op)."""
     coord, _ = _coord(hass, REAL)

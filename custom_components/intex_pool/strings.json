@@ -167,7 +167,8 @@
         "name": "Maintenance",
         "state": { "off": "OK", "red": "Service needed" }
       },
-      "schedules": { "name": "Schedules" }
+      "schedules": { "name": "Schedules" },
+      "schedule_slot": { "name": "Schedule {index}" }
     },
     "binary_sensor": {
       "connectivity": { "name": "Connectivity" },

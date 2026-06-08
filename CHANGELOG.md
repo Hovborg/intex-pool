@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-06-09
+
+### Added
+- Schedules are now **visible without digging into attributes**: one sensor per schedule slot
+  (`Schedule 1`…`Schedule 7`) under the saltwater device, each showing its summary, plus a
+  **schedules list on the dashboard card**.
+
 ## [0.5.0] - 2026-06-09
 
 ### Added

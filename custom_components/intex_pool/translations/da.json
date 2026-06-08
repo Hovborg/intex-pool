@@ -167,7 +167,8 @@
         "name": "Vedligehold",
         "state": { "off": "OK", "red": "Service påkrævet" }
       },
-      "schedules": { "name": "Tidsplaner" }
+      "schedules": { "name": "Tidsplaner" },
+      "schedule_slot": { "name": "Tidsplan {index}" }
     },
     "binary_sensor": {
       "connectivity": { "name": "Forbindelse" },

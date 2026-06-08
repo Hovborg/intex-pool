@@ -34,6 +34,10 @@ async def async_setup_entry(
     salt_id = device_id_for(entry, DEVICE_SALT)
     if data.schedule is not None and salt_id is not None:
         entities.append(IntexScheduleSensor(data.schedule, salt_id))
+        entities.extend(
+            IntexScheduleSlotSensor(data.schedule, salt_id, i)
+            for i in range(schedule.SLOT_COUNT)
+        )
 
     async_add_entities(entities)
 
@@ -73,6 +77,48 @@ class IntexScheduleSensor(CoordinatorEntity, SensorEntity):
                 for s in active
             ],
             "raw": data.get("raw"),
+        }
+
+
+class IntexScheduleSlotSensor(CoordinatorEntity, SensorEntity):
+    """One sensor per schedule slot, so each schedule shows under the device."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "schedule_slot"
+    _attr_icon = "mdi:calendar-clock"
+
+    def __init__(self, coordinator, device_id: str, index: int) -> None:
+        super().__init__(coordinator)
+        self._index = index
+        self._attr_translation_placeholders = {"index": str(index + 1)}
+        self._attr_unique_id = f"{device_id}_schedule_{index + 1}"
+        meta = DEVICE_META[DEVICE_SALT]
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, device_id)},
+            name=meta["name"],
+            manufacturer=MANUFACTURER,
+            model=meta["model"],
+        )
+
+    def _slot(self) -> dict | None:
+        slots = (self.coordinator.data or {}).get("slots") or []
+        return slots[self._index] if self._index < len(slots) else None
+
+    @property
+    def native_value(self) -> str:
+        slot = self._slot()
+        if not slot or not slot.get("active"):
+            return "—"
+        return schedule.summarize(slot)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        slot = self._slot() or {}
+        active = bool(slot.get("active"))
+        return {
+            **{k: slot.get(k) for k in schedule.FIELDS[:7]},
+            "active": active,
+            "mode": schedule.mode_of(slot) if active else None,
         }
 
 

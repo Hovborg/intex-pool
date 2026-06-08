@@ -10,7 +10,7 @@
  */
 import { LitElement, html, css, nothing } from "lit";
 
-const CARD_VERSION = "0.3.0";
+const CARD_VERSION = "0.4.0";
 
 // Selectable appearance variants. "auto" inherits the HA theme; the others
 // override the CSS variables on the card so you can pick a look regardless of
@@ -54,6 +54,7 @@ const ROLE_MAP = {
     power: "power_switch", chlorination: "chlorination_switch", salinity: "salinity",
     status: "salt_status", alarm: "salt_alarm", self_clean: "self_clean",
     water_temp: "salt_temp", time_remaining: "time_remaining", error_code: "salt_error",
+    schedules: "schedules_sensor",
   },
   pump: { pump: "pump_switch" },
 };
@@ -115,6 +116,7 @@ class IntexPoolCard extends LitElement {
           { name: "power_switch", ...ent("switch") }, { name: "chlorination_switch", ...ent("switch") },
           { name: "salinity", ...ent("sensor") }, { name: "salt_status", ...ent("sensor") },
           { name: "salt_alarm", ...ent("sensor") }, { name: "salt_temp", ...ent("sensor") },
+          { name: "schedules_sensor", ...ent("sensor") },
         ] },
         { type: "expandable", title: "Sand filter pump (any brand)", schema: [
           { name: "pump_switch", ...any("switch") }, { name: "pump_power", ...any("sensor") },
@@ -269,8 +271,23 @@ class IntexPoolCard extends LitElement {
                         <ha-icon icon="mdi:refresh"></ha-icon></button>`
                     : nothing}
                 </div>`
-              : nothing}`}
+              : nothing}
+            ${this._scheduleSection(c)}`}
       </ha-card>`;
+  }
+
+  _scheduleSection(c) {
+    const s = this._st(c.schedules_sensor);
+    const list = s?.attributes?.schedules || [];
+    if (!list.length) return nothing;
+    return html`
+      <div class="sched" @click=${() => this._moreInfo(c.schedules_sensor)}>
+        <div class="sched-head">
+          <ha-icon icon="mdi:calendar-clock"></ha-icon><span>Schedules</span>
+          <span class="sched-count">${list.length}</span>
+        </div>
+        ${list.map((x) => html`<div class="sched-row">${x}</div>`)}
+      </div>`;
   }
 
   static styles = css`
@@ -328,6 +345,13 @@ class IntexPoolCard extends LitElement {
       background: none; color: var(--secondary-text-color); font-size: .78rem; font-weight: 600; padding: 4px;
     }
     .mini ha-icon { --mdc-icon-size: 17px; }
+    .sched { margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--divider-color); cursor: pointer; }
+    .sched-head { display: flex; align-items: center; gap: 6px; font-size: .72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .05em; color: var(--secondary-text-color); margin-bottom: 5px; }
+    .sched-head ha-icon { --mdc-icon-size: 16px; }
+    .sched-count { margin-left: auto; background: var(--secondary-background-color);
+      border-radius: 999px; padding: 1px 9px; color: var(--primary-text-color); }
+    .sched-row { font-size: .82rem; line-height: 1.5; padding-left: 22px; color: var(--primary-text-color); }
     .empty { padding: 14px 2px; color: var(--secondary-text-color); text-align: center; font-size: .85rem; }
     @media (prefers-reduced-motion: reduce) { .tile, .pill { transition: none; } }
   `;
