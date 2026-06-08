@@ -73,6 +73,27 @@ type: custom:intex-pool-card
 variant: ocean   # auto | light | dark | ocean | midnight
 ```
 
+## 🗓️ Schedules
+
+The saltwater system's built-in schedules live only in the cloud as an encoded blob, so they're
+normally invisible. This integration **decodes them**: a read-only **Schedules** sensor shows
+how many are active and lists each (daily/one-time, time, duration, on/boost). You can also
+**edit** them from HA with the **`intex_pool.set_schedule`** service (writes back via the cloud):
+
+```yaml
+service: intex_pool.set_schedule
+data:
+  slot: 4          # 0–6
+  enable: true     # off behaves like the boost cycle
+  hour: 22
+  minute: 0
+  duration: 2
+  days: 255        # 255 = every day, 0 = one-time (then set month/date)
+```
+
+> Schedules need a configured water sensor (for the Tuya cloud credentials) + a saltwater system.
+> The byte format round-trips exactly; the exact units of duration/days are best-effort.
+
 ## 🚀 Installation
 
 [![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Hovborg&repository=intex-pool&category=integration)

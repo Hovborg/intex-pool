@@ -11,11 +11,14 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import voluptuous as vol
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.typing import ConfigType
 
+from . import schedule as schedule_mod
 from . import tuya
 from .const import (
     CONF_CLOUD_INTERVAL,
@@ -23,6 +26,7 @@ from .const import (
     CONF_PUMP_MODE,
     DEFAULT_CLOUD_INTERVAL,
     DEFAULT_LOCAL_INTERVAL,
+    DEFAULT_SCHEDULE_INTERVAL,
     DEVICE_PUMP,
     DEVICE_SALT,
     DEVICE_SENSOR,
@@ -31,8 +35,28 @@ from .const import (
     PUMP_MODE_TUYA,
     VERSION_CANDIDATES,
 )
-from .coordinator import PumpCoordinator, SaltCoordinator, SensorCoordinator
+from .coordinator import (
+    PumpCoordinator,
+    SaltCoordinator,
+    ScheduleCoordinator,
+    SensorCoordinator,
+)
 from .models import IntexPoolConfigEntry, IntexPoolData
+
+SERVICE_SET_SCHEDULE = "set_schedule"
+SET_SCHEDULE_SCHEMA = vol.Schema(
+    {
+        vol.Required("slot"): vol.All(vol.Coerce(int), vol.Range(min=0, max=6)),
+        vol.Optional("clear"): bool,
+        vol.Optional("enable"): bool,
+        vol.Optional("hour"): vol.All(vol.Coerce(int), vol.Range(min=0, max=23)),
+        vol.Optional("minute"): vol.All(vol.Coerce(int), vol.Range(min=0, max=59)),
+        vol.Optional("duration"): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
+        vol.Optional("month"): vol.All(vol.Coerce(int), vol.Range(min=0, max=12)),
+        vol.Optional("date"): vol.All(vol.Coerce(int), vol.Range(min=0, max=31)),
+        vol.Optional("days"): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
+    }
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,6 +106,7 @@ async def _build_data(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> Intex
         client, auto = _local_client(salt)
         data.salt = SaltCoordinator(hass, entry, client, "salt", local_interval, auto)
 
+    cloud = None
     if (sensor := entry.data.get(DEVICE_SENSOR)):
         cloud = await hass.async_add_executor_job(
             tuya.CloudClient, sensor["region"], sensor["access_id"], sensor["access_secret"]
@@ -95,6 +120,14 @@ async def _build_data(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> Intex
         client, auto = _local_client(pump)
         data.pump = PumpCoordinator(hass, entry, client, "pump", local_interval, auto)
 
+    # Saltwater schedule lives only in the cloud (skdl_salt). Needs the cloud
+    # client (from the water sensor's creds) + a saltwater device.
+    salt_cfg = entry.data.get(DEVICE_SALT)
+    if data.salt is not None and cloud is not None and salt_cfg:
+        data.schedule = ScheduleCoordinator(
+            hass, entry, cloud, salt_cfg["device_id"], DEFAULT_SCHEDULE_INTERVAL
+        )
+
     return data
 
 
@@ -106,14 +139,49 @@ async def async_setup_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) ->
     # Independent devices: refresh each but don't let one flaky device (e.g. a
     # sleeping sensor or a chlorinator momentarily polled by another client)
     # block the whole entry. Each coordinator recovers on its own interval.
-    for coordinator in (data.salt, data.sensor, data.pump):
+    for coordinator in (data.salt, data.sensor, data.pump, data.schedule):
         if coordinator is not None:
             await coordinator.async_refresh()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    _register_services(hass)
     return True
+
+
+def _register_services(hass: HomeAssistant) -> None:
+    """Register the schedule-editing service once."""
+    if hass.services.has_service(DOMAIN, SERVICE_SET_SCHEDULE):
+        return
+
+    async def _set_schedule(call: ServiceCall) -> None:
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            data: IntexPoolData | None = getattr(entry, "runtime_data", None)
+            if data and data.schedule is not None:
+                coordinator = data.schedule
+                slots = (coordinator.data or {}).get("slots") or schedule_mod.decode_schedules("")
+                new = schedule_mod.set_slot(
+                    slots, call.data["slot"],
+                    on=call.data.get("enable"), hour=call.data.get("hour"),
+                    minute=call.data.get("minute"), duration=call.data.get("duration"),
+                    month=call.data.get("month"), date=call.data.get("date"),
+                    days=call.data.get("days"), clear=call.data.get("clear", False),
+                )
+                await coordinator.async_write_slots(new)
+                return
+        raise HomeAssistantError(
+            "No Intex Pool schedule available (requires a saltwater system + cloud credentials)."
+        )
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_SCHEDULE, _set_schedule, schema=SET_SCHEDULE_SCHEMA
+    )
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> bool:
     """Unload a config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    # Remove the service once the last entry is gone.
+    remaining = [e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id]
+    if not remaining and hass.services.has_service(DOMAIN, SERVICE_SET_SCHEDULE):
+        hass.services.async_remove(DOMAIN, SERVICE_SET_SCHEDULE)
+    return unloaded

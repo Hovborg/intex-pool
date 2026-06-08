@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING
 from homeassistant.config_entries import ConfigEntry
 
 if TYPE_CHECKING:
-    from .coordinator import PumpCoordinator, SaltCoordinator, SensorCoordinator
+    from .coordinator import (
+        PumpCoordinator,
+        SaltCoordinator,
+        ScheduleCoordinator,
+        SensorCoordinator,
+    )
 
 
 @dataclass
@@ -17,6 +22,7 @@ class IntexPoolData:
     salt: "SaltCoordinator | None" = None
     sensor: "SensorCoordinator | None" = None
     pump: "PumpCoordinator | None" = None
+    schedule: "ScheduleCoordinator | None" = None
 
 
 type IntexPoolConfigEntry = ConfigEntry[IntexPoolData]

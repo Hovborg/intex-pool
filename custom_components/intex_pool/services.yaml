@@ -1,0 +1,60 @@
+set_schedule:
+  fields:
+    slot:
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 0
+          max: 6
+          mode: box
+    clear:
+      example: false
+      selector:
+        boolean:
+    enable:
+      example: true
+      selector:
+        boolean:
+    hour:
+      example: 8
+      selector:
+        number:
+          min: 0
+          max: 23
+          mode: box
+    minute:
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 59
+          mode: box
+    duration:
+      example: 3
+      selector:
+        number:
+          min: 0
+          max: 255
+          mode: box
+    month:
+      example: 6
+      selector:
+        number:
+          min: 0
+          max: 12
+          mode: box
+    date:
+      example: 8
+      selector:
+        number:
+          min: 0
+          max: 31
+          mode: box
+    days:
+      example: 255
+      selector:
+        number:
+          min: 0
+          max: 255
+          mode: box

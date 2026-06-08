@@ -14,6 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from . import schedule
 from .const import VERSION_CANDIDATES
 from .tuya import CloudClient, LocalClient, TuyaError
 
@@ -109,3 +110,46 @@ class SensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_refresh_measure(self) -> None:
         """Force the sleeping sensor to take a fresh measurement now."""
         await self.async_issue("refresh_switch", True)
+
+
+class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+    """Read/write the saltwater system's schedule blob (``skdl_salt``) via cloud.
+
+    The schedule is cloud-only (the device never reports it locally), so this
+    polls the salt device's thing-model properties and decodes the blob.
+    """
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        client: CloudClient,
+        device_id: str,
+        interval: int,
+    ) -> None:
+        super().__init__(
+            hass, _LOGGER, name="Intex salt schedule", config_entry=entry,
+            update_interval=timedelta(seconds=interval),
+        )
+        self._client = client
+        self.device_id = device_id
+
+    async def _async_update_data(self) -> dict[str, Any]:
+        try:
+            props = await self.hass.async_add_executor_job(
+                self._client.properties, self.device_id
+            )
+        except TuyaError as err:
+            raise UpdateFailed(str(err)) from err
+        except Exception as err:  # noqa: BLE001
+            raise UpdateFailed(f"{type(err).__name__}: {err}") from err
+        raw = props.get("skdl_salt")
+        return {"raw": raw, "slots": schedule.decode_schedules(raw)}
+
+    async def async_write_slots(self, slots: list[dict[str, Any]]) -> None:
+        """Encode + write the schedule slots back, then refresh."""
+        b64 = schedule.encode_schedules(slots)
+        await self.hass.async_add_executor_job(
+            self._client.issue, self.device_id, "skdl_salt", b64
+        )
+        await self.async_request_refresh()

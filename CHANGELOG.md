@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-06-09
+
+### Added
+- **Saltwater schedules** are now visible in HA: a read-only `Schedules` sensor (state = number
+  of active schedules; attributes list each one — daily/one-time, time, duration, on/boost).
+  The schedule blob (`skdl_salt`) is cloud-only and was previously unexposed; it's now decoded.
+- **`intex_pool.set_schedule` service** to create / change / clear a schedule slot from HA
+  (writes back via the Tuya cloud). The codec round-trips byte-exact and the cloud write path
+  is verified; field meanings (duration unit, days mask, boost) are best-effort.
+
+### Notes
+- Schedules require a configured water sensor (its Tuya cloud credentials) + a saltwater system.
+
 ## [0.4.0] - 2026-06-09
 
 ### Added

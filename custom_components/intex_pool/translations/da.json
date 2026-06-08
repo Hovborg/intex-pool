@@ -166,7 +166,8 @@
       "maintenance": {
         "name": "Vedligehold",
         "state": { "off": "OK", "red": "Service påkrævet" }
-      }
+      },
+      "schedules": { "name": "Tidsplaner" }
     },
     "binary_sensor": {
       "connectivity": { "name": "Forbindelse" },
@@ -194,6 +195,23 @@
     },
     "button": {
       "refresh": { "name": "Opdater måling" }
+    }
+  },
+  "services": {
+    "set_schedule": {
+      "name": "Sæt saltvands-tidsplan",
+      "description": "Opret, ændr eller ryd en tidsplan-plads på saltvandssystemet (skrives til enheden via Tuya-cloud). Felt-betydninger er bedste bud.",
+      "fields": {
+        "slot": { "name": "Plads", "description": "Tidsplan-plads der redigeres (0-6)." },
+        "clear": { "name": "Ryd", "description": "Tøm pladsen i stedet for at sætte den." },
+        "enable": { "name": "Tændt", "description": "Tænd anlægget for tidsplanen (fra opfører sig som boost-cyklus)." },
+        "hour": { "name": "Time", "description": "Start-time (0-23)." },
+        "minute": { "name": "Minut", "description": "Start-minut (0-59)." },
+        "duration": { "name": "Varighed (timer)", "description": "Varighed i timer." },
+        "month": { "name": "Måned", "description": "Måned for engangs-tidsplan (0 = ubrugt)." },
+        "date": { "name": "Dato", "description": "Dag i måneden for engangs-tidsplan (0 = ubrugt)." },
+        "days": { "name": "Dag-maske", "description": "Gentagelses-maske; 255 = hver dag, 0 = engang." }
+      }
     }
   }
 }

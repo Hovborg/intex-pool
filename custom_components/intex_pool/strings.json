@@ -166,7 +166,8 @@
       "maintenance": {
         "name": "Maintenance",
         "state": { "off": "OK", "red": "Service needed" }
-      }
+      },
+      "schedules": { "name": "Schedules" }
     },
     "binary_sensor": {
       "connectivity": { "name": "Connectivity" },
@@ -194,6 +195,23 @@
     },
     "button": {
       "refresh": { "name": "Refresh measurement" }
+    }
+  },
+  "services": {
+    "set_schedule": {
+      "name": "Set saltwater schedule",
+      "description": "Create, change or clear a saltwater-system schedule slot (written to the device via the Tuya cloud). Field meanings are best-effort.",
+      "fields": {
+        "slot": { "name": "Slot", "description": "Schedule slot to edit (0-6)." },
+        "clear": { "name": "Clear", "description": "Empty this slot instead of setting it." },
+        "enable": { "name": "On", "description": "Turn the system on for the schedule (off behaves like the boost cycle)." },
+        "hour": { "name": "Hour", "description": "Start hour (0-23)." },
+        "minute": { "name": "Minute", "description": "Start minute (0-59)." },
+        "duration": { "name": "Duration (hours)", "description": "Run duration in hours." },
+        "month": { "name": "Month", "description": "Month for a one-time schedule (0 = unused)." },
+        "date": { "name": "Date", "description": "Day of month for a one-time schedule (0 = unused)." },
+        "days": { "name": "Days mask", "description": "Repeat mask; 255 = every day, 0 = one-time." }
+      }
     }
   }
 }
