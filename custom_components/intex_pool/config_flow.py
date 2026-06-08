@@ -7,6 +7,7 @@ switch) works alongside the Intex saltwater system and sensor.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import voluptuous as vol
@@ -122,13 +123,27 @@ def _version_value(raw: str | None) -> float | None:
 
 
 async def validate_local(hass, ui: dict) -> None:
-    """Open a local Tuya connection (raises tuya.TuyaError / OSError on failure)."""
+    """Open a local Tuya connection, retrying to ride past transient contention.
+
+    A local Tuya device accepts one connection at a time, so a single read can
+    collide with another poller (e.g. an existing bridge) for a brief window.
+    Retrying a few seconds apart reliably catches a free window.
+    """
     version = _version_value(ui.get(CONF_VERSION))
     client = tuya.LocalClient(
         ui[CONF_DEVICE_ID], ui[CONF_LOCAL_KEY], ui[CONF_HOST],
         version if version else VERSION_CANDIDATES[0],
     )
-    await hass.async_add_executor_job(client.status)
+    last_err: Exception | None = None
+    for attempt in range(4):
+        try:
+            await hass.async_add_executor_job(client.status)
+            return
+        except Exception as err:  # noqa: BLE001
+            last_err = err
+            if attempt < 3:
+                await asyncio.sleep(2)
+    raise last_err  # type: ignore[misc]
 
 
 async def validate_sensor(hass, ui: dict) -> None:

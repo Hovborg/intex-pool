@@ -103,9 +103,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) ->
     data = await _build_data(hass, entry)
     entry.runtime_data = data
 
+    # Independent devices: refresh each but don't let one flaky device (e.g. a
+    # sleeping sensor or a chlorinator momentarily polled by another client)
+    # block the whole entry. Each coordinator recovers on its own interval.
     for coordinator in (data.salt, data.sensor, data.pump):
         if coordinator is not None:
-            await coordinator.async_config_entry_first_refresh()
+            await coordinator.async_refresh()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
