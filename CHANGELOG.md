@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-06-08
+
+### Added
+- **Cloud auto-discovery setup (much easier):** enter your Tuya IoT cloud credentials once and
+  the integration lists your devices (with their local keys) and LAN-scans for IPs — just pick
+  which devices are the pool gear. No manual local-key extraction, no IP typing.
+- Manual entry is kept as a fallback (tick "set up manually").
+
 ## [0.2.0] - 2026-06-08
 
 ### Changed

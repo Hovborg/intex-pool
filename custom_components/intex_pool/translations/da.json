@@ -2,7 +2,29 @@
   "config": {
     "step": {
       "user": {
-        "title": "Intex Pool",
+        "title": "Intex Pool — Tuya cloud",
+        "description": "Indtast dine Tuya IoT developer-cloud-oplysninger én gang. Dine enheder og deres local keys findes automatisk, og IP'er findes på dit netværk — ingen manuel key eller IP. (Sæt flueben i “opsæt manuelt” hvis du hellere vil indtaste alt selv.)",
+        "data": {
+          "region": "Region",
+          "access_id": "Access ID",
+          "access_secret": "Access secret",
+          "manual": "Opsæt manuelt i stedet (uden cloud)"
+        }
+      },
+      "discover": {
+        "title": "Vælg dine pool-enheder",
+        "description": "Vælg hvilke af dine fundne enheder der er pool-udstyret. Local keys og IP'er udfyldes automatisk. Lad et felt stå tomt hvis du ikke har den enhed.",
+        "data": {
+          "sensor": "Vandkvalitets-sensor",
+          "saltwater": "Saltvandssystem",
+          "pump_tuya": "Sandfilter-pumpe (Tuya-enhed)",
+          "pump_switch": "Sandfilter-pumpe — eksisterende kontakt (alle mærker)",
+          "pump_power": "Pumpe effekt-sensor (valgfri)",
+          "pump_energy": "Pumpe energi-sensor (valgfri)"
+        }
+      },
+      "manual": {
+        "title": "Manuel opsætning",
         "description": "Vælg det udstyr du har. Du kan vælge enhver kombination.",
         "data": {
           "has_sensor": "Vandkvalitets-sensor",
@@ -56,6 +78,8 @@
     },
     "error": {
       "cannot_connect": "Kunne ikke forbinde — tjek oplysningerne og at enheden er tilgængelig.",
+      "need_creds": "Indtast din Tuya cloud Access ID og secret, eller sæt flueben i “opsæt manuelt”.",
+      "device_offline": "Enheden blev ikke fundet på dit netværk — sørg for at den er tændt og på samme LAN som Home Assistant.",
       "no_device": "Vælg mindst én enhed."
     },
     "abort": {

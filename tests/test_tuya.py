@@ -45,12 +45,37 @@ class FakeCloud:
             ]}}
         return {"success": True, "result": {}}
 
+    def getdevices(self, verbose=False):
+        return [
+            {"id": "d1", "name": "AGP Salt", "key": "k1", "category": "rs", "product_id": "p1"},
+            {"id": "d2", "name": "Other", "local_key": "k2", "category": "dj"},
+            {"name": "no-id-skip"},
+        ]
+
+
+def _fake_scan(forcescan, timeout):
+    return {"1.2.3.4": {"gwId": "d1", "version": "3.5"}, "5.6.7.8": {"id": "d3"}}
+
 
 @pytest.fixture
 def fake_tinytuya(monkeypatch):
-    fake = types.SimpleNamespace(Device=FakeDevice, Cloud=FakeCloud)
+    fake = types.SimpleNamespace(Device=FakeDevice, Cloud=FakeCloud, deviceScan=_fake_scan)
     monkeypatch.setattr(tuya, "tinytuya", fake)
     return fake
+
+
+def test_list_devices_returns_keys(fake_tinytuya):
+    devs = tuya.CloudClient("eu", "id", "secret").list_devices()
+    by_id = {d["id"]: d for d in devs}
+    assert set(by_id) == {"d1", "d2"}  # entry without id dropped
+    assert by_id["d1"]["key"] == "k1"
+    assert by_id["d2"]["key"] == "k2"  # local_key fallback
+
+
+def test_scan_lan_maps_id_to_ip_version(fake_tinytuya):
+    m = tuya.scan_lan(1)
+    assert m["d1"] == ("1.2.3.4", 3.5)
+    assert m["d3"] == ("5.6.7.8", None)  # missing version -> None
 
 
 def test_local_status_uses_fresh_nonpersistent_socket(fake_tinytuya):

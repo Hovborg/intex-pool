@@ -23,6 +23,22 @@ class TuyaError(Exception):
     """Raised when a Tuya local/cloud operation fails."""
 
 
+def scan_lan(timeout: int = 5) -> dict[str, tuple[str, float | None]]:
+    """Broadcast-scan the LAN for Tuya devices -> {device_id: (ip, version)}.
+
+    Lets setup auto-resolve a device's local IP + protocol version so the user
+    never has to find or type them.
+    """
+    found = tinytuya.deviceScan(False, timeout) or {}
+    out: dict[str, tuple[str, float | None]] = {}
+    for ip, info in found.items():
+        gw = info.get("gwId") or info.get("id")
+        if gw:
+            ver = info.get("version")
+            out[gw] = (ip, float(ver) if ver else None)
+    return out
+
+
 class LocalClient:
     """Local LAN access to a single Tuya device via tinytuya."""
 
@@ -66,6 +82,27 @@ class CloudClient:
         self._cloud = tinytuya.Cloud(
             apiRegion=region, apiKey=access_id, apiSecret=access_secret
         )
+
+    def list_devices(self) -> list[dict[str, Any]]:
+        """List the project's devices with their local keys (for auto-discovery).
+
+        Returns ``[{id, name, key, category, product_id}, ...]`` — the local
+        ``key`` lets setup skip manual key extraction entirely.
+        """
+        devs = self._cloud.getdevices(verbose=False)
+        if not isinstance(devs, list):
+            raise TuyaError(f"cloud getdevices failed: {str(devs)[:160]}")
+        return [
+            {
+                "id": d.get("id"),
+                "name": d.get("name"),
+                "key": d.get("key") or d.get("local_key"),
+                "category": d.get("category"),
+                "product_id": d.get("product_id"),
+            }
+            for d in devs
+            if d.get("id")
+        ]
 
     def properties(self, device_id: str) -> dict[str, Any]:
         """Return {code: value} for the device's thing-model shadow properties."""

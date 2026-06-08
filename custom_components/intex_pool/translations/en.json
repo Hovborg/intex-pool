@@ -2,7 +2,29 @@
   "config": {
     "step": {
       "user": {
-        "title": "Intex Pool",
+        "title": "Intex Pool — Tuya cloud",
+        "description": "Enter your Tuya IoT developer-cloud credentials once. Your devices and their local keys are discovered automatically, and IPs are found on your network — no manual key or IP entry. (Tick “set up manually” if you'd rather enter everything by hand.)",
+        "data": {
+          "region": "Region",
+          "access_id": "Access ID",
+          "access_secret": "Access secret",
+          "manual": "Set up manually instead (no cloud)"
+        }
+      },
+      "discover": {
+        "title": "Select your pool devices",
+        "description": "Pick which of your discovered devices are the pool equipment. Local keys and IPs are filled in automatically. Leave a field empty if you don't have that device.",
+        "data": {
+          "sensor": "Water quality sensor",
+          "saltwater": "Saltwater system",
+          "pump_tuya": "Sand filter pump (Tuya device)",
+          "pump_switch": "Sand filter pump — existing switch (any brand)",
+          "pump_power": "Pump power sensor (optional)",
+          "pump_energy": "Pump energy sensor (optional)"
+        }
+      },
+      "manual": {
+        "title": "Manual setup",
         "description": "Select the equipment you have. You can pick any combination.",
         "data": {
           "has_sensor": "Water quality sensor",
@@ -56,6 +78,8 @@
     },
     "error": {
       "cannot_connect": "Failed to connect — check the details and that the device is reachable.",
+      "need_creds": "Enter your Tuya cloud Access ID and secret, or tick “set up manually”.",
+      "device_offline": "That device wasn't found on your network — make sure it's powered on and on the same LAN as Home Assistant.",
       "no_device": "Select at least one device."
     },
     "abort": {

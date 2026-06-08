@@ -1,9 +1,13 @@
 """Config + options flow for Intex Pool.
 
-Step 1 asks which devices the user owns; only the relevant follow-up steps are
-shown. Each device step validates a live connection before advancing. The pump
-defaults to "entity" mode so any brand of pump (linked to an existing HA
-switch) works alongside the Intex saltwater system and sensor.
+Two setup paths:
+* **Cloud auto-discovery (easy, default):** the user enters their Tuya IoT
+  cloud credentials once; the integration lists their devices (with local keys)
+  and LAN-scans for IPs, so the user just picks which devices are the pool gear
+  — no manual key extraction, no IP typing.
+* **Manual (fallback):** enter device id / local key / host by hand.
+
+The pump can always be linked to an existing HA switch (any brand).
 """
 from __future__ import annotations
 
@@ -53,8 +57,22 @@ from .const import (
 
 _VERSION_OPTIONS = ["auto", "3.1", "3.3", "3.4", "3.5"]
 _REGION_OPTIONS = ["eu", "us", "cn", "in"]
+CONF_MANUAL = "manual"
 
 STEP_USER = vol.Schema(
+    {
+        vol.Optional(CONF_REGION, default=DEFAULT_REGION): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=_REGION_OPTIONS)
+        ),
+        vol.Optional(CONF_ACCESS_ID, default=""): str,
+        vol.Optional(CONF_ACCESS_SECRET, default=""): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+        ),
+        vol.Optional(CONF_MANUAL, default=False): bool,
+    }
+)
+
+STEP_MANUAL = vol.Schema(
     {
         vol.Required(CONF_HAS_SENSOR, default=False): bool,
         vol.Required(CONF_HAS_SALT, default=False): bool,
@@ -94,8 +112,7 @@ STEP_PUMP_MODE = vol.Schema(
     {
         vol.Required(CONF_PUMP_MODE, default=PUMP_MODE_ENTITY): selector.SelectSelector(
             selector.SelectSelectorConfig(
-                options=[PUMP_MODE_ENTITY, PUMP_MODE_TUYA],
-                translation_key="pump_mode",
+                options=[PUMP_MODE_ENTITY, PUMP_MODE_TUYA], translation_key="pump_mode"
             )
         )
     }
@@ -123,12 +140,7 @@ def _version_value(raw: str | None) -> float | None:
 
 
 async def validate_local(hass, ui: dict) -> None:
-    """Open a local Tuya connection, retrying to ride past transient contention.
-
-    A local Tuya device accepts one connection at a time, so a single read can
-    collide with another poller (e.g. an existing bridge) for a brief window.
-    Retrying a few seconds apart reliably catches a free window.
-    """
+    """Open a local Tuya connection, retrying past transient contention."""
     version = _version_value(ui.get(CONF_VERSION))
     client = tuya.LocalClient(
         ui[CONF_DEVICE_ID], ui[CONF_LOCAL_KEY], ui[CONF_HOST],
@@ -154,27 +166,133 @@ async def validate_sensor(hass, ui: dict) -> None:
     await hass.async_add_executor_job(cloud.properties, ui[CONF_DEVICE_ID])
 
 
+async def discover(hass, creds: dict) -> tuple[list[dict], dict]:
+    """Return (cloud device list with keys, LAN scan map) for auto-discovery."""
+    cloud = await hass.async_add_executor_job(
+        tuya.CloudClient, creds[CONF_REGION], creds[CONF_ACCESS_ID], creds[CONF_ACCESS_SECRET]
+    )
+    devices = await hass.async_add_executor_job(cloud.list_devices)
+    scan = await hass.async_add_executor_job(tuya.scan_lan)
+    return devices, scan
+
+
 class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle the multi-step setup."""
+    """Handle setup (cloud auto-discovery, or manual fallback)."""
 
     VERSION = 1
 
     def __init__(self) -> None:
         self._flags: dict[str, bool] = {}
         self._data: dict[str, Any] = {}
+        self._creds: dict[str, str] = {}
+        self._devices: list[dict] = []
+        self._scan: dict = {}
 
+    # ---- entry point ----
     async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if user_input.get(CONF_MANUAL):
+                return await self.async_step_manual()
+            if not user_input.get(CONF_ACCESS_ID) or not user_input.get(CONF_ACCESS_SECRET):
+                errors["base"] = "need_creds"
+            else:
+                self._creds = {
+                    CONF_REGION: user_input[CONF_REGION],
+                    CONF_ACCESS_ID: user_input[CONF_ACCESS_ID],
+                    CONF_ACCESS_SECRET: user_input[CONF_ACCESS_SECRET],
+                }
+                try:
+                    self._devices, self._scan = await discover(self.hass, self._creds)
+                except Exception:  # noqa: BLE001
+                    errors["base"] = "cannot_connect"
+                else:
+                    return await self.async_step_discover()
+        return self.async_show_form(step_id="user", data_schema=STEP_USER, errors=errors)
+
+    # ---- cloud auto-discovery ----
+    async def async_step_discover(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        by_id = {d["id"]: d for d in self._devices}
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            data: dict[str, Any] = {}
+            if (sid := user_input.get("sensor")):
+                data[DEVICE_SENSOR] = {**self._creds, CONF_DEVICE_ID: sid}
+            if (stid := user_input.get("saltwater")):
+                ip, ver = self._scan.get(stid, (None, None))
+                if not ip:
+                    errors["base"] = "device_offline"
+                else:
+                    data[DEVICE_SALT] = {
+                        CONF_DEVICE_ID: stid, CONF_LOCAL_KEY: by_id[stid]["key"],
+                        CONF_HOST: ip, CONF_VERSION: ver,
+                    }
+            ptid = user_input.get("pump_tuya")
+            psw = user_input.get(CONF_PUMP_SWITCH)
+            if ptid and not errors:
+                ip, ver = self._scan.get(ptid, (None, None))
+                if not ip:
+                    errors["base"] = "device_offline"
+                else:
+                    data[DEVICE_PUMP] = {
+                        CONF_PUMP_MODE: PUMP_MODE_TUYA, CONF_DEVICE_ID: ptid,
+                        CONF_LOCAL_KEY: by_id[ptid]["key"], CONF_HOST: ip, CONF_VERSION: ver,
+                        CONF_PUMP_ON_DP: DEFAULT_PUMP_ON_DP,
+                    }
+            elif psw:
+                pump = {CONF_PUMP_MODE: PUMP_MODE_ENTITY, CONF_PUMP_SWITCH: psw}
+                if user_input.get(CONF_PUMP_POWER):
+                    pump[CONF_PUMP_POWER] = user_input[CONF_PUMP_POWER]
+                if user_input.get(CONF_PUMP_ENERGY):
+                    pump[CONF_PUMP_ENERGY] = user_input[CONF_PUMP_ENERGY]
+                data[DEVICE_PUMP] = pump
+            if not errors:
+                if not any(k in data for k in (DEVICE_SALT, DEVICE_SENSOR, DEVICE_PUMP)):
+                    errors["base"] = "no_device"
+                else:
+                    self._data = data
+                    return await self._async_finish()
+        options = [
+            {"value": d["id"], "label": d.get("name") or d["id"]} for d in self._devices
+        ]
+        dev_sel = selector.SelectSelector(
+            selector.SelectSelectorConfig(options=options, mode=selector.SelectSelectorMode.DROPDOWN)
+        )
+        schema = vol.Schema(
+            {
+                vol.Optional("sensor"): dev_sel,
+                vol.Optional("saltwater"): dev_sel,
+                vol.Optional("pump_tuya"): dev_sel,
+                vol.Optional(CONF_PUMP_SWITCH): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="switch")
+                ),
+                vol.Optional(CONF_PUMP_POWER): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                ),
+                vol.Optional(CONF_PUMP_ENERGY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                ),
+            }
+        )
+        return self.async_show_form(step_id="discover", data_schema=schema, errors=errors)
+
+    # ---- manual fallback ----
+    async def async_step_manual(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
             if not any(user_input.values()):
                 return self.async_show_form(
-                    step_id="user", data_schema=STEP_USER, errors={"base": "no_device"}
+                    step_id="manual", data_schema=STEP_MANUAL, errors={"base": "no_device"}
                 )
             self._flags = user_input
             self._data = {}
             return await self._async_next()
-        return self.async_show_form(step_id="user", data_schema=STEP_USER)
+        return self.async_show_form(step_id="manual", data_schema=STEP_MANUAL)
 
     async def _async_next(self) -> ConfigFlowResult:
         if self._flags.get(CONF_HAS_SENSOR) and DEVICE_SENSOR not in self._data:
@@ -206,7 +324,7 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 await validate_sensor(self.hass, user_input)
-            except Exception:  # noqa: BLE001 - any failure means cannot connect
+            except Exception:  # noqa: BLE001
                 errors["base"] = "cannot_connect"
             else:
                 self._data[DEVICE_SENSOR] = {

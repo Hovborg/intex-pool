@@ -1,4 +1,4 @@
-"""Config + options flow tests."""
+"""Config + options flow tests (cloud auto-discovery + manual fallback)."""
 import pytest
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -15,100 +15,142 @@ async def _start(hass):
     return await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
 
 
-async def test_user_requires_at_least_one_device(hass):
-    result = await _start(hass)
-    assert result["step_id"] == "user"
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"has_sensor": False, "has_salt": False, "has_pump": False}
+async def _to_manual(hass):
+    """Advance the cloud entry step into the manual device-selection step."""
+    r = await _start(hass)
+    return await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"region": "eu", "access_id": "", "access_secret": "", "manual": True}
     )
-    assert result["type"] == FlowResultType.FORM
-    assert result["errors"] == {"base": "no_device"}
 
 
-async def test_flow_sensor_only(hass, mock_tinytuya):
-    result = await _start(hass)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"has_sensor": True, "has_salt": False, "has_pump": False}
+# --- entry / cloud step ---
+
+async def test_user_needs_creds_or_manual(hass):
+    r = await _start(hass)
+    assert r["step_id"] == "user"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"region": "eu", "access_id": "", "access_secret": "", "manual": False}
     )
-    assert result["step_id"] == "sensor"
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], SENSOR_INPUT)
-    assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["data"]["sensor"]["device_id"] == "sdev"
-    assert "salt" not in result["data"]
+    assert r["type"] == FlowResultType.FORM
+    assert r["errors"] == {"base": "need_creds"}
 
 
-async def test_flow_salt_only(hass, mock_tinytuya):
-    result = await _start(hass)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"has_sensor": False, "has_salt": True, "has_pump": False}
+async def test_cloud_discovery_flow(hass, mock_tinytuya, monkeypatch):
+    devices = [
+        {"id": "saltid", "name": "AGP Salt", "key": "saltkey", "category": "rs"},
+        {"id": "senid", "name": "AGP Sensor", "key": "senkey", "category": "rs"},
+    ]
+    scan = {"saltid": ("1.2.3.4", 3.5)}
+
+    async def fake_discover(hass_, creds):
+        assert creds["access_id"] == "aid"
+        return devices, scan
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    r = await _start(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"region": "eu", "access_id": "aid", "access_secret": "sec", "manual": False}
     )
-    assert result["step_id"] == "salt"
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], SALT_INPUT)
-    assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["data"]["salt"]["version"] == 3.5  # "3.5" -> float
-
-
-async def test_flow_pump_entity_mode(hass, mock_tinytuya):
-    result = await _start(hass)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"has_sensor": False, "has_salt": False, "has_pump": True}
+    assert r["step_id"] == "discover"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"sensor": "senid", "saltwater": "saltid"}
     )
-    assert result["step_id"] == "pump"
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"pump_mode": "entity"}
-    )
-    assert result["step_id"] == "pump_entity"
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"pump_switch": "switch.my_pump"}
-    )
-    assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["data"]["pump"]["pump_mode"] == "entity"
-    assert result["data"]["pump"]["pump_switch"] == "switch.my_pump"
+    assert r["type"] == FlowResultType.CREATE_ENTRY
+    assert r["data"]["salt"]["local_key"] == "saltkey"   # key auto-filled from cloud
+    assert r["data"]["salt"]["host"] == "1.2.3.4"        # ip auto-filled from LAN scan
+    assert r["data"]["salt"]["version"] == 3.5
+    assert r["data"]["sensor"]["device_id"] == "senid"
+    assert r["data"]["sensor"]["access_id"] == "aid"
 
 
-async def test_flow_all_three_routes_in_order(hass, mock_tinytuya):
-    result = await _start(hass)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"has_sensor": True, "has_salt": True, "has_pump": True}
+async def test_cloud_discovery_device_offline(hass, monkeypatch):
+    async def fake_discover(hass_, creds):
+        return [{"id": "saltid", "name": "AGP Salt", "key": "k", "category": "rs"}], {}  # empty scan
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    r = await _start(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"region": "eu", "access_id": "aid", "access_secret": "sec", "manual": False}
     )
-    assert result["step_id"] == "sensor"
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], SENSOR_INPUT)
-    assert result["step_id"] == "salt"
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], SALT_INPUT)
-    assert result["step_id"] == "pump"
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"pump_mode": "entity"})
-    assert result["step_id"] == "pump_entity"
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"pump_switch": "switch.my_pump"}
-    )
-    assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert set(result["data"]).issuperset({"sensor", "salt", "pump"})
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"saltwater": "saltid"})
+    assert r["type"] == FlowResultType.FORM
+    assert r["errors"] == {"base": "device_offline"}
 
 
-async def test_flow_cannot_connect(hass, monkeypatch):
-    async def boom(hass, ui):
+async def test_cloud_discovery_bad_creds(hass, monkeypatch):
+    async def boom(hass_, creds):
+        raise TuyaError("bad creds")
+
+    monkeypatch.setattr(config_flow, "discover", boom)
+    r = await _start(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"region": "eu", "access_id": "aid", "access_secret": "sec", "manual": False}
+    )
+    assert r["type"] == FlowResultType.FORM
+    assert r["errors"] == {"base": "cannot_connect"}
+
+
+# --- manual fallback ---
+
+async def test_manual_requires_at_least_one_device(hass):
+    r = await _to_manual(hass)
+    assert r["step_id"] == "manual"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"has_sensor": False, "has_salt": False, "has_pump": False}
+    )
+    assert r["type"] == FlowResultType.FORM
+    assert r["errors"] == {"base": "no_device"}
+
+
+async def test_manual_sensor_only(hass, mock_tinytuya):
+    r = await _to_manual(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"has_sensor": True, "has_salt": False, "has_pump": False}
+    )
+    assert r["step_id"] == "sensor"
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], SENSOR_INPUT)
+    assert r["type"] == FlowResultType.CREATE_ENTRY
+    assert r["data"]["sensor"]["device_id"] == "sdev"
+
+
+async def test_manual_pump_entity_mode(hass, mock_tinytuya):
+    r = await _to_manual(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"has_sensor": False, "has_salt": False, "has_pump": True}
+    )
+    assert r["step_id"] == "pump"
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"pump_mode": "entity"})
+    assert r["step_id"] == "pump_entity"
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"pump_switch": "switch.my_pump"})
+    assert r["type"] == FlowResultType.CREATE_ENTRY
+    assert r["data"]["pump"]["pump_mode"] == "entity"
+    assert r["data"]["pump"]["pump_switch"] == "switch.my_pump"
+
+
+async def test_manual_cannot_connect(hass, monkeypatch):
+    async def boom(hass_, ui):
         raise TuyaError("nope")
 
     monkeypatch.setattr(config_flow, "validate_sensor", boom)
-    result = await _start(hass)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"has_sensor": True, "has_salt": False, "has_pump": False}
+    r = await _to_manual(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"has_sensor": True, "has_salt": False, "has_pump": False}
     )
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], SENSOR_INPUT)
-    assert result["type"] == FlowResultType.FORM
-    assert result["errors"] == {"base": "cannot_connect"}
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], SENSOR_INPUT)
+    assert r["type"] == FlowResultType.FORM
+    assert r["errors"] == {"base": "cannot_connect"}
 
 
 async def test_duplicate_aborts(hass, mock_tinytuya):
     existing = MockConfigEntry(domain=DOMAIN, data={"sensor": SENSOR_INPUT}, unique_id="sdev")
     existing.add_to_hass(hass)
-    result = await _start(hass)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"has_sensor": True, "has_salt": False, "has_pump": False}
+    r = await _to_manual(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"has_sensor": True, "has_salt": False, "has_pump": False}
     )
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], SENSOR_INPUT)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "already_configured"
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], SENSOR_INPUT)
+    assert r["type"] == FlowResultType.ABORT
+    assert r["reason"] == "already_configured"
 
 
 async def test_options_flow(hass, mock_tinytuya):
@@ -116,10 +158,10 @@ async def test_options_flow(hass, mock_tinytuya):
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    assert result["step_id"] == "init"
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"local_interval": 30, "cloud_interval": 300}
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    assert r["step_id"] == "init"
+    r = await hass.config_entries.options.async_configure(
+        r["flow_id"], {"local_interval": 30, "cloud_interval": 300}
     )
-    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert r["type"] == FlowResultType.CREATE_ENTRY
     assert entry.options["local_interval"] == 30

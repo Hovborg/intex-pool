@@ -41,21 +41,41 @@ status), and a pump section — hiding whatever you don't have. Add it from the 
 1. HACS → ⋮ → **Custom repositories** → add `https://github.com/Hovborg/intex-pool`, category **Integration**.
 2. Search for **Intex Pool** in HACS, download it, and restart Home Assistant.
 3. **Settings → Devices & Services → Add Integration → Intex Pool**.
-4. Tick the devices you have and fill in the details for each (see below).
+4. Enter your Tuya cloud credentials and pick your devices from the discovered list (see below).
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Hovborg&repository=intex-pool&category=integration)
 
-## Getting the device details
+## Setup — the easy way (cloud auto-discovery)
 
-**Local devices (saltwater system, Tuya pump)** need a Tuya **device id**, **local key**, and
-**IP address**. Get them with [tinytuya](https://github.com/jasonacox/tinytuya)
-(`python -m tinytuya wizard`) or the Tuya IoT platform. Protocol version can be left on
-**auto**.
+You only need **Tuya IoT developer-cloud credentials** once: a free project at
+[iot.tuya.com](https://iot.tuya.com) (region, Access ID, Access secret) with your Smart
+Life / Tuya app account linked. Enter those in the first step and the integration will:
 
-**Water sensor (cloud)** needs Tuya **IoT developer-cloud** credentials (region, Access ID,
-Access secret) from a project at [iot.tuya.com](https://iot.tuya.com) that your app account
-is linked to, plus the sensor's device id. The sensor sleeps and reports about once an hour;
-use the **Refresh measurement** button to force a fresh reading.
+- **list your devices and their local keys automatically** (no `tinytuya wizard`), and
+- **scan your network for their IPs and protocol version automatically** (no IP typing).
+
+Then you just pick which discovered devices are your **saltwater system** and **water
+sensor** from a dropdown, and (optionally) link any switch as your **sand-filter pump**.
+That's it.
+
+> The water sensor sleeps and reports about once an hour — use the **Refresh measurement**
+> button to force a fresh reading.
+
+### Manual setup (fallback)
+
+If you'd rather not use the cloud, tick **"set up manually"** in the first step and enter
+each device's **device id**, **local key** and **IP** by hand (get them with
+[tinytuya](https://github.com/jasonacox/tinytuya)). Protocol version can be left on **auto**.
+Note: local devices still need their local key, which for these Tuya `rs`-category devices
+ultimately comes from the Tuya cloud — so the cloud path is usually the simplest.
+
+## Compatibility
+
+Built and live-verified against the **AGP / Intex QS-series saltwater chlorinator** and the
+**AGP Smart Sensor / Water Analyzer (WA510)**. Other Intex/Tuya pool models connect the same
+way, but their data-point numbering may differ — some entities could be missing or wrong.
+If you have a different model, open an issue with your device's data points and it can be
+added. The sand-filter pump works with **any** brand via the "existing switch" link.
 
 ## Options
 
