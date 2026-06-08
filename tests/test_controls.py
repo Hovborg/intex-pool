@@ -114,6 +114,27 @@ async def test_number_orp_target_raw(hass):
     assert client.issued[0] == ("orp_set", 720)
 
 
+async def test_pump_auto_mode_follows_saltwater(hass):
+    from pytest_homeassistant_custom_component.common import async_mock_service
+    from custom_components.intex_pool.switch import IntexPumpAutoSwitch
+    coord, client = await _salt(hass, {"104": True})
+    on_calls = async_mock_service(hass, "switch", "turn_on")
+    off_calls = async_mock_service(hass, "switch", "turn_off")
+    sw = IntexPumpAutoSwitch(coord, "saltid", "switch.shelly_pump")
+    sw.hass = hass
+    assert sw.unique_id == "saltid_pump_auto"
+    # salt power on -> pump on
+    await sw._sync()
+    await hass.async_block_till_done()
+    assert on_calls[-1].data == {"entity_id": "switch.shelly_pump"}
+    # salt power off -> pump off
+    client._dps = {"104": False}
+    await coord.async_refresh()
+    await sw._sync()
+    await hass.async_block_till_done()
+    assert off_calls[-1].data == {"entity_id": "switch.shelly_pump"}
+
+
 async def test_button_refresh(hass):
     coord, client = await _sensor(hass, {"PH_Number": 740})
     btn = IntexButton(coord, _d(const.BUTTONS, "refresh"), "sid")

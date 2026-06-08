@@ -125,7 +125,7 @@
         "state": {
           "normal": "Normal",
           "e90": "Lavt pumpe-flow (E90)",
-          "e93": "Standby (E93)",
+          "e93": "Standby",
           "e01e02": "Elektrode-fejl (E01/E02)",
           "e03e04": "Vandtemperatur uden for interval (E03/E04)",
           "e91e92": "Salt uden for interval (E91/E92)",
@@ -167,8 +167,7 @@
         "name": "Vedligehold",
         "state": { "off": "OK", "red": "Service påkrævet" }
       },
-      "schedules": { "name": "Tidsplaner" },
-      "schedule_slot": { "name": "Tidsplan {index}" }
+      "schedules": { "name": "Tidsplaner" }
     },
     "binary_sensor": {
       "connectivity": { "name": "Forbindelse" },
@@ -178,7 +177,9 @@
     "switch": {
       "power": { "name": "Tænd/sluk" },
       "chlorination": { "name": "Klor-produktion" },
-      "pump": { "name": "Pumpe" }
+      "pump": { "name": "Pumpe" },
+      "pump_auto": { "name": "Pumpe auto-tilstand" },
+      "schedule_slot": { "name": "Tidsplan {index}" }
     },
     "select": {
       "self_clean": {

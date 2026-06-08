@@ -6,6 +6,7 @@ polling (one request at a time) and shares parsed data with every entity.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import timedelta
 from typing import Any
@@ -147,9 +148,15 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return {"raw": raw, "slots": schedule.decode_schedules(raw)}
 
     async def async_write_slots(self, slots: list[dict[str, Any]]) -> None:
-        """Encode + write the schedule slots back, then refresh."""
+        """Encode + write the schedule slots back, then refresh.
+
+        The Tuya cloud takes a few seconds to reflect a written schedule, so we
+        wait before refreshing — otherwise the read-back returns the old blob
+        and the entities look unchanged even though the write succeeded.
+        """
         b64 = schedule.encode_schedules(slots)
         await self.hass.async_add_executor_job(
             self._client.issue, self.device_id, "skdl_salt", b64
         )
+        await asyncio.sleep(5)
         await self.async_request_refresh()

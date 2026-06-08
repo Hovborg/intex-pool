@@ -125,7 +125,7 @@
         "state": {
           "normal": "Normal",
           "e90": "Low pump flow (E90)",
-          "e93": "Standby (E93)",
+          "e93": "Standby",
           "e01e02": "Electrode fault (E01/E02)",
           "e03e04": "Water temperature out of range (E03/E04)",
           "e91e92": "Salt out of range (E91/E92)",
@@ -167,8 +167,7 @@
         "name": "Maintenance",
         "state": { "off": "OK", "red": "Service needed" }
       },
-      "schedules": { "name": "Schedules" },
-      "schedule_slot": { "name": "Schedule {index}" }
+      "schedules": { "name": "Schedules" }
     },
     "binary_sensor": {
       "connectivity": { "name": "Connectivity" },
@@ -178,7 +177,9 @@
     "switch": {
       "power": { "name": "Power" },
       "chlorination": { "name": "Chlorine production" },
-      "pump": { "name": "Pump" }
+      "pump": { "name": "Pump" },
+      "pump_auto": { "name": "Pump auto mode" },
+      "schedule_slot": { "name": "Schedule {index}" }
     },
     "select": {
       "self_clean": {

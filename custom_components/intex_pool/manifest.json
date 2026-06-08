@@ -11,5 +11,5 @@
   "issue_tracker": "https://github.com/Hovborg/intex-pool/issues",
   "loggers": ["tinytuya"],
   "requirements": ["tinytuya==1.18.1"],
-  "version": "0.6.0"
+  "version": "0.7.0"
 }

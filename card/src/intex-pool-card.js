@@ -216,7 +216,8 @@ class IntexPoolCard extends LitElement {
   _statusPill(c) {
     const alarm = this._st(c.salt_alarm);
     const maint = this._st(c.maintenance);
-    if (alarm && !["normal", "unknown", "unavailable"].includes(alarm.state))
+    // e93 = standby, not a real fault — don't show it as an alarm.
+    if (alarm && !["normal", "unknown", "unavailable", "e93"].includes(alarm.state))
       return html`<span class="status alarm">${this._fmt(alarm)}</span>`;
     if (maint && maint.state === "red") return html`<span class="status warn">Service</span>`;
     const st = this._st(c.salt_status);
@@ -239,8 +240,8 @@ class IntexPoolCard extends LitElement {
 
     const ctrls = [
       this._ctrl(c.power_switch, "mdi:power", "Power"),
-      this._ctrl(c.chlorination_switch, "mdi:flash", "Klor"),
-      this._ctrl(c.pump_switch, "mdi:water-pump", "Pumpe"),
+      this._ctrl(c.chlorination_switch, "mdi:flash", "Chlorine"),
+      this._ctrl(c.pump_switch, "mdi:water-pump", "Pump"),
     ].filter((x) => x !== nothing);
 
     const hasBattery = this._has(c.battery);
@@ -255,7 +256,7 @@ class IntexPoolCard extends LitElement {
           ${this._statusPill(c)}
         </div>
         ${empty
-          ? html`<div class="empty">Ingen pool-enheder. Rediger kortet for at vælge entiteter.</div>`
+          ? html`<div class="empty">No pool devices. Edit the card to select entities.</div>`
           : html`
             ${tiles.length ? html`<div class="metrics">${tiles}</div>` : nothing}
             ${ctrls.length || hasBattery || hasRefresh
@@ -263,11 +264,11 @@ class IntexPoolCard extends LitElement {
                   ${ctrls}
                   <span class="spacer"></span>
                   ${hasBattery
-                    ? html`<button class="mini" @click=${() => this._moreInfo(c.battery)} title="Batteri">
+                    ? html`<button class="mini" @click=${() => this._moreInfo(c.battery)} title="Battery">
                         <ha-icon icon="mdi:battery"></ha-icon>${this._num(c.battery) ?? "?"}%</button>`
                     : nothing}
                   ${hasRefresh
-                    ? html`<button class="mini" @click=${() => this._press(c.refresh_button)} title="Opdatér måling">
+                    ? html`<button class="mini" @click=${() => this._press(c.refresh_button)} title="Refresh measurement">
                         <ha-icon icon="mdi:refresh"></ha-icon></button>`
                     : nothing}
                 </div>`

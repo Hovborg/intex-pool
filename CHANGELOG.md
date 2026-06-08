@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-06-09
+
+### Added
+- **Pump auto mode** switch: when on, a linked (any-brand) pump runs only while the saltwater
+  system is on.
+- **Per-slot schedule switches** (`Schedule 1`…`Schedule 7`): turn each schedule on/off; turning
+  one off remembers it so it can be turned back on.
+
+### Fixed
+- Editing a schedule now reflects in HA right away (the Tuya cloud needs a few seconds to apply
+  a write; the read-back was happening too soon).
+- `E93` is shown as **Standby**, not an alarm, on the card and in the alarm sensor.
+- The dashboard card is now fully English.
+
 ## [0.6.0] - 2026-06-09
 
 ### Added

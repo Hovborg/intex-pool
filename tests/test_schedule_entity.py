@@ -59,17 +59,34 @@ async def test_schedule_write_round_trips(hass):
     assert (decoded[4]["hour"], decoded[4]["minute"], decoded[4]["duration"]) == (23, 30, 4)
 
 
-async def test_schedule_slot_sensors(hass):
-    from custom_components.intex_pool.sensor import IntexScheduleSlotSensor
+async def test_schedule_slot_switches(hass):
+    from custom_components.intex_pool.switch import IntexScheduleSlotSwitch
     coord, _ = _coord(hass, REAL)
     await coord.async_refresh()
-    slot1 = IntexScheduleSlotSensor(coord, "saltid", 1)   # active (Daily 03:00)
-    assert "Daily 03:00" in slot1.native_value
-    assert slot1.extra_state_attributes["active"] is True
+    slot1 = IntexScheduleSlotSwitch(coord, "saltid", 1)   # active (Daily 03:00)
+    assert slot1.is_on is True
+    assert "Daily 03:00" in slot1.extra_state_attributes["summary"]
     assert slot1.unique_id == "saltid_schedule_2"
-    empty = IntexScheduleSlotSensor(coord, "saltid", 6)   # empty slot
-    assert empty.native_value == "—"
-    assert empty.extra_state_attributes["active"] is False
+    empty = IntexScheduleSlotSwitch(coord, "saltid", 6)   # empty slot
+    assert empty.is_on is False
+    assert empty.extra_state_attributes["summary"] is None
+
+
+async def test_schedule_slot_toggle_off_remembers_and_clears(hass):
+    from custom_components.intex_pool import schedule
+    from custom_components.intex_pool.switch import IntexScheduleSlotSwitch
+    coord, _ = _coord(hass, REAL)
+    await coord.async_refresh()
+    sw = IntexScheduleSlotSwitch(coord, "saltid", 1)
+    # exercise the write logic directly (avoids the propagation sleep in turn_off)
+    slots = coord.data["slots"]
+    sw._remembered = {f: int(slots[1].get(f, 0)) for f in schedule.FIELDS}
+    new = schedule.set_slot(slots, 1, clear=True)
+    assert new[1]["active"] is False
+    # and restoring from remembered brings it back
+    r = sw._remembered
+    restored = schedule.set_slot(new, 1, on=bool(r["on"]), hour=r["hour"], duration=r["duration"], days=r["days"])
+    assert restored[1]["hour"] == 3 and restored[1]["active"] is True
 
 
 async def test_schedule_write_identical_is_noop_blob(hass):
