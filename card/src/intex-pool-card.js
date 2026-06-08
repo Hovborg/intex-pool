@@ -10,7 +10,37 @@
  */
 import { LitElement, html, css, nothing } from "lit";
 
-const CARD_VERSION = "0.2.0";
+const CARD_VERSION = "0.3.0";
+
+// Selectable appearance variants. "auto" inherits the HA theme; the others
+// override the CSS variables on the card so you can pick a look regardless of
+// your HA theme. Gradient backgrounds go through --ha-card-background.
+const VARIANTS = {
+  light: {
+    "--primary-color": "#0aa2e0", "--primary-text-color": "#16202a", "--secondary-text-color": "#5b6b78",
+    "--card-background-color": "#ffffff", "--ha-card-background": "#ffffff", "--secondary-background-color": "#eef3f7",
+    "--divider-color": "#e1e8ee", "--success-color": "#2bb673", "--warning-color": "#f5a623",
+    "--error-color": "#e0533d", "--text-primary-color": "#ffffff",
+  },
+  dark: {
+    "--primary-color": "#23b5f0", "--primary-text-color": "#e9eef2", "--secondary-text-color": "#9aa7b2",
+    "--card-background-color": "#1b2228", "--ha-card-background": "#1b2228", "--secondary-background-color": "#252e36",
+    "--divider-color": "#333d46", "--success-color": "#37c98a", "--warning-color": "#f5b342",
+    "--error-color": "#ec6a55", "--text-primary-color": "#06222f",
+  },
+  ocean: {
+    "--primary-color": "#2bd4c7", "--primary-text-color": "#e7f3f8", "--secondary-text-color": "#8fb3c2",
+    "--card-background-color": "#0e2230", "--ha-card-background": "linear-gradient(155deg, #0c3145, #071620)",
+    "--secondary-background-color": "rgba(255,255,255,.07)", "--divider-color": "rgba(255,255,255,.10)",
+    "--success-color": "#34e0b0", "--warning-color": "#ffc24b", "--error-color": "#ff7a66", "--text-primary-color": "#04202a",
+  },
+  midnight: {
+    "--primary-color": "#7aa2ff", "--primary-text-color": "#e4e9f2", "--secondary-text-color": "#8b93a7",
+    "--card-background-color": "#11151c", "--ha-card-background": "linear-gradient(160deg, #161b26, #0a0d13)",
+    "--secondary-background-color": "#1c2230", "--divider-color": "#2a3140",
+    "--success-color": "#56d99a", "--warning-color": "#f3b94f", "--error-color": "#f0736a", "--text-primary-color": "#0a0d13",
+  },
+};
 
 const ROLE_MAP = {
   sensor: {
@@ -69,6 +99,13 @@ class IntexPoolCard extends LitElement {
     return {
       schema: [
         { name: "title", selector: { text: {} } },
+        { name: "variant", selector: { select: { mode: "dropdown", options: [
+          { value: "auto", label: "Auto (follow Home Assistant theme)" },
+          { value: "light", label: "Light" },
+          { value: "dark", label: "Dark" },
+          { value: "ocean", label: "Ocean (dark teal)" },
+          { value: "midnight", label: "Midnight (deep dark)" },
+        ] } } },
         { type: "expandable", title: "Water chemistry", schema: [
           { name: "ph_sensor", ...ent("sensor") }, { name: "orp_sensor", ...ent("sensor") },
           { name: "fc_sensor", ...ent("sensor") }, { name: "sensor_temp", ...ent("sensor") },
@@ -105,6 +142,12 @@ class IntexPoolCard extends LitElement {
   }
   getGridOptions() {
     return { rows: 3, columns: 12, min_columns: 6 };
+  }
+
+  _paletteStyle() {
+    const palette = VARIANTS[this._config?.variant];
+    if (!palette) return "";  // "auto" / unset -> inherit HA theme
+    return Object.entries(palette).map(([k, v]) => `${k}:${v}`).join(";");
   }
 
   _roles() {
@@ -203,7 +246,7 @@ class IntexPoolCard extends LitElement {
     const empty = tiles.length === 0 && ctrls.length === 0;
 
     return html`
-      <ha-card>
+      <ha-card style=${this._paletteStyle()}>
         <div class="head">
           <ha-icon class="logo" icon="mdi:pool"></ha-icon>
           <span class="title">${this._config.title ?? "Pool"}</span>

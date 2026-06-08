@@ -58,6 +58,21 @@ It shows only the sections for the equipment you own — chemistry-only, full, o
 The card is served **by the integration itself** — no separate HACS plugin to install. Add it
 from the card picker as **“Intex Pool”** and it auto-detects your entities.
 
+## 🎨 Choose your look
+
+A **`variant`** option lets you pick the style right in the card editor — `auto` (follows your
+Home Assistant theme), `light`, `dark`, and two designed dark looks: **ocean** (teal gradient)
+and **midnight** (deep indigo):
+
+<div align="center">
+<img src="docs/images/card-styles.png" width="860" alt="Dark style variants: dark, ocean, midnight" />
+</div>
+
+```yaml
+type: custom:intex-pool-card
+variant: ocean   # auto | light | dark | ocean | midnight
+```
+
 ## 🚀 Installation
 
 [![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Hovborg&repository=intex-pool&category=integration)
