@@ -193,7 +193,11 @@
     },
     "number": {
       "ph_target": { "name": "pH target" },
-      "orp_target": { "name": "ORP target" }
+      "orp_target": { "name": "ORP target" },
+      "schedule_duration": { "name": "Schedule {index} duration" }
+    },
+    "time": {
+      "schedule_start": { "name": "Schedule {index} start" }
     },
     "button": {
       "refresh": { "name": "Refresh measurement" }

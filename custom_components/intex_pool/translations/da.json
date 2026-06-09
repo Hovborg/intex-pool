@@ -193,7 +193,11 @@
     },
     "number": {
       "ph_target": { "name": "pH-mål" },
-      "orp_target": { "name": "ORP-mål" }
+      "orp_target": { "name": "ORP-mål" },
+      "schedule_duration": { "name": "Tidsplan {index} varighed" }
+    },
+    "time": {
+      "schedule_start": { "name": "Tidsplan {index} start" }
     },
     "button": {
       "refresh": { "name": "Opdater måling" }

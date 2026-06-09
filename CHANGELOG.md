@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-06-09
+
+### Added
+- **Edit schedules under the device:** each slot now has an editable **Start time** and
+  **Duration** entity (in Configuration), alongside the on/off toggle — full per-schedule
+  editing without the action.
+- **Change the linked pump after setup:** the integration's **Configure** (options) now lets
+  you pick the pump switch (and optional power/energy sensors) for an entity-linked pump.
+
 ## [0.7.0] - 2026-06-09
 
 ### Added

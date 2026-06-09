@@ -402,24 +402,50 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class IntexPoolOptionsFlow(OptionsFlowWithReload):
-    """Adjust polling intervals (auto-reloads the entry on save)."""
+    """Adjust polling intervals + the linked pump (auto-reloads on save)."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        entry = self.config_entry
+        pump = entry.data.get(DEVICE_PUMP) or {}
+        is_entity_pump = pump.get(CONF_PUMP_MODE) == PUMP_MODE_ENTITY
+
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_LOCAL_INTERVAL, default=DEFAULT_LOCAL_INTERVAL): vol.All(
-                    vol.Coerce(int), vol.Range(min=5, max=600)
-                ),
-                vol.Required(CONF_CLOUD_INTERVAL, default=DEFAULT_CLOUD_INTERVAL): vol.All(
-                    vol.Coerce(int), vol.Range(min=30, max=3600)
-                ),
-            }
-        )
+            if is_entity_pump:
+                new_pump = {CONF_PUMP_MODE: PUMP_MODE_ENTITY, CONF_PUMP_SWITCH: user_input[CONF_PUMP_SWITCH]}
+                for key in (CONF_PUMP_POWER, CONF_PUMP_ENERGY):
+                    if user_input.get(key):
+                        new_pump[key] = user_input[key]
+                self.hass.config_entries.async_update_entry(
+                    entry, data={**entry.data, DEVICE_PUMP: new_pump}
+                )
+            return self.async_create_entry(
+                data={
+                    CONF_LOCAL_INTERVAL: user_input[CONF_LOCAL_INTERVAL],
+                    CONF_CLOUD_INTERVAL: user_input[CONF_CLOUD_INTERVAL],
+                }
+            )
+
+        fields: dict = {
+            vol.Required(CONF_LOCAL_INTERVAL, default=DEFAULT_LOCAL_INTERVAL): vol.All(
+                vol.Coerce(int), vol.Range(min=5, max=600)
+            ),
+            vol.Required(CONF_CLOUD_INTERVAL, default=DEFAULT_CLOUD_INTERVAL): vol.All(
+                vol.Coerce(int), vol.Range(min=30, max=3600)
+            ),
+        }
+        if is_entity_pump:
+            sw = selector.EntitySelector(selector.EntitySelectorConfig(domain="switch"))
+            sen = selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor"))
+            fields[vol.Required(CONF_PUMP_SWITCH, default=pump.get(CONF_PUMP_SWITCH))] = sw
+            power_key = (vol.Optional(CONF_PUMP_POWER, default=pump[CONF_PUMP_POWER])
+                         if pump.get(CONF_PUMP_POWER) else vol.Optional(CONF_PUMP_POWER))
+            energy_key = (vol.Optional(CONF_PUMP_ENERGY, default=pump[CONF_PUMP_ENERGY])
+                          if pump.get(CONF_PUMP_ENERGY) else vol.Optional(CONF_PUMP_ENERGY))
+            fields[power_key] = sen
+            fields[energy_key] = sen
         return self.async_show_form(
             step_id="init",
-            data_schema=self.add_suggested_values_to_schema(schema, self.config_entry.options),
+            data_schema=self.add_suggested_values_to_schema(vol.Schema(fields), entry.options),
         )
