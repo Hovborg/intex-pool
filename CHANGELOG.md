@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-06-09
+
+### Added
+- **Reporting cadence** select on the water sensor (`report_number`) — choose whether the analyzer
+  reports ORP / pH / free-chlorine by week or by month.
+- **Temperature unit** select on the water sensor (°C / °F). Note: the sensor-side polarity reuses
+  the verified saltwater-system polarity and should be live-verified — it may be inverted.
+- **Re-test now** button on the saltwater system (`retest_switch`, DP 107) — forces a fresh
+  salt/temperature measurement, mirroring the sensor's existing Refresh button.
+
+### Fixed
+- Cloud-side selects (water sensor) now write via the cloud property path instead of the local-only
+  path, so the new sensor selects actually apply. (Internal: the select/button write path is now
+  device-aware — local devices write over the LAN, cloud devices issue a property.)
+
 ## [0.10.2] - 2026-06-09
 
 ### Fixed

@@ -88,9 +88,14 @@ class IntexSelect(IntexPoolEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         if option not in self._reverse:
             raise HomeAssistantError(f"Unknown option {option!r} for {self.entity_id}")
+        # Device-aware write: local coordinators (salt) write the DP over the LAN
+        # (async_set_dp); cloud coordinators (sensor) issue a property (async_issue).
+        source = self.entity_description.source
+        raw = self._reverse[option]
         try:
-            await self.coordinator.async_set_dp(
-                self.entity_description.source, self._reverse[option]
-            )
+            if hasattr(self.coordinator, "async_set_dp"):
+                await self.coordinator.async_set_dp(source, raw)
+            else:
+                await self.coordinator.async_issue(source, raw)
         except Exception as err:  # noqa: BLE001
             raise HomeAssistantError(f"Failed to set {self.entity_id}: {err}") from err

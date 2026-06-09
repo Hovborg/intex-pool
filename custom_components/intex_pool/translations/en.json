@@ -213,6 +213,17 @@
         "name": "Temperature unit",
         "state": { "c": "°C", "f": "°F" }
       },
+      "report_cadence": {
+        "name": "Reporting cadence",
+        "state": {
+          "orp_weekly": "ORP — weekly",
+          "orp_monthly": "ORP — monthly",
+          "ph_weekly": "pH — weekly",
+          "ph_monthly": "pH — monthly",
+          "fc_weekly": "Chlorine — weekly",
+          "fc_monthly": "Chlorine — monthly"
+        }
+      },
       "pump_switch_select": { "name": "Pump switch" }
     },
     "number": {
@@ -225,7 +236,8 @@
       "schedule_start": { "name": "Schedule {index} start" }
     },
     "button": {
-      "refresh": { "name": "Refresh measurement" }
+      "refresh": { "name": "Refresh measurement" },
+      "retest": { "name": "Re-test now" }
     }
   },
   "services": {

@@ -145,3 +145,43 @@ async def test_button_refresh(hass):
     btn = IntexButton(coord, _d(const.BUTTONS, "refresh"), "sid")
     await btn.async_press()
     assert client.issued[-1] == ("refresh_switch", True)
+
+
+async def test_select_report_cadence(hass):
+    coord, client = await _sensor(hass, {"report_number": "PH_byweek"})
+    sel = IntexSelect(coord, _d(const.SELECTS, "report_cadence"), "sid")
+    # value_map decodes the raw thing-model enum to a friendly token
+    assert sel.current_option == "ph_weekly"
+    assert set(sel.options) == {
+        "orp_weekly", "orp_monthly", "ph_weekly", "ph_monthly", "fc_weekly", "fc_monthly",
+    }
+    # round-trip: selecting a token writes the raw enum back via the cloud issue path
+    await sel.async_select_option("fc_monthly")
+    assert client.issued[0] == ("report_number", "FC_bymonth")
+
+
+async def test_select_sensor_temp_unit_sets_bool(hass):
+    # Reuses the salt temp_unit polarity (True == °C, False == °F).
+    coord, client = await _sensor(hass, {"fc_unit_change_switch": True})
+    sel = IntexSelect(coord, _d(const.SELECTS, "sensor_temp_unit"), "sid")
+    assert sel.current_option == "c"
+    assert set(sel.options) == {"c", "f"}
+    await sel.async_select_option("f")
+    assert client.issued[0] == ("fc_unit_change_switch", False)
+
+
+async def test_button_retest_uses_local_write(hass):
+    # The salt "re-test" button must use the LOCAL coordinator write path
+    # (async_set_dp -> set_value), not the cloud async_issue.
+    coord, client = await _salt(hass, {"104": True})
+    btn = IntexButton(coord, _d(const.BUTTONS, "retest"), "saltid")
+    await btn.async_press()
+    assert client.calls[-1] == ("107", True)
+
+
+async def test_button_refresh_still_uses_cloud_write(hass):
+    # The existing sensor refresh button must keep using the cloud issue path.
+    coord, client = await _sensor(hass, {"PH_Number": 740})
+    btn = IntexButton(coord, _d(const.BUTTONS, "refresh"), "sid")
+    await btn.async_press()
+    assert client.issued[-1] == ("refresh_switch", True)

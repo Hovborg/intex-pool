@@ -283,6 +283,28 @@ SELECTS: tuple[IntexSelectDescription, ...] = (
         value_map={True: "c", False: "f"}, icon="mdi:thermometer",
         entity_category=EntityCategory.CONFIG,
     ),
+    # Water sensor (cloud properties, written via SensorCoordinator.async_issue)
+    IntexSelectDescription(
+        key="report_cadence", translation_key="report_cadence", device=DEVICE_SENSOR,
+        source="report_number",
+        # Thing-model enum (rw): {ORP,PH,FC}_{byweek,bymonth}.
+        value_map={
+            "ORP_byweek": "orp_weekly", "ORP_bymonth": "orp_monthly",
+            "PH_byweek": "ph_weekly", "PH_bymonth": "ph_monthly",
+            "FC_byweek": "fc_weekly", "FC_bymonth": "fc_monthly",
+        },
+        icon="mdi:calendar-clock", entity_category=EntityCategory.CONFIG,
+    ),
+    IntexSelectDescription(
+        key="sensor_temp_unit", translation_key="temp_unit", device=DEVICE_SENSOR,
+        source="fc_unit_change_switch",
+        # Reuses the salt temp_unit polarity (True == °C, False == °F), which is
+        # verified on the salt hardware. The thing-model doc lists 0=°C/1=°F for
+        # this sensor property, so the sensor-side polarity could be inverted vs
+        # salt — live-verify against the real sensor before trusting it.
+        value_map={True: "c", False: "f"}, icon="mdi:thermometer",
+        entity_category=EntityCategory.CONFIG,
+    ),
 )
 
 # --------------------------------------------------------------------------
@@ -309,5 +331,12 @@ BUTTONS: tuple[IntexButtonDescription, ...] = (
     IntexButtonDescription(
         key="refresh", translation_key="refresh", device=DEVICE_SENSOR, source="refresh_switch",
         icon="mdi:refresh",
+    ),
+    # Salt "re-test now": code `retest_switch` is local DP 107 (bool, wr) — forces
+    # a fresh salt/temp measurement. Salt is a LOCAL device so the source is the
+    # numeric DP (set_value addresses DPs by number), not the code name.
+    IntexButtonDescription(
+        key="retest", translation_key="retest", device=DEVICE_SALT, source="107",
+        icon="mdi:reload-alert",
     ),
 )

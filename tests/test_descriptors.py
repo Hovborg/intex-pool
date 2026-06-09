@@ -56,6 +56,38 @@ def test_error_options_consistent_with_decode():
     assert err.value_fn(190) == "e90"
 
 
+def test_report_cadence_value_map_matches_thing_model():
+    rc = next(d for d in const.SELECTS if d.key == "report_cadence")
+    assert rc.device == const.DEVICE_SENSOR
+    assert rc.source == "report_number"
+    assert rc.value_map == {
+        "ORP_byweek": "orp_weekly",
+        "ORP_bymonth": "orp_monthly",
+        "PH_byweek": "ph_weekly",
+        "PH_bymonth": "ph_monthly",
+        "FC_byweek": "fc_weekly",
+        "FC_bymonth": "fc_monthly",
+    }
+
+
+def test_sensor_temp_unit_reuses_salt_polarity():
+    salt = next(d for d in const.SELECTS if d.key == "temp_unit")
+    sensor = next(d for d in const.SELECTS if d.key == "sensor_temp_unit")
+    assert sensor.device == const.DEVICE_SENSOR
+    assert sensor.source == "fc_unit_change_switch"
+    assert sensor.translation_key == "temp_unit"
+    # Same polarity tokens as the verified salt select.
+    assert sensor.value_map == salt.value_map == {True: "c", False: "f"}
+
+
+def test_retest_button_is_salt_local_dp():
+    rt = next(d for d in const.BUTTONS if d.key == "retest")
+    assert rt.device == const.DEVICE_SALT
+    # retest_switch is DP 107 (local); salt writes address DPs numerically.
+    assert rt.source == "107"
+    assert rt.translation_key == "retest"
+
+
 def test_every_descriptor_has_known_device():
     known = {const.DEVICE_SALT, const.DEVICE_SENSOR, const.DEVICE_PUMP}
     for table in (const.SENSORS, const.BINARY_SENSORS, const.SWITCHES,

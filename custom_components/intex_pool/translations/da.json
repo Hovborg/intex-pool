@@ -213,6 +213,17 @@
         "name": "Temperatur-enhed",
         "state": { "c": "°C", "f": "°F" }
       },
+      "report_cadence": {
+        "name": "Rapporteringsinterval",
+        "state": {
+          "orp_weekly": "ORP — ugentligt",
+          "orp_monthly": "ORP — månedligt",
+          "ph_weekly": "pH — ugentligt",
+          "ph_monthly": "pH — månedligt",
+          "fc_weekly": "Klor — ugentligt",
+          "fc_monthly": "Klor — månedligt"
+        }
+      },
       "pump_switch_select": { "name": "Pumpe-kontakt" }
     },
     "number": {
@@ -225,7 +236,8 @@
       "schedule_start": { "name": "Tidsplan {index} start" }
     },
     "button": {
-      "refresh": { "name": "Opdater måling" }
+      "refresh": { "name": "Opdater måling" },
+      "retest": { "name": "Test igen nu" }
     }
   },
   "services": {
