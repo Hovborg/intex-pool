@@ -83,6 +83,15 @@
           "pump_local_key": "Pump local key",
           "access_secret": "Cloud access secret"
         }
+      },
+      "reconfigure_user": {
+        "title": "Reconfigure Intex Pool",
+        "description": "Re-enter your Tuya cloud credentials to re-detect your devices — useful after replacing a device (it gets a new id).",
+        "data": {
+          "region": "Region",
+          "access_id": "Access ID",
+          "access_secret": "Access secret"
+        }
       }
     },
     "error": {
@@ -94,7 +103,8 @@
     },
     "abort": {
       "already_configured": "This device is already configured.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "reconfigure_successful": "Re-configuration was successful."
     }
   },
   "options": {

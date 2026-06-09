@@ -83,6 +83,15 @@
           "pump_local_key": "Pumpe local key",
           "access_secret": "Cloud access secret"
         }
+      },
+      "reconfigure_user": {
+        "title": "Gen-konfigurer Intex Pool",
+        "description": "Indtast dine Tuya cloud-oplysninger igen for at gen-finde dine enheder — nyttigt efter du har skiftet en enhed (den får et nyt id).",
+        "data": {
+          "region": "Region",
+          "access_id": "Access ID",
+          "access_secret": "Access secret"
+        }
       }
     },
     "error": {
@@ -94,7 +103,8 @@
     },
     "abort": {
       "already_configured": "Denne enhed er allerede konfigureret.",
-      "reauth_successful": "Gen-godkendelse lykkedes."
+      "reauth_successful": "Gen-godkendelse lykkedes.",
+      "reconfigure_successful": "Gen-konfiguration lykkedes."
     }
   },
   "options": {

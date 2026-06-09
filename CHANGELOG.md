@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.1] - 2026-06-09
+
+### Added
+- **Reconfigure flow.** Integration entry → **⋮ → Reconfigure** re-runs cloud discovery (reusing
+  your stored credentials) so you can repoint to a **replaced device** that got a new Tuya id —
+  without removing the integration. The current devices are pre-selected; unchanged devices keep
+  their stored IP/key (no rescan needed), so a swap keeps all your entity ids and history.
+
 ## [0.10.0] - 2026-06-09
 
 ### Added

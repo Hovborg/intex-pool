@@ -1,6 +1,6 @@
 [project]
 name = "intex-pool-ha"
-version = "0.10.0"
+version = "0.10.1"
 description = "Home Assistant integration for Intex / AGP (Tuya-based) pool equipment"
 requires-python = ">=3.13"
 

@@ -212,6 +212,61 @@ async def test_reauth_salt_and_pump_tuya_use_separate_keys(hass, monkeypatch):
     assert entry.data["pump"]["local_key"] == "NEWPUMP"  # pump key updated independently
 
 
+async def test_reconfigure_repoints_sensor(hass, mock_tinytuya, monkeypatch):
+    """Reconfigure re-runs discovery (reusing stored creds) and repoints the
+    sensor to a replaced device — same entry, no removal."""
+    entry = MockConfigEntry(domain=DOMAIN, data={"sensor": SENSOR_INPUT}, unique_id="sdev", version=2)
+    entry.add_to_hass(hass)
+
+    async def fake_discover(hass_, creds):
+        # stored creds are reused; the new analyzer shows up in discovery
+        assert creds["access_id"] == "a"
+        return ([{"id": "newsensor", "name": "New Sensor", "key": "k", "category": "rs"}], {})
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    r = await entry.start_reconfigure_flow(hass)
+    assert r["step_id"] == "discover"
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"sensor": "newsensor"})
+    assert r["type"] == FlowResultType.ABORT
+    assert r["reason"] == "reconfigure_successful"
+    assert entry.data["sensor"]["device_id"] == "newsensor"  # repointed
+    assert entry.data["sensor"]["access_id"] == "a"  # creds preserved
+
+
+async def test_reconfigure_unchanged_salt_not_rescanned(hass, mock_tinytuya, monkeypatch):
+    """An unchanged salt id keeps its stored host/key even with an empty LAN scan."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"salt": SALT_INPUT, "sensor": SENSOR_INPUT},
+        unique_id="saltdev", version=2,
+    )
+    entry.add_to_hass(hass)
+
+    async def fake_discover(hass_, creds):
+        devices = [
+            {"id": "saltdev", "name": "AGP Salt", "key": "ignored", "category": "rs"},
+            {"id": "newsensor", "name": "New Sensor", "key": "k", "category": "rs"},
+        ]
+        return (devices, {})  # empty scan map -> salt MUST be reused, not rescanned
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    r = await entry.start_reconfigure_flow(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"saltwater": "saltdev", "sensor": "newsensor"}
+    )
+    assert r["type"] == FlowResultType.ABORT
+    assert r["reason"] == "reconfigure_successful"
+    assert entry.data["salt"] == SALT_INPUT  # unchanged, kept verbatim (no rescan)
+    assert entry.data["sensor"]["device_id"] == "newsensor"
+
+
+async def test_reconfigure_without_stored_creds_prompts(hass):
+    """A local-only entry (no stored cloud creds) asks for creds first."""
+    entry = MockConfigEntry(domain=DOMAIN, data={"salt": SALT_INPUT}, unique_id="saltdev", version=2)
+    entry.add_to_hass(hass)
+    r = await entry.start_reconfigure_flow(hass)
+    assert r["step_id"] == "reconfigure_user"
+
+
 async def test_options_flow(hass, mock_tinytuya):
     entry = MockConfigEntry(domain=DOMAIN, data={"has_sensor": True, "sensor": SENSOR_INPUT}, unique_id="sdev")
     entry.add_to_hass(hass)

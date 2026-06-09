@@ -94,6 +94,20 @@ STEP_SENSOR = vol.Schema(
     }
 )
 
+# Cloud credentials only (no device id) — used by the reconfigure flow when the
+# stored creds are missing or no longer valid.
+STEP_SENSOR_CREDS = vol.Schema(
+    {
+        vol.Required(CONF_REGION, default=DEFAULT_REGION): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=_REGION_OPTIONS)
+        ),
+        vol.Required(CONF_ACCESS_ID): str,
+        vol.Required(CONF_ACCESS_SECRET): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+        ),
+    }
+)
+
 
 def _local_schema(include_on_dp: bool = False) -> vol.Schema:
     schema = {
@@ -186,6 +200,7 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         self._creds: dict[str, str] = {}
         self._devices: list[dict] = []
         self._scan: dict = {}
+        self._reconfigure_entry = None
 
     # ---- entry point ----
     async def async_step_user(
@@ -263,6 +278,48 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="reauth_confirm", data_schema=vol.Schema(fields), errors=errors
         )
 
+    # ---- reconfigure (e.g. a device was replaced and got a new id) ----
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        self._reconfigure_entry = self._get_reconfigure_entry()
+        # Re-run discovery with the stored cloud creds so the user can re-pick
+        # devices (unchanged devices keep their existing IP/key, no scan needed).
+        sensor = self._reconfigure_entry.data.get(DEVICE_SENSOR) or {}
+        creds = {
+            k: sensor[k]
+            for k in (CONF_REGION, CONF_ACCESS_ID, CONF_ACCESS_SECRET)
+            if sensor.get(k)
+        }
+        if len(creds) == 3:
+            self._creds = creds
+            try:
+                self._devices, self._scan = await discover(self.hass, self._creds)
+            except Exception:  # noqa: BLE001
+                return await self.async_step_reconfigure_user()
+            return await self.async_step_discover()
+        return await self.async_step_reconfigure_user()
+
+    async def async_step_reconfigure_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            self._creds = {
+                CONF_REGION: user_input[CONF_REGION],
+                CONF_ACCESS_ID: user_input[CONF_ACCESS_ID],
+                CONF_ACCESS_SECRET: user_input[CONF_ACCESS_SECRET],
+            }
+            try:
+                self._devices, self._scan = await discover(self.hass, self._creds)
+            except Exception:  # noqa: BLE001
+                errors["base"] = "cannot_connect"
+            else:
+                return await self.async_step_discover()
+        return self.async_show_form(
+            step_id="reconfigure_user", data_schema=STEP_SENSOR_CREDS, errors=errors
+        )
+
     # ---- cloud auto-discovery ----
     async def async_step_discover(
         self, user_input: dict[str, Any] | None = None
@@ -274,26 +331,34 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             if (sid := user_input.get("sensor")):
                 data[DEVICE_SENSOR] = {**self._creds, CONF_DEVICE_ID: sid}
             if (stid := user_input.get("saltwater")):
-                ip, ver = self._scan.get(stid, (None, None))
-                if not ip:
-                    errors["base"] = "device_offline"
+                kept = self._unchanged_local(DEVICE_SALT, stid)
+                if kept is not None:
+                    data[DEVICE_SALT] = kept
                 else:
-                    data[DEVICE_SALT] = {
-                        CONF_DEVICE_ID: stid, CONF_LOCAL_KEY: by_id[stid]["key"],
-                        CONF_HOST: ip, CONF_VERSION: ver,
-                    }
+                    ip, ver = self._scan.get(stid, (None, None))
+                    if not ip:
+                        errors["base"] = "device_offline"
+                    else:
+                        data[DEVICE_SALT] = {
+                            CONF_DEVICE_ID: stid, CONF_LOCAL_KEY: by_id[stid]["key"],
+                            CONF_HOST: ip, CONF_VERSION: ver,
+                        }
             ptid = user_input.get("pump_tuya")
             psw = user_input.get(CONF_PUMP_SWITCH)
             if ptid and not errors:
-                ip, ver = self._scan.get(ptid, (None, None))
-                if not ip:
-                    errors["base"] = "device_offline"
+                kept = self._unchanged_local(DEVICE_PUMP, ptid)
+                if kept is not None:
+                    data[DEVICE_PUMP] = kept
                 else:
-                    data[DEVICE_PUMP] = {
-                        CONF_PUMP_MODE: PUMP_MODE_TUYA, CONF_DEVICE_ID: ptid,
-                        CONF_LOCAL_KEY: by_id[ptid]["key"], CONF_HOST: ip, CONF_VERSION: ver,
-                        CONF_PUMP_ON_DP: DEFAULT_PUMP_ON_DP,
-                    }
+                    ip, ver = self._scan.get(ptid, (None, None))
+                    if not ip:
+                        errors["base"] = "device_offline"
+                    else:
+                        data[DEVICE_PUMP] = {
+                            CONF_PUMP_MODE: PUMP_MODE_TUYA, CONF_DEVICE_ID: ptid,
+                            CONF_LOCAL_KEY: by_id[ptid]["key"], CONF_HOST: ip, CONF_VERSION: ver,
+                            CONF_PUMP_ON_DP: DEFAULT_PUMP_ON_DP,
+                        }
             elif psw:
                 pump = {CONF_PUMP_MODE: PUMP_MODE_ENTITY, CONF_PUMP_SWITCH: psw}
                 if user_input.get(CONF_PUMP_POWER):
@@ -329,7 +394,40 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 ),
             }
         )
+        if self._reconfigure_entry is not None:
+            schema = self.add_suggested_values_to_schema(
+                schema, self._reconfigure_suggested()
+            )
         return self.async_show_form(step_id="discover", data_schema=schema, errors=errors)
+
+    def _unchanged_local(self, device: str, dev_id: str) -> dict[str, Any] | None:
+        """Reuse a local device's stored IP/key when reconfiguring and its id is
+        unchanged — so an unchanged device needs no fresh LAN scan."""
+        if self._reconfigure_entry is None:
+            return None
+        cur = self._reconfigure_entry.data.get(device) or {}
+        if device == DEVICE_PUMP and cur.get(CONF_PUMP_MODE) != PUMP_MODE_TUYA:
+            return None
+        return cur if cur.get(CONF_DEVICE_ID) == dev_id else None
+
+    def _reconfigure_suggested(self) -> dict[str, Any]:
+        """Pre-fill the discover form with the entry's current selections."""
+        d = self._reconfigure_entry.data
+        pump = d.get(DEVICE_PUMP) or {}
+        suggested: dict[str, Any] = {}
+        if d.get(DEVICE_SENSOR):
+            suggested["sensor"] = d[DEVICE_SENSOR].get(CONF_DEVICE_ID)
+        if d.get(DEVICE_SALT):
+            suggested["saltwater"] = d[DEVICE_SALT].get(CONF_DEVICE_ID)
+        if pump.get(CONF_PUMP_MODE) == PUMP_MODE_TUYA:
+            suggested["pump_tuya"] = pump.get(CONF_DEVICE_ID)
+        elif pump.get(CONF_PUMP_SWITCH):
+            suggested[CONF_PUMP_SWITCH] = pump.get(CONF_PUMP_SWITCH)
+            if pump.get(CONF_PUMP_POWER):
+                suggested[CONF_PUMP_POWER] = pump[CONF_PUMP_POWER]
+            if pump.get(CONF_PUMP_ENERGY):
+                suggested[CONF_PUMP_ENERGY] = pump[CONF_PUMP_ENERGY]
+        return {k: v for k, v in suggested.items() if v}
 
     # ---- manual fallback ----
     async def async_step_manual(
@@ -355,6 +453,11 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self._async_finish()
 
     async def _async_finish(self) -> ConfigFlowResult:
+        if self._reconfigure_entry is not None:
+            # Reconfigure: update the existing entry + reload (keep entity ids).
+            return self.async_update_reload_and_abort(
+                self._reconfigure_entry, data=self._data
+            )
         await self.async_set_unique_id(self._compute_uid())
         self._abort_if_unique_id_configured()
         return self.async_create_entry(title="Intex Pool", data=self._data)
