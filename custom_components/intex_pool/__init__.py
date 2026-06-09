@@ -15,9 +15,10 @@ import voluptuous as vol
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.loader import async_get_integration
 
 from . import schedule as schedule_mod
 from . import tuya
@@ -71,16 +72,23 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     if not card.is_file():
         _LOGGER.debug("Dashboard card not bundled (%s) — skipping registration", card)
         return True
-    url = f"{URL_BASE}/{CARD_FILENAME}"
+    path = f"{URL_BASE}/{CARD_FILENAME}"
     try:
         await hass.http.async_register_static_paths(
-            [StaticPathConfig(url, str(card), False)]
+            [StaticPathConfig(path, str(card), False)]
         )
     except RuntimeError:
         # Already registered (e.g. integration reloaded) — harmless.
         pass
     # add_extra_js_url needs the frontend component to be set up first.
     if "frontend" in hass.config.components:
+        # Cache-bust with the integration version so a HACS update serves the
+        # new bundle instead of a stale cached one (no hard refresh needed).
+        try:
+            version = (await async_get_integration(hass, DOMAIN)).version
+        except Exception:  # noqa: BLE001
+            version = None
+        url = f"{path}?v={version}" if version else path
         add_extra_js_url(hass, url)
         _LOGGER.debug("Registered Intex Pool card at %s", url)
     return True
@@ -158,9 +166,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) ->
     # Independent devices: refresh each but don't let one flaky device (e.g. a
     # sleeping sensor or a chlorinator momentarily polled by another client)
     # block the whole entry. Each coordinator recovers on its own interval.
-    for coordinator in (data.salt, data.sensor, data.pump, data.schedule):
-        if coordinator is not None:
-            await coordinator.async_refresh()
+    # A bad key surfaces as ConfigEntryAuthFailed from the coordinator, which
+    # auto-starts a reauth flow.
+    coordinators = [
+        c for c in (data.salt, data.sensor, data.pump, data.schedule) if c is not None
+    ]
+    for coordinator in coordinators:
+        await coordinator.async_refresh()
+    # If every configured device failed its first poll, report not-ready so HA
+    # retries setup with backoff (instead of loading with all entities dead).
+    if coordinators and not any(c.last_update_success for c in coordinators):
+        raise ConfigEntryNotReady("No Intex Pool device could be reached")
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _register_services(hass)

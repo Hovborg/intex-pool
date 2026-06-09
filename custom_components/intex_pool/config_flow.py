@@ -58,6 +58,7 @@ from .const import (
 _VERSION_OPTIONS = ["auto", "3.1", "3.3", "3.4", "3.5"]
 _REGION_OPTIONS = ["eu", "us", "cn", "in"]
 CONF_MANUAL = "manual"
+CONF_PUMP_LOCAL_KEY = "pump_local_key"  # reauth: the Tuya pump's own key field
 
 STEP_USER = vol.Schema(
     {
@@ -146,16 +147,14 @@ async def validate_local(hass, ui: dict) -> None:
         ui[CONF_DEVICE_ID], ui[CONF_LOCAL_KEY], ui[CONF_HOST],
         version if version else VERSION_CANDIDATES[0],
     )
-    last_err: Exception | None = None
     for attempt in range(4):
         try:
             await hass.async_add_executor_job(client.status)
             return
-        except Exception as err:  # noqa: BLE001
-            last_err = err
-            if attempt < 3:
-                await asyncio.sleep(2)
-    raise last_err  # type: ignore[misc]
+        except Exception:  # noqa: BLE001
+            if attempt == 3:
+                raise  # re-raise the last failure with its traceback intact
+            await asyncio.sleep(2)
 
 
 async def validate_sensor(hass, ui: dict) -> None:
@@ -211,6 +210,58 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 else:
                     return await self.async_step_discover()
         return self.async_show_form(step_id="user", data_schema=STEP_USER, errors=errors)
+
+    # ---- reauth (e.g. the local_key rotated after re-pairing) ----
+    async def async_step_reauth(
+        self, entry_data: dict[str, Any]
+    ) -> ConfigFlowResult:
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        entry = self._get_reauth_entry()
+        salt = entry.data.get(DEVICE_SALT)
+        sensor = entry.data.get(DEVICE_SENSOR)
+        pump = entry.data.get(DEVICE_PUMP) or {}
+        pump_tuya = pump if pump.get(CONF_PUMP_MODE) == PUMP_MODE_TUYA else None
+        errors: dict[str, str] = {}
+        # Each local device gets its OWN key field (salt and a Tuya pump have
+        # separate keys), so reauth works for any combination of devices.
+        if user_input is not None:
+            new_data = {**entry.data}
+            try:
+                if salt and CONF_LOCAL_KEY in user_input:
+                    cand = {**salt, CONF_LOCAL_KEY: user_input[CONF_LOCAL_KEY]}
+                    await validate_local(self.hass, cand)
+                    new_data[DEVICE_SALT] = cand
+                if pump_tuya and CONF_PUMP_LOCAL_KEY in user_input:
+                    cand = {**pump_tuya, CONF_LOCAL_KEY: user_input[CONF_PUMP_LOCAL_KEY]}
+                    await validate_local(self.hass, cand)
+                    new_data[DEVICE_PUMP] = cand
+                if sensor and CONF_ACCESS_SECRET in user_input:
+                    cand = {**sensor, CONF_ACCESS_SECRET: user_input[CONF_ACCESS_SECRET]}
+                    await validate_sensor(self.hass, cand)
+                    new_data[DEVICE_SENSOR] = cand
+            except tuya.TuyaAuthError:
+                errors["base"] = "invalid_auth"
+            except Exception:  # noqa: BLE001
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_update_reload_and_abort(entry, data=new_data)
+
+        fields: dict = {}
+        if salt:
+            fields[vol.Required(CONF_LOCAL_KEY)] = str
+        if pump_tuya:
+            fields[vol.Required(CONF_PUMP_LOCAL_KEY)] = str
+        if sensor:
+            fields[vol.Required(CONF_ACCESS_SECRET)] = selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+            )
+        return self.async_show_form(
+            step_id="reauth_confirm", data_schema=vol.Schema(fields), errors=errors
+        )
 
     # ---- cloud auto-discovery ----
     async def async_step_discover(
@@ -324,6 +375,8 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 await validate_sensor(self.hass, user_input)
+            except tuya.TuyaAuthError:
+                errors["base"] = "invalid_auth"
             except Exception:  # noqa: BLE001
                 errors["base"] = "cannot_connect"
             else:
@@ -343,6 +396,8 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 await validate_local(self.hass, user_input)
+            except tuya.TuyaAuthError:
+                errors["base"] = "invalid_auth"
             except Exception:  # noqa: BLE001
                 errors["base"] = "cannot_connect"
             else:
@@ -371,6 +426,8 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 await validate_local(self.hass, user_input)
+            except tuya.TuyaAuthError:
+                errors["base"] = "invalid_auth"
             except Exception:  # noqa: BLE001
                 errors["base"] = "cannot_connect"
             else:

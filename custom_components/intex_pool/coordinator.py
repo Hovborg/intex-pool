@@ -13,11 +13,12 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from . import schedule
 from .const import VERSION_CANDIDATES
-from .tuya import CloudClient, LocalClient, TuyaError
+from .tuya import CloudClient, LocalClient, TuyaAuthError, TuyaError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,6 +46,14 @@ class _LocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         try:
             return await self.hass.async_add_executor_job(self._client.status)
+        except TuyaAuthError as err:
+            # Bad key (or version). While auto-detecting the protocol version,
+            # keep cycling versions; once the version is known, a rejected key
+            # means the key rotated -> trigger a reauth flow.
+            if self._auto_version:
+                self._rotate_version()
+                raise UpdateFailed(str(err)) from err
+            raise ConfigEntryAuthFailed(str(err)) from err
         except TuyaError as err:
             self._rotate_version()
             raise UpdateFailed(str(err)) from err
@@ -96,6 +105,8 @@ class SensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return await self.hass.async_add_executor_job(
                 self._client.properties, self._device_id
             )
+        except TuyaAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
         except TuyaError as err:
             raise UpdateFailed(str(err)) from err
         except Exception as err:  # noqa: BLE001
@@ -140,6 +151,8 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             props = await self.hass.async_add_executor_job(
                 self._client.properties, self.device_id
             )
+        except TuyaAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
         except TuyaError as err:
             raise UpdateFailed(str(err)) from err
         except Exception as err:  # noqa: BLE001

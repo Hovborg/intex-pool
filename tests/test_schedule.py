@@ -16,6 +16,13 @@ def test_round_trip_exact():
     assert sched.encode_schedules(slots) == REAL
 
 
+def test_decode_invalid_base64_is_empty_not_raised():
+    # A corrupt/truncated cloud blob must decode to empty slots, never raise.
+    slots = sched.decode_schedules("!!! not valid base64 !!!")
+    assert len(slots) == 7
+    assert all(not s["active"] for s in slots)
+
+
 def test_decode_counts():
     slots = sched.decode_schedules(REAL)
     assert len(slots) == 7

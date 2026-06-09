@@ -1,5 +1,7 @@
 """Coordinator tests with fake clients (no tinytuya, no network)."""
 import pytest
+from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.intex_pool.const import DOMAIN, VERSION_CANDIDATES
@@ -8,7 +10,7 @@ from custom_components.intex_pool.coordinator import (
     SaltCoordinator,
     SensorCoordinator,
 )
-from custom_components.intex_pool.tuya import TuyaError
+from custom_components.intex_pool.tuya import TuyaAuthError, TuyaError
 
 
 class FakeLocal:
@@ -16,8 +18,11 @@ class FakeLocal:
         self.version = 3.5
         self.calls = []
         self.fail = False
+        self.auth_fail = False
 
     def status(self):
+        if self.auth_fail:
+            raise TuyaAuthError("bad key")
         if self.fail:
             raise TuyaError("boom")
         return {"104": True, "109": 1490, "125": "working"}
@@ -33,8 +38,11 @@ class FakeCloud:
     def __init__(self):
         self.issued = []
         self.fail = False
+        self.auth_fail = False
 
     def properties(self, device_id):
+        if self.auth_fail:
+            raise TuyaAuthError("bad secret")
         if self.fail:
             raise TuyaError("cloud down")
         return {"PH_Number": 740, "battery_capacity": 97}
@@ -111,3 +119,30 @@ async def test_sensor_failure(hass):
     coord = SensorCoordinator(hass, _entry(hass), cloud, "devid", 120)
     await coord.async_refresh()
     assert coord.last_update_success is False
+
+
+async def test_salt_bad_key_known_version_raises_auth(hass):
+    """A rejected key on a known protocol version -> ConfigEntryAuthFailed (reauth)."""
+    client = FakeLocal()
+    client.auth_fail = True
+    coord = SaltCoordinator(hass, _entry(hass), client, "salt", 15, auto_version=False)
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coord._async_update_data()
+
+
+async def test_salt_bad_key_auto_version_retries_versions_first(hass):
+    """While auto-detecting the version, a key/version reject rotates instead of reauth."""
+    client = FakeLocal()
+    client.auth_fail = True
+    coord = SaltCoordinator(hass, _entry(hass), client, "salt", 15, auto_version=True)
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+    assert client.version == VERSION_CANDIDATES[1]  # rotated, not reauth
+
+
+async def test_sensor_bad_secret_raises_auth(hass):
+    cloud = FakeCloud()
+    cloud.auth_fail = True
+    coord = SensorCoordinator(hass, _entry(hass), cloud, "devid", 120)
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coord._async_update_data()

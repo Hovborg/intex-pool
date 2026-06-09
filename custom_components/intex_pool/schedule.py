@@ -18,6 +18,7 @@ No Home Assistant imports — pure functions, unit-testable in isolation.
 from __future__ import annotations
 
 import base64
+import binascii
 from typing import Any
 
 SLOT_COUNT = 7
@@ -26,8 +27,15 @@ FIELDS = ("month", "date", "hour", "minute", "duration", "days", "on", "pad")
 
 
 def decode_schedules(b64: str | None) -> list[dict[str, Any]]:
-    """Decode the base64 blob into 7 slot dicts (always returns 7)."""
-    data = base64.b64decode(b64) if b64 else b""
+    """Decode the base64 blob into 7 slot dicts (always returns 7).
+
+    A corrupt/truncated blob from the cloud decodes to empty slots rather than
+    raising, so a bad poll can't break the whole coordinator.
+    """
+    try:
+        data = base64.b64decode(b64) if b64 else b""
+    except (binascii.Error, ValueError):
+        data = b""
     slots: list[dict[str, Any]] = []
     for i in range(SLOT_COUNT):
         chunk = data[i * SLOT_SIZE : i * SLOT_SIZE + SLOT_SIZE]

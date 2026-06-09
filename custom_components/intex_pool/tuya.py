@@ -23,6 +23,32 @@ class TuyaError(Exception):
     """Raised when a Tuya local/cloud operation fails."""
 
 
+class TuyaAuthError(TuyaError):
+    """Raised when credentials are rejected — a bad local key or cloud secret.
+
+    The coordinators turn this into ``ConfigEntryAuthFailed`` so Home Assistant
+    starts a reauth flow (the Intex/Tuya ``local_key`` rotates when the device is
+    re-paired in the app, which is the most common cause).
+    """
+
+
+# tinytuya local error code for "Check device key or version".
+_LOCAL_AUTH_ERR = {"914"}
+# Tuya cloud response codes for bad sign / token / permission (auth, not transport).
+_CLOUD_AUTH_CODES = {1004, 1010, 1011, 1100, 1106, 2406, 28841002}
+
+
+def _check_cloud(resp: Any, what: str) -> None:
+    """Raise the right error from a Tuya cloud response (auth vs transport)."""
+    if isinstance(resp, dict) and resp.get("success"):
+        return
+    code = resp.get("code") if isinstance(resp, dict) else None
+    msg = f"{what} failed: {str(resp)[:160]}"
+    if code in _CLOUD_AUTH_CODES:
+        raise TuyaAuthError(msg)
+    raise TuyaError(msg)
+
+
 def scan_lan(timeout: int = 5) -> dict[str, tuple[str, float | None]]:
     """Broadcast-scan the LAN for Tuya devices -> {device_id: (ip, version)}.
 
@@ -62,11 +88,15 @@ class LocalClient:
         return dev
 
     def status(self) -> dict[str, Any]:
-        """Return the device's DP dict, or raise TuyaError."""
+        """Return the device's DP dict, or raise TuyaError/TuyaAuthError."""
         data = self._device().status()
-        if not isinstance(data, dict) or "dps" not in data:
-            raise TuyaError(f"unexpected status response: {data!r}")
-        return data["dps"]
+        if isinstance(data, dict) and "dps" in data:
+            return data["dps"]
+        err = str(data.get("Err")) if isinstance(data, dict) else ""
+        msg = f"unexpected status response: {data!r}"
+        if err in _LOCAL_AUTH_ERR:
+            raise TuyaAuthError(msg)
+        raise TuyaError(msg)
 
     def set_value(self, dp: str | int, value: Any) -> None:
         """Set a single DP (fresh dedicated connection, no poll-thread race)."""
@@ -91,6 +121,7 @@ class CloudClient:
         """
         devs = self._cloud.getdevices(verbose=False)
         if not isinstance(devs, list):
+            _check_cloud(devs, "cloud getdevices")  # raises auth vs transport
             raise TuyaError(f"cloud getdevices failed: {str(devs)[:160]}")
         return [
             {
@@ -108,8 +139,7 @@ class CloudClient:
         """Return {code: value} for the device's thing-model shadow properties."""
         path = f"/v2.0/cloud/thing/{device_id}/shadow/properties"
         resp = self._cloud.cloudrequest(path)
-        if not (isinstance(resp, dict) and resp.get("success")):
-            raise TuyaError(f"cloud properties failed: {str(resp)[:160]}")
+        _check_cloud(resp, "cloud properties")
         props = (resp.get("result") or {}).get("properties", []) or []
         return {p["code"]: p.get("value") for p in props if p.get("code")}
 
@@ -118,5 +148,4 @@ class CloudClient:
         path = f"/v2.0/cloud/thing/{device_id}/shadow/properties/issue"
         body = {"properties": json.dumps({code: value})}
         resp = self._cloud.cloudrequest(path, post=body)
-        if not (isinstance(resp, dict) and resp.get("success")):
-            raise TuyaError(f"cloud issue {code} failed: {str(resp)[:160]}")
+        _check_cloud(resp, f"cloud issue {code}")

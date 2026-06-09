@@ -1,5 +1,4 @@
 """Config + options flow tests (cloud auto-discovery + manual fallback)."""
-import pytest
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -151,6 +150,66 @@ async def test_duplicate_aborts(hass, mock_tinytuya):
     r = await hass.config_entries.flow.async_configure(r["flow_id"], SENSOR_INPUT)
     assert r["type"] == FlowResultType.ABORT
     assert r["reason"] == "already_configured"
+
+
+async def test_reauth_updates_local_key(hass, monkeypatch):
+    """A rotated local key: reauth form -> new key validated -> entry updated."""
+    entry = MockConfigEntry(domain=DOMAIN, data={"salt": SALT_INPUT}, unique_id="saltdev", version=2)
+    entry.add_to_hass(hass)
+
+    async def ok(hass_, ui):
+        return None
+
+    monkeypatch.setattr(config_flow, "validate_local", ok)
+    r = await entry.start_reauth_flow(hass)
+    assert r["step_id"] == "reauth_confirm"
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"local_key": "NEWKEY"})
+    assert r["type"] == FlowResultType.ABORT
+    assert r["reason"] == "reauth_successful"
+    assert entry.data["salt"]["local_key"] == "NEWKEY"
+
+
+async def test_reauth_invalid_auth_shows_error(hass, monkeypatch):
+    from custom_components.intex_pool.tuya import TuyaAuthError
+
+    entry = MockConfigEntry(domain=DOMAIN, data={"salt": SALT_INPUT}, unique_id="saltdev", version=2)
+    entry.add_to_hass(hass)
+
+    async def bad(hass_, ui):
+        raise TuyaAuthError("still bad")
+
+    monkeypatch.setattr(config_flow, "validate_local", bad)
+    r = await entry.start_reauth_flow(hass)
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"local_key": "WRONG"})
+    assert r["type"] == FlowResultType.FORM
+    assert r["errors"] == {"base": "invalid_auth"}
+
+
+async def test_reauth_salt_and_pump_tuya_use_separate_keys(hass, monkeypatch):
+    """With both a salt system and a Tuya pump, each gets its own key field."""
+    pump_tuya = {
+        "pump_mode": "tuya", "device_id": "pumpdev", "local_key": "oldp",
+        "host": "1.2.3.5", "version": "3.5", "on_dp": "1",
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"salt": SALT_INPUT, "pump": pump_tuya},
+        unique_id="saltdev-pumpdev", version=2,
+    )
+    entry.add_to_hass(hass)
+
+    async def ok(hass_, ui):
+        return None
+
+    monkeypatch.setattr(config_flow, "validate_local", ok)
+    r = await entry.start_reauth_flow(hass)
+    assert r["step_id"] == "reauth_confirm"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"local_key": "NEWSALT", "pump_local_key": "NEWPUMP"}
+    )
+    assert r["type"] == FlowResultType.ABORT
+    assert r["reason"] == "reauth_successful"
+    assert entry.data["salt"]["local_key"] == "NEWSALT"
+    assert entry.data["pump"]["local_key"] == "NEWPUMP"  # pump key updated independently
 
 
 async def test_options_flow(hass, mock_tinytuya):

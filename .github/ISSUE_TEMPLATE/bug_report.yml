@@ -1,0 +1,53 @@
+name: Bug report
+description: Something isn't working
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please fill in as much as you can — it makes fixing the issue far faster.
+  - type: input
+    id: integration_version
+    attributes:
+      label: Intex Pool version
+      description: HACS → Intex Pool, or the `version` in manifest.json.
+      placeholder: "0.10.0"
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2025.x.x"
+    validations:
+      required: true
+  - type: input
+    id: device_model
+    attributes:
+      label: Device model(s)
+      description: e.g. saltwater system "QS1600 Plus (LSW6220G)", water sensor, pump.
+    validations:
+      required: true
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / diagnostics
+      description: >
+        Relevant Home Assistant logs (Settings → System → Logs, filter "intex_pool").
+        Please redact any local key / cloud secret before pasting.
+      render: shell
+  - type: textarea
+    id: datapoints
+    attributes:
+      label: Device data points (for unsupported models)
+      description: >
+        Adding a new device model? Paste the data points / thing-model here (e.g. from
+        a tinytuya dump). Redact secrets.
+      render: json

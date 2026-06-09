@@ -74,16 +74,27 @@
           "pump_power": "Power sensor (optional)",
           "pump_energy": "Energy sensor (optional)"
         }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Intex Pool",
+        "description": "The credentials were rejected — usually because the Tuya local key rotated after the device was re-paired in the app. Enter the current value(s).",
+        "data": {
+          "local_key": "Local key",
+          "pump_local_key": "Pump local key",
+          "access_secret": "Cloud access secret"
+        }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect — check the details and that the device is reachable.",
+      "invalid_auth": "Credentials rejected — the local key or cloud secret is wrong (the local key changes when the device is re-paired).",
       "need_creds": "Enter your Tuya cloud Access ID and secret, or tick “set up manually”.",
       "device_offline": "That device wasn't found on your network — make sure it's powered on and on the same LAN as Home Assistant.",
       "no_device": "Select at least one device."
     },
     "abort": {
-      "already_configured": "This device is already configured."
+      "already_configured": "This device is already configured.",
+      "reauth_successful": "Re-authentication was successful."
     }
   },
   "options": {

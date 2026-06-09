@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-06-09
+
+### Added
+- **Reauthentication flow.** When the Tuya `local_key` rotates (e.g. after re-pairing the
+  device in the app) or a cloud secret is rejected, the integration now raises
+  `ConfigEntryAuthFailed` and Home Assistant prompts you to enter the new key/secret instead of
+  the device going silently unavailable forever.
+- Config/CI hygiene: `ruff` lint job, Dependabot (actions + npm), issue templates, PR template,
+  `CONTRIBUTING.md`, `SECURITY.md`.
+
+### Changed
+- Setup now reports `ConfigEntryNotReady` when **every** configured device fails its first poll,
+  so Home Assistant retries with backoff instead of loading with all entities unavailable.
+- The bundled card is served with a `?v={version}` cache-buster, so a HACS update loads the new
+  card without a manual browser hard-refresh.
+- The card version is now injected from `package.json` at build time (no more hard-coded drift).
+- Setup errors now distinguish **invalid credentials** from **cannot connect**.
+
+### Fixed
+- `schedule.py` no longer raises on a corrupt/truncated cloud schedule blob (decodes to empty).
+- `validate_local` re-raises the real connection error (preserving its type/traceback) after
+  exhausting retries, so the config flow can tell auth from transport failures.
+
 ## [0.9.4] - 2026-06-09
 
 ### Added

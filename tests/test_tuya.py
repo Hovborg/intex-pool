@@ -125,3 +125,29 @@ def test_cloud_failure_raises(fake_tinytuya, monkeypatch):
     monkeypatch.setattr(FakeCloud, "cloudrequest", lambda self, p, post=None: {"success": False})
     with pytest.raises(tuya.TuyaError):
         client.properties("devid")
+
+
+def test_local_status_bad_key_raises_auth(fake_tinytuya, monkeypatch):
+    # tinytuya Err 914 = "Check device key or version" -> auth error -> reauth
+    client = tuya.LocalClient("dev", "key", "1.2.3.4")
+    monkeypatch.setattr(FakeDevice, "status", lambda self: {"Error": "...", "Err": "914"})
+    with pytest.raises(tuya.TuyaAuthError):
+        client.status()
+
+
+def test_local_status_transport_error_is_not_auth(fake_tinytuya, monkeypatch):
+    client = tuya.LocalClient("dev", "key", "1.2.3.4")
+    monkeypatch.setattr(FakeDevice, "status", lambda self: {"Error": "offline", "Err": "905"})
+    with pytest.raises(tuya.TuyaError) as exc:
+        client.status()
+    assert not isinstance(exc.value, tuya.TuyaAuthError)
+
+
+def test_cloud_auth_code_raises_auth(fake_tinytuya, monkeypatch):
+    client = tuya.CloudClient("eu", "id", "secret")
+    # code 1004 = sign invalid (bad access secret) -> auth error
+    monkeypatch.setattr(
+        FakeCloud, "cloudrequest", lambda self, p, post=None: {"success": False, "code": 1004}
+    )
+    with pytest.raises(tuya.TuyaAuthError):
+        client.properties("devid")

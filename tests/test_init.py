@@ -49,6 +49,22 @@ async def test_setup_sensor_only(hass, mock_tinytuya):
     assert not any(i.startswith("switch.") for i in ids)
 
 
+async def test_setup_retries_when_all_devices_fail(hass, mock_tinytuya, monkeypatch):
+    """If every configured device fails its first poll, setup -> SETUP_RETRY."""
+    monkeypatch.setattr(
+        mock_tinytuya.tinytuya.Cloud,
+        "cloudrequest",
+        lambda self, path, post=None: {"success": False},
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"has_sensor": True, "sensor": SENSOR}, version=2
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
 async def test_migrate_v1_removes_orphan_boost_start_time(hass):
     """v1→v2 drops the slot-0 (Boost) start-time entity; the orphan is removed."""
     entry = MockConfigEntry(domain=DOMAIN, data={"salt": SALT}, version=1)

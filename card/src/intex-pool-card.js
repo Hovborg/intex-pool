@@ -10,7 +10,10 @@
  */
 import { LitElement, html, css, nothing } from "lit";
 
-const CARD_VERSION = "0.4.0";
+// Injected at build time from package.json via esbuild --define (see the build
+// script in package.json). Falls back to "dev" for an un-defined source build.
+const CARD_VERSION =
+  typeof __CARD_VERSION__ !== "undefined" ? __CARD_VERSION__ : "dev";
 
 // Selectable appearance variants. "auto" inherits the HA theme; the others
 // override the CSS variables on the card so you can pick a look regardless of

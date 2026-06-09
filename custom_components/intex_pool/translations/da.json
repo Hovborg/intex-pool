@@ -74,16 +74,27 @@
           "pump_power": "Effekt-sensor (valgfri)",
           "pump_energy": "Energi-sensor (valgfri)"
         }
+      },
+      "reauth_confirm": {
+        "title": "Gen-godkend Intex Pool",
+        "description": "Oplysningerne blev afvist — typisk fordi Tuya local key blev skiftet da enheden blev re-paret i appen. Indtast den nuværende værdi(er).",
+        "data": {
+          "local_key": "Local key",
+          "pump_local_key": "Pumpe local key",
+          "access_secret": "Cloud access secret"
+        }
       }
     },
     "error": {
       "cannot_connect": "Kunne ikke forbinde — tjek oplysningerne og at enheden er tilgængelig.",
+      "invalid_auth": "Oplysninger afvist — local key eller cloud secret er forkert (local key skifter når enheden re-pares).",
       "need_creds": "Indtast din Tuya cloud Access ID og secret, eller sæt flueben i “opsæt manuelt”.",
       "device_offline": "Enheden blev ikke fundet på dit netværk — sørg for at den er tændt og på samme LAN som Home Assistant.",
       "no_device": "Vælg mindst én enhed."
     },
     "abort": {
-      "already_configured": "Denne enhed er allerede konfigureret."
+      "already_configured": "Denne enhed er allerede konfigureret.",
+      "reauth_successful": "Gen-godkendelse lykkedes."
     }
   },
   "options": {
