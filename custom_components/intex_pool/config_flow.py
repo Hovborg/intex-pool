@@ -179,7 +179,7 @@ async def discover(hass, creds: dict) -> tuple[list[dict], dict]:
 class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle setup (cloud auto-discovery, or manual fallback)."""
 
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         self._flags: dict[str, bool] = {}

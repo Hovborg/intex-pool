@@ -179,7 +179,8 @@
       "chlorination": { "name": "Chlorine production" },
       "pump": { "name": "Pump" },
       "pump_auto": { "name": "Pump auto mode" },
-      "schedule_slot": { "name": "Schedule {index}" }
+      "schedule_slot": { "name": "Schedule {index}" },
+      "boost_slot": { "name": "Boost" }
     },
     "select": {
       "self_clean": {
@@ -195,7 +196,8 @@
     "number": {
       "ph_target": { "name": "pH target" },
       "orp_target": { "name": "ORP target" },
-      "schedule_duration": { "name": "Schedule {index} duration" }
+      "schedule_duration": { "name": "Schedule {index} duration" },
+      "boost_duration": { "name": "Boost duration" }
     },
     "time": {
       "schedule_start": { "name": "Schedule {index} start" }

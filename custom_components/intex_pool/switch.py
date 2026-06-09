@@ -162,14 +162,19 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
     """
 
     _attr_has_entity_name = True
-    _attr_translation_key = "schedule_slot"
-    _attr_icon = "mdi:calendar-clock"
 
     def __init__(self, coordinator, device_id: str, index: int) -> None:
         super().__init__(coordinator)
         self._index = index
         self._remembered: dict | None = None
-        self._attr_translation_placeholders = {"index": str(index + 1)}
+        # Slot 0 is the device's Boost cycle (on=0, long duration, no start time).
+        if index == 0:
+            self._attr_translation_key = "boost_slot"
+            self._attr_icon = "mdi:rocket-launch"
+        else:
+            self._attr_translation_key = "schedule_slot"
+            self._attr_icon = "mdi:calendar-clock"
+            self._attr_translation_placeholders = {"index": str(index + 1)}
         self._attr_unique_id = f"{device_id}_schedule_{index + 1}"
         meta = DEVICE_META[DEVICE_SALT]
         self._attr_device_info = DeviceInfo(
@@ -218,9 +223,14 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs) -> None:
-        # Restore the remembered schedule, or create a sensible daily default the
-        # user can then edit via the Start time / Duration entities.
-        r = self._remembered or {"on": 1, "hour": 12, "minute": 0, "duration": 2, "days": 0xFF}
+        # Restore the remembered schedule, or create a sensible default the user
+        # can then edit. Slot 0 defaults to a Boost cycle (on=0, long duration,
+        # no start time); the timed slots default to a daily run.
+        if self._index == 0:
+            default = {"on": 0, "hour": 0, "minute": 0, "duration": 48, "days": 0}
+        else:
+            default = {"on": 1, "hour": 12, "minute": 0, "duration": 2, "days": 0xFF}
+        r = self._remembered or default
         new = schedule.set_slot(
             self._slots(), self._index,
             on=bool(r.get("on")), hour=r.get("hour"), minute=r.get("minute"),

@@ -26,9 +26,12 @@ async def async_setup_entry(
     data = entry.runtime_data
     salt_id = device_id_for(entry, DEVICE_SALT)
     if data.schedule is not None and salt_id is not None:
+        # Slot 0 is the device's Boost cycle — it has no meaningful start time
+        # (the app ignores it and won't start at the stored time), so it only
+        # gets a duration. Start-time editors are for the timed slots 1..6.
         async_add_entities(
             IntexScheduleStartTime(data.schedule, salt_id, i)
-            for i in range(schedule.SLOT_COUNT)
+            for i in range(1, schedule.SLOT_COUNT)
         )
 
 

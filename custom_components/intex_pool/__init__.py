@@ -16,6 +16,7 @@ from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 
 from . import schedule as schedule_mod
@@ -82,6 +83,24 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     if "frontend" in hass.config.components:
         add_extra_js_url(hass, url)
         _LOGGER.debug("Registered Intex Pool card at %s", url)
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> bool:
+    """Migrate old config entries.
+
+    v1 → v2: slot 0 is now the device's **Boost** cycle, which has no start time,
+    so its ``time.…_schedule_1_start`` entity is no longer created. Remove any
+    such orphan left behind by earlier versions so it doesn't linger forever as
+    an "unavailable" entity.
+    """
+    if entry.version < 2:
+        registry = er.async_get(hass)
+        for reg in er.async_entries_for_config_entry(registry, entry.entry_id):
+            if reg.domain == "time" and reg.unique_id.endswith("_schedule_1_start"):
+                registry.async_remove(reg.entity_id)
+                _LOGGER.info("Removed orphaned boost start-time entity %s", reg.entity_id)
+        hass.config_entries.async_update_entry(entry, version=2)
     return True
 
 

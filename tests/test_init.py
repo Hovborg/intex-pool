@@ -1,7 +1,9 @@
 """Integration setup/unload tests (offline fakes via mock_tinytuya)."""
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.intex_pool import async_migrate_entry
 from custom_components.intex_pool.const import DOMAIN
 
 SALT = {"device_id": "saltdev", "local_key": "k", "host": "1.2.3.4", "version": 3.5}
@@ -45,6 +47,25 @@ async def test_setup_sensor_only(hass, mock_tinytuya):
     assert any(i.startswith("sensor.") for i in ids)
     # no saltwater switches when only the sensor is configured
     assert not any(i.startswith("switch.") for i in ids)
+
+
+async def test_migrate_v1_removes_orphan_boost_start_time(hass):
+    """v1→v2 drops the slot-0 (Boost) start-time entity; the orphan is removed."""
+    entry = MockConfigEntry(domain=DOMAIN, data={"salt": SALT}, version=1)
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    orphan = registry.async_get_or_create(
+        "time", DOMAIN, "saltdev_schedule_1_start", config_entry=entry
+    )
+    keep = registry.async_get_or_create(
+        "time", DOMAIN, "saltdev_schedule_2_start", config_entry=entry
+    )
+
+    assert await async_migrate_entry(hass, entry)
+
+    assert entry.version == 2
+    assert registry.async_get(orphan.entity_id) is None  # boost start-time gone
+    assert registry.async_get(keep.entity_id) is not None  # real slot kept
 
 
 async def test_setup_pump_entity_mode_creates_no_coordinator(hass, mock_tinytuya):

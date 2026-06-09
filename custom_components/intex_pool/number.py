@@ -47,8 +47,6 @@ class IntexScheduleDuration(CoordinatorEntity, NumberEntity):
     """Editable duration (hours) for one schedule slot."""
 
     _attr_has_entity_name = True
-    _attr_translation_key = "schedule_duration"
-    _attr_icon = "mdi:timer-outline"
     _attr_entity_category = EntityCategory.CONFIG
     _attr_native_min_value = 0
     _attr_native_max_value = 72
@@ -59,7 +57,14 @@ class IntexScheduleDuration(CoordinatorEntity, NumberEntity):
     def __init__(self, coordinator, device_id: str, index: int) -> None:
         super().__init__(coordinator)
         self._index = index
-        self._attr_translation_placeholders = {"index": str(index + 1)}
+        # Slot 0 is the Boost cycle: only a duration, labelled "Boost duration".
+        if index == 0:
+            self._attr_translation_key = "boost_duration"
+            self._attr_icon = "mdi:rocket-launch-outline"
+        else:
+            self._attr_translation_key = "schedule_duration"
+            self._attr_icon = "mdi:timer-outline"
+            self._attr_translation_placeholders = {"index": str(index + 1)}
         self._attr_unique_id = f"{device_id}_schedule_{index + 1}_duration"
         meta = DEVICE_META[DEVICE_SALT]
         self._attr_device_info = DeviceInfo(

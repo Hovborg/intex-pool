@@ -77,8 +77,15 @@ variant: ocean   # auto | light | dark | ocean | midnight
 
 The saltwater system's built-in schedules live only in the cloud as an encoded blob, so they're
 normally invisible. This integration **decodes them**: a read-only **Schedules** sensor shows
-how many are active and lists each (daily/one-time, time, duration, on/boost). You can also
-**edit** them from HA with the **`intex_pool.set_schedule`** service (writes back via the cloud):
+how many are active and lists each (daily/one-time, time, duration, on/boost). Each slot also gets
+its own **toggle**, **duration** and **start-time** entities under the device, so you can turn a
+schedule on/off and retune it without the service call.
+
+> **Slot 0 = Boost.** The first slot is the device's **Boost** cycle. It runs for a set number of
+> hours rather than at a clock time (the app ignores a start time for it), so it's exposed as
+> **Boost** + **Boost duration** only — no start-time entity.
+
+You can also **edit** any slot from HA with the **`intex_pool.set_schedule`** service (writes back via the cloud):
 
 ```yaml
 service: intex_pool.set_schedule
