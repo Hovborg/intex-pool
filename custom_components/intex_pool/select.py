@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from homeassistant.components.select import SelectEntity
-from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -49,7 +48,6 @@ class IntexPumpSwitchSelect(SelectEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "pump_switch_select"
     _attr_icon = "mdi:electric-switch"
-    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, entry: IntexPoolConfigEntry) -> None:
         self._entry = entry

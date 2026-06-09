@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.1] - 2026-06-09
+
+### Changed
+- The **Pump switch** selector now shows in the device's main controls (not the Configuration
+  section), so it's easy to find on the Sand filter pump device.
+
 ## [0.9.0] - 2026-06-09
 
 ### Changed
