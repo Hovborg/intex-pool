@@ -83,7 +83,10 @@ schedule on/off and retune it without the service call.
 
 > **Slot 0 = Boost.** The first slot is the device's **Boost** cycle. It runs for a set number of
 > hours rather than at a clock time (the app ignores a start time for it), so it's exposed as
-> **Boost** + **Boost duration** only — no start-time entity.
+> **Boost** + **Boost duration** only — no start-time entity. Turning **Boost on suspends your
+> timed schedules** (they're remembered, then restored when Boost is turned off) — mirroring how
+> the unit reverts to its normal schedule after a boost completes, and confirmed against the
+> device's Tuya thing-model (`working_indicator` reports `boost`).
 
 You can also **edit** any slot from HA with the **`intex_pool.set_schedule`** service (writes back via the cloud):
 

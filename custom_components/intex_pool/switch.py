@@ -153,12 +153,32 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         self.async_write_ha_state()
 
 
+def _slot_fields(slot: dict) -> dict:
+    """Snapshot a slot's writable fields as plain ints (for remember/restore)."""
+    return {f: int(slot.get(f, 0)) for f in schedule.FIELDS}
+
+
+def _apply(slots: list[dict], index: int, rec: dict) -> list[dict]:
+    """Write a remembered/default record into slot *index*."""
+    return schedule.set_slot(
+        slots, index,
+        on=bool(rec.get("on")), hour=rec.get("hour"), minute=rec.get("minute"),
+        duration=rec.get("duration"), month=rec.get("month"),
+        date=rec.get("date"), days=rec.get("days"),
+    )
+
+
 class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
     """One toggle per saltwater schedule slot.
 
     On = the slot has an active schedule. Turning it off remembers the schedule
     and clears the slot; turning it back on restores the remembered schedule.
     The schedule details are exposed as attributes (and shown on the card).
+
+    Slot 0 is the device's **Boost** cycle. Turning Boost on additionally
+    *suspends* (remembers + clears) the timed schedules so they don't fight the
+    boost run; turning Boost off restores them — mirroring how the unit itself
+    reverts to its normal schedule after a boost completes.
     """
 
     _attr_has_entity_name = True
@@ -166,9 +186,11 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
     def __init__(self, coordinator, device_id: str, index: int) -> None:
         super().__init__(coordinator)
         self._index = index
+        self._is_boost = index == 0
         self._remembered: dict | None = None
-        # Slot 0 is the device's Boost cycle (on=0, long duration, no start time).
-        if index == 0:
+        # Timed schedules suspended while Boost is on: {slot_index_str: fields}.
+        self._suspended: dict[str, dict] = {}
+        if self._is_boost:
             self._attr_translation_key = "boost_slot"
             self._attr_icon = "mdi:rocket-launch"
         else:
@@ -187,8 +209,12 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last = await self.async_get_last_state()
-        if last and isinstance(last.attributes.get("remembered"), dict):
+        if not last:
+            return
+        if isinstance(last.attributes.get("remembered"), dict):
             self._remembered = dict(last.attributes["remembered"])
+        if self._is_boost and isinstance(last.attributes.get("suspended"), dict):
+            self._suspended = {k: dict(v) for k, v in last.attributes["suspended"].items()}
 
     def _slot(self) -> dict | None:
         slots = (self.coordinator.data or {}).get("slots") or []
@@ -203,12 +229,15 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
     def extra_state_attributes(self) -> dict:
         slot = self._slot() or {}
         active = bool(slot.get("active"))
-        return {
+        attrs = {
             **{k: slot.get(k) for k in schedule.FIELDS[:7]},
             "summary": schedule.summarize(slot) if active else None,
             "mode": schedule.mode_of(slot) if active else None,
             "remembered": self._remembered,
         }
+        if self._is_boost:
+            attrs["suspended"] = self._suspended
+        return attrs
 
     def _slots(self) -> list[dict]:
         return (self.coordinator.data or {}).get("slots") or schedule.decode_schedules("")
@@ -217,8 +246,13 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         slots = self._slots()
         slot = slots[self._index]
         if slot.get("active"):
-            self._remembered = {f: int(slot.get(f, 0)) for f in schedule.FIELDS}
+            self._remembered = _slot_fields(slot)
         new = schedule.set_slot(slots, self._index, clear=True)
+        if self._is_boost and self._suspended:
+            # Boost released: bring the suspended timed schedules back.
+            for idx, rec in self._suspended.items():
+                new = _apply(new, int(idx), rec)
+            self._suspended = {}
         await self.coordinator.async_write_slots(new)
         self.async_write_ha_state()
 
@@ -226,16 +260,26 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         # Restore the remembered schedule, or create a sensible default the user
         # can then edit. Slot 0 defaults to a Boost cycle (on=0, long duration,
         # no start time); the timed slots default to a daily run.
-        if self._index == 0:
+        slots = self._slots()
+        if self._is_boost:
             default = {"on": 0, "hour": 0, "minute": 0, "duration": 48, "days": 0}
         else:
             default = {"on": 1, "hour": 12, "minute": 0, "duration": 2, "days": 0xFF}
-        r = self._remembered or default
-        new = schedule.set_slot(
-            self._slots(), self._index,
-            on=bool(r.get("on")), hour=r.get("hour"), minute=r.get("minute"),
-            duration=r.get("duration"), month=r.get("month"), date=r.get("date"),
-            days=r.get("days"),
-        )
+        new = _apply(slots, self._index, self._remembered or default)
+        if self._is_boost:
+            # Suspend (remember + clear) every active timed schedule so the UI
+            # shows them off and they don't run against the boost cycle. Only
+            # overwrite the remembered set when there is actually something to
+            # remember, so a second turn-on (timed slots already cleared) can't
+            # wipe the suspended schedules.
+            snapshot = {
+                str(i): _slot_fields(slots[i])
+                for i in range(1, schedule.SLOT_COUNT)
+                if slots[i].get("active")
+            }
+            if snapshot:
+                self._suspended = snapshot
+            for i in range(1, schedule.SLOT_COUNT):
+                new = schedule.set_slot(new, i, clear=True)
         await self.coordinator.async_write_slots(new)
         self.async_write_ha_state()

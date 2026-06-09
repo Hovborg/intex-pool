@@ -1,10 +1,17 @@
 """Decode / encode the saltwater system's schedule blob (``skdl_salt`` / DP116).
 
 The schedule is a base64-encoded raw value made of **7 fixed 8-byte slots**.
-Field order (from the Tuya thing-model): ``month, date, hour, minute, duration,
-days, on, pad``. Decode→encode round-trips byte-for-byte (verified against the
-live device 2026-06-09), so the byte FORMAT is reliable. The exact *units* of
-``duration`` and the bit layout of ``days`` are best-effort interpretations.
+Field order is confirmed by the device's Tuya thing-model (DP116 ``skdl_salt``,
+description: "month date hour minute worktime week control(0/1) Null"):
+
+* ``duration`` = *worktime* in hours
+* ``days``     = *week* bitmask — bit7 (0x80) set = weekly repeat; bits6-0 pick
+  the weekday for a one-time entry. ``0xFF`` = repeat every day.
+* ``on``       = *control* (1 = timed run; 0 with a long worktime = Boost cycle,
+  reported back by the device as ``working_indicator == "boost"``)
+
+Decode→encode round-trips byte-for-byte (verified against the live QS1600 Plus
+2026-06-09), so the format is reliable.
 
 No Home Assistant imports — pure functions, unit-testable in isolation.
 """

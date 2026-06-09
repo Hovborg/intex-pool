@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.4] - 2026-06-09
+
+### Added
+- Turning **Boost** on now suspends your timed schedules (they're remembered and restored when
+  Boost is turned off), mirroring how the unit reverts to its normal schedule after a boost. A
+  second Boost turn-on can't wipe the remembered schedules, and the suspended set survives a
+  Home Assistant restart.
+
+### Changed
+- `schedule.py` documents the now-verified `skdl_salt` field semantics from the device's Tuya
+  thing-model (`worktime` = duration, `week` bitmask with bit7 = weekly repeat, `control` = on;
+  `control = 0` + long duration is the Boost cycle, reported back as `working_indicator = boost`).
+
+## [0.9.3] - 2026-06-09
+
+### Changed
+- Schedule slot 0 is now presented as **Boost**: a toggle + **Boost duration** (hours) only, with
+  no start-time entity (boost runs for a duration, not at a clock time).
+
+### Fixed
+- Upgrade migration (config-entry v1 → v2) removes the orphaned `time.…_schedule_1_start` entity
+  left by earlier versions so it no longer lingers as "unavailable".
+
 ## [0.9.2] - 2026-06-09
 
 ### Fixed
