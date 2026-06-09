@@ -1,7 +1,7 @@
 {
   "name": "intex-pool-card",
   "private": true,
-  "version": "0.10.2",
+  "version": "0.11.0",
   "type": "module",
   "scripts": {
     "build": "esbuild src/intex-pool-card.js --bundle --minify --format=esm --target=es2021 --define:__CARD_VERSION__='\"'$npm_package_version'\"' --outfile=../custom_components/intex_pool/frontend/intex-pool-card.js"
