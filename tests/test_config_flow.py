@@ -34,6 +34,21 @@ async def test_user_needs_creds_or_manual(hass):
     assert r["errors"] == {"base": "need_creds"}
 
 
+async def test_user_no_devices_found_shows_no_devices_error(hass, monkeypatch):
+    """Cloud reached but returned no devices -> clear error, not a dead picker."""
+    async def empty_discover(hass_, creds):
+        return ([], {})
+
+    monkeypatch.setattr(config_flow, "discover", empty_discover)
+    r = await _start(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"region": "eu", "access_id": "a", "access_secret": "s", "manual": False}
+    )
+    assert r["type"] == FlowResultType.FORM
+    assert r["step_id"] == "user"
+    assert r["errors"] == {"base": "no_devices"}
+
+
 async def test_cloud_discovery_flow(hass, mock_tinytuya, monkeypatch):
     devices = [
         {"id": "saltid", "name": "AGP Salt", "key": "saltkey", "category": "rs"},
@@ -263,6 +278,20 @@ async def test_reconfigure_without_stored_creds_prompts(hass):
     """A local-only entry (no stored cloud creds) asks for creds first."""
     entry = MockConfigEntry(domain=DOMAIN, data={"salt": SALT_INPUT}, unique_id="saltdev", version=2)
     entry.add_to_hass(hass)
+    r = await entry.start_reconfigure_flow(hass)
+    assert r["step_id"] == "reconfigure_user"
+
+
+async def test_reconfigure_empty_discovery_reprompts_creds(hass, mock_tinytuya, monkeypatch):
+    """Reconfigure with stored creds but no discovered devices -> re-prompt creds,
+    not a dead empty picker."""
+    entry = MockConfigEntry(domain=DOMAIN, data={"sensor": SENSOR_INPUT}, unique_id="sdev", version=2)
+    entry.add_to_hass(hass)
+
+    async def empty_discover(hass_, creds):
+        return ([], {})
+
+    monkeypatch.setattr(config_flow, "discover", empty_discover)
     r = await entry.start_reconfigure_flow(hass)
     assert r["step_id"] == "reconfigure_user"
 

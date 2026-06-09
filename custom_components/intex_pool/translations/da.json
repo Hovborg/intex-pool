@@ -99,7 +99,8 @@
       "invalid_auth": "Oplysninger afvist — local key eller cloud secret er forkert (local key skifter når enheden re-pares).",
       "need_creds": "Indtast din Tuya cloud Access ID og secret, eller sæt flueben i “opsæt manuelt”.",
       "device_offline": "Enheden blev ikke fundet på dit netværk — sørg for at den er tændt og på samme LAN som Home Assistant.",
-      "no_device": "Vælg mindst én enhed."
+      "no_device": "Vælg mindst én enhed.",
+      "no_devices": "Ingen enheder fundet med disse oplysninger. Sæt flueben i “opsæt manuelt” for at indtaste dem selv, eller tjek region og Access ID/secret."
     },
     "abort": {
       "already_configured": "Denne enhed er allerede konfigureret.",

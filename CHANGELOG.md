@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.2] - 2026-06-09
+
+### Fixed
+- Setup no longer shows a dead/empty device picker when cloud discovery returns no devices — it
+  now shows a clear "no devices found — set up manually instead" message so you're never stuck on
+  a blank dropdown. The reconfigure flow now does the same (re-prompts for credentials instead of
+  showing an empty picker).
+
+### Changed
+- The discovery device dropdowns accept a typed/pasted device id (`custom_value`), so a finicky or
+  incomplete list can't block setup.
+- `hacs.json` now sets `render_readme` so the full README (with screenshots + install button) shows
+  on the HACS page.
+
 ## [0.10.1] - 2026-06-09
 
 ### Added

@@ -223,7 +223,13 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 except Exception:  # noqa: BLE001
                     errors["base"] = "cannot_connect"
                 else:
-                    return await self.async_step_discover()
+                    if not self._devices:
+                        # Reached the cloud but it returned no devices — don't
+                        # show a dead/empty picker. Tell the user to set up
+                        # manually instead of leaving them stuck on a blank list.
+                        errors["base"] = "no_devices"
+                    else:
+                        return await self.async_step_discover()
         return self.async_show_form(step_id="user", data_schema=STEP_USER, errors=errors)
 
     # ---- reauth (e.g. the local_key rotated after re-pairing) ----
@@ -297,6 +303,10 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._devices, self._scan = await discover(self.hass, self._creds)
             except Exception:  # noqa: BLE001
                 return await self.async_step_reconfigure_user()
+            if not self._devices:
+                # Stored creds reached the cloud but found nothing — re-prompt
+                # (lets the user fix the region/creds) instead of an empty picker.
+                return await self.async_step_reconfigure_user()
             return await self.async_step_discover()
         return await self.async_step_reconfigure_user()
 
@@ -315,7 +325,10 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             except Exception:  # noqa: BLE001
                 errors["base"] = "cannot_connect"
             else:
-                return await self.async_step_discover()
+                if not self._devices:
+                    errors["base"] = "no_devices"
+                else:
+                    return await self.async_step_discover()
         return self.async_show_form(
             step_id="reconfigure_user", data_schema=STEP_SENSOR_CREDS, errors=errors
         )
@@ -376,7 +389,11 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             {"value": d["id"], "label": d.get("name") or d["id"]} for d in self._devices
         ]
         dev_sel = selector.SelectSelector(
-            selector.SelectSelectorConfig(options=options, mode=selector.SelectSelectorMode.DROPDOWN)
+            selector.SelectSelectorConfig(
+                options=options,
+                mode=selector.SelectSelectorMode.DROPDOWN,
+                custom_value=True,  # allow typing/pasting a device id if the list is incomplete
+            )
         )
         schema = vol.Schema(
             {

@@ -99,7 +99,8 @@
       "invalid_auth": "Credentials rejected — the local key or cloud secret is wrong (the local key changes when the device is re-paired).",
       "need_creds": "Enter your Tuya cloud Access ID and secret, or tick “set up manually”.",
       "device_offline": "That device wasn't found on your network — make sure it's powered on and on the same LAN as Home Assistant.",
-      "no_device": "Select at least one device."
+      "no_device": "Select at least one device.",
+      "no_devices": "No devices found for these credentials. Tick “set up manually instead” to enter them by hand, or double-check the region and Access ID/secret."
     },
     "abort": {
       "already_configured": "This device is already configured.",
