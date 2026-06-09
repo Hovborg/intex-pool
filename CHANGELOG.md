@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.2] - 2026-06-09
+
+### Fixed
+- Temperature-unit select was inverted: on the real hardware DP124 is True for °C / False for °F
+  (opposite of the thing-model doc). Now matches the device.
+
 ## [0.9.1] - 2026-06-09
 
 ### Changed

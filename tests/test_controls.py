@@ -90,12 +90,13 @@ async def test_select_self_clean(hass):
 
 
 async def test_select_temp_unit_sets_bool(hass):
-    coord, client = await _salt(hass, {"124": False})
+    # DP124 True == °C, False == °F (inverse of the doc; verified on hardware)
+    coord, client = await _salt(hass, {"124": True})
     sel = IntexSelect(coord, _d(const.SELECTS, "temp_unit"), "saltid")
     assert sel.current_option == "c"
-    assert sel.options == ["c", "f"]
+    assert set(sel.options) == {"c", "f"}
     await sel.async_select_option("f")
-    assert client.calls[0] == ("124", True)
+    assert client.calls[0] == ("124", False)
 
 
 async def test_number_ph_target_scaled(hass):

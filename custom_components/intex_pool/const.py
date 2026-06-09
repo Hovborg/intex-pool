@@ -278,7 +278,9 @@ SELECTS: tuple[IntexSelectDescription, ...] = (
     ),
     IntexSelectDescription(
         key="temp_unit", translation_key="temp_unit", device=DEVICE_SALT, source="124",
-        value_map={False: "c", True: "f"}, icon="mdi:thermometer",
+        # NOTE: on the real hardware DP124 is True for °C and False for °F
+        # (inverse of the thing-model doc), verified against the live device.
+        value_map={True: "c", False: "f"}, icon="mdi:thermometer",
         entity_category=EntityCategory.CONFIG,
     ),
 )
