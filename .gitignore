@@ -13,3 +13,4 @@ card/dist/
 # Local
 .DS_Store
 *.log
+.spike/

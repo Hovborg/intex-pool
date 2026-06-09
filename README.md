@@ -138,10 +138,25 @@ which for these `rs` devices ultimately comes from the Tuya cloud — so the clo
 usually simplest.
 </details>
 
+## 🔧 Keeping it running
+
+Pools get re-paired and gear gets replaced — both are handled from the UI, with no need to
+delete and re-add the integration:
+
+- 🔑 **Local key changed?** Re-pairing a device in the Tuya / Smart Life app rotates its
+  **local key**, which breaks the local connection (saltwater system or a Tuya pump). Home
+  Assistant then starts **re-authentication** automatically — just type the new local key
+  (and, for the cloud sensor, the access secret). Each local device has its own key field,
+  so any combination works.
+- 🔁 **Replaced a device?** When you swap a physical unit, the new one gets a new Tuya id.
+  Open **Settings → Devices & Services → Intex Pool → ⋮ → Reconfigure** to re-run discovery
+  and pick the new device. The existing entry is updated **in place** — your entity ids and
+  history are kept, and unchanged devices keep their stored IP/key (no re-scan needed).
+
 ## 🧪 Compatibility
 
-Built and **live-verified** against the **AGP / Intex QS-series saltwater chlorinator** and
-the **AGP Smart Sensor / Water Analyzer (WA510)**. Other Intex/Tuya pool models connect the
+Built and **live-verified** against the **AGP / Intex QS-series saltwater chlorinator**
+(QS1600 Plus) and the **AGP Smart Sensor / Water Analyzer (WA510 and T3U)**. Other Intex/Tuya pool models connect the
 same way, but their data-point numbering may differ — some entities could be missing or
 wrong. Have a different model? [Open an issue](https://github.com/Hovborg/intex-pool/issues)
 with your device's data points and it can be added. The sand-filter pump works with **any**
