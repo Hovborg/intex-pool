@@ -10,6 +10,24 @@ from .const import DEVICE_META, DEVICE_PUMP, DEVICE_SALT, DEVICE_SENSOR, DOMAIN,
 from .models import IntexPoolConfigEntry, IntexPoolData
 
 
+def device_info_for(device: str, device_id: str) -> DeviceInfo:
+    """DeviceInfo for a Tuya device id (salt / sensor / Tuya pump)."""
+    meta = DEVICE_META[device]
+    return DeviceInfo(
+        identifiers={(DOMAIN, device_id)},
+        name=meta["name"], manufacturer=MANUFACTURER, model=meta["model"],
+    )
+
+
+def pump_device_info(entry: IntexPoolConfigEntry) -> DeviceInfo:
+    """A virtual 'Sand filter pump' device for an entity-linked pump's controls."""
+    meta = DEVICE_META[DEVICE_PUMP]
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{entry.entry_id}_pump")},
+        name=meta["name"], manufacturer=MANUFACTURER, model="Linked pump",
+    )
+
+
 def coordinator_for(data: IntexPoolData, device: str):
     """Return the active coordinator for a device type, or None."""
     return {DEVICE_SALT: data.salt, DEVICE_SENSOR: data.sensor, DEVICE_PUMP: data.pump}[device]

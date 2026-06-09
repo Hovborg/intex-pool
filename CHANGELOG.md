@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-06-09
+
+### Changed
+- Cleaner schedule device page: empty slots' Start time / Duration editors are now hidden
+  (unavailable) so only active schedules show; toggling an empty slot on creates an editable
+  daily default you can adjust.
+- The linked pump's controls (Auto mode + a new **Pump switch** selector) are grouped under
+  their own **Sand filter pump** device — and you can change the pump switch right there.
+
+### Fixed
+- Removed duplicate/orphaned per-slot schedule sensors left over from an earlier version.
+
 ## [0.8.0] - 2026-06-09
 
 ### Added

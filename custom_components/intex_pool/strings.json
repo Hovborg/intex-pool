@@ -189,7 +189,8 @@
       "temp_unit": {
         "name": "Temperature unit",
         "state": { "c": "°C", "f": "°F" }
-      }
+      },
+      "pump_switch_select": { "name": "Pump switch" }
     },
     "number": {
       "ph_target": { "name": "pH target" },

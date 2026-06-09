@@ -117,10 +117,14 @@ async def test_number_orp_target_raw(hass):
 async def test_pump_auto_mode_follows_saltwater(hass):
     from pytest_homeassistant_custom_component.common import async_mock_service
     from custom_components.intex_pool.switch import IntexPumpAutoSwitch
-    coord, client = await _salt(hass, {"104": True})
+    entry = MockConfigEntry(domain=const.DOMAIN, data={})
+    entry.add_to_hass(hass)
+    client = RecordingLocal({"104": True})
+    coord = SaltCoordinator(hass, entry, client, "salt", 15, auto_version=False)
+    await coord.async_refresh()
     on_calls = async_mock_service(hass, "switch", "turn_on")
     off_calls = async_mock_service(hass, "switch", "turn_off")
-    sw = IntexPumpAutoSwitch(coord, "saltid", "switch.shelly_pump")
+    sw = IntexPumpAutoSwitch(coord, "saltid", "switch.shelly_pump", entry)
     sw.hass = hass
     assert sw.unique_id == "saltid_pump_auto"
     # salt power on -> pump on

@@ -25,7 +25,12 @@ from .const import (
     PUMP_MODE_TUYA,
     SWITCHES,
 )
-from .entity import IntexPoolEntity, coordinator_for, device_id_for
+from .entity import (
+    IntexPoolEntity,
+    coordinator_for,
+    device_id_for,
+    pump_device_info,
+)
 from .models import IntexPoolConfigEntry
 
 PARALLEL_UPDATES = 1
@@ -64,7 +69,7 @@ async def async_setup_entry(
         salt_id = device_id_for(entry, DEVICE_SALT)
         if salt_id is not None:
             entities.append(
-                IntexPumpAutoSwitch(data.salt, salt_id, pump_cfg[CONF_PUMP_SWITCH])
+                IntexPumpAutoSwitch(data.salt, salt_id, pump_cfg[CONF_PUMP_SWITCH], entry)
             )
 
     # One toggle switch per schedule slot (turn each schedule on/off).
@@ -109,18 +114,12 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
     _attr_translation_key = "pump_auto"
     _attr_icon = "mdi:autorenew"
 
-    def __init__(self, salt_coordinator, salt_device_id: str, pump_switch: str) -> None:
+    def __init__(self, salt_coordinator, salt_device_id: str, pump_switch: str, entry) -> None:
         super().__init__(salt_coordinator)
         self._pump_switch = pump_switch
         self._attr_unique_id = f"{salt_device_id}_pump_auto"
         self._attr_is_on = False
-        meta = DEVICE_META[DEVICE_SALT]
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, salt_device_id)},
-            name=meta["name"],
-            manufacturer=MANUFACTURER,
-            model=meta["model"],
-        )
+        self._attr_device_info = pump_device_info(entry)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -219,12 +218,9 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs) -> None:
-        if not self._remembered:
-            raise HomeAssistantError(
-                "No stored schedule to restore — create one with the "
-                "intex_pool.set_schedule action first."
-            )
-        r = self._remembered
+        # Restore the remembered schedule, or create a sensible daily default the
+        # user can then edit via the Start time / Duration entities.
+        r = self._remembered or {"on": 1, "hour": 12, "minute": 0, "duration": 2, "days": 0xFF}
         new = schedule.set_slot(
             self._slots(), self._index,
             on=bool(r.get("on")), hour=r.get("hour"), minute=r.get("minute"),

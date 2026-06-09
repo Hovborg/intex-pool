@@ -58,6 +58,11 @@ class IntexScheduleStartTime(CoordinatorEntity, TimeEntity):
         return slots[self._index] if self._index < len(slots) else None
 
     @property
+    def available(self) -> bool:
+        slot = self._slot()
+        return super().available and bool(slot and slot.get("active"))
+
+    @property
     def native_value(self) -> dt_time | None:
         slot = self._slot()
         if not slot or not slot.get("active"):
