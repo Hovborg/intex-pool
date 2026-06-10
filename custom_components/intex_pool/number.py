@@ -11,7 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import decode, schedule
 from .const import DEVICE_META, DEVICE_SALT, DOMAIN, MANUFACTURER, NUMBERS
-from .entity import IntexPoolEntity, coordinator_for, device_id_for
+from .entity import IntexPoolEntity, coordinator_for, device_id_for, write_slots_guarded
 from .models import IntexPoolConfigEntry
 
 PARALLEL_UPDATES = 1
@@ -60,10 +60,8 @@ class IntexScheduleDuration(CoordinatorEntity, NumberEntity):
         # Slot 0 is the Boost cycle: only a duration, labelled "Boost duration".
         if index == 0:
             self._attr_translation_key = "boost_duration"
-            self._attr_icon = "mdi:rocket-launch-outline"
         else:
             self._attr_translation_key = "schedule_duration"
-            self._attr_icon = "mdi:timer-outline"
             self._attr_translation_placeholders = {"index": str(index + 1)}
         self._attr_unique_id = f"{device_id}_schedule_{index + 1}_duration"
         meta = DEVICE_META[DEVICE_SALT]
@@ -93,7 +91,7 @@ class IntexScheduleDuration(CoordinatorEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         slots = (self.coordinator.data or {}).get("slots") or schedule.decode_schedules("")
         new = schedule.set_slot(slots, self._index, duration=int(value))
-        await self.coordinator.async_write_slots(new)
+        await write_slots_guarded(self.coordinator, new, self.entity_id)
 
 
 class IntexNumber(IntexPoolEntity, NumberEntity):

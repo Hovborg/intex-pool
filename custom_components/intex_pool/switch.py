@@ -1,9 +1,11 @@
 """Switch platform (saltwater power/chlorination, Tuya pump on/off)."""
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -14,6 +16,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import decode, schedule
 from .const import (
     CONF_PUMP_MODE,
+    CONF_PUMP_ON_DP,
     CONF_PUMP_SWITCH,
     DEFAULT_PUMP_ON_DP,
     DEVICE_META,
@@ -30,8 +33,11 @@ from .entity import (
     coordinator_for,
     device_id_for,
     pump_device_info,
+    write_slots_guarded,
 )
 from .models import IntexPoolConfigEntry
+
+_LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 1
 SALT_POWER_DP = "104"
@@ -56,7 +62,7 @@ async def async_setup_entry(
             if pump_cfg.get(CONF_PUMP_MODE) != PUMP_MODE_TUYA:
                 continue
             # resolve the configured on/off DP for the Tuya pump
-            desc = replace(desc, source=str(pump_cfg.get("on_dp", DEFAULT_PUMP_ON_DP)))
+            desc = replace(desc, source=str(pump_cfg.get(CONF_PUMP_ON_DP, DEFAULT_PUMP_ON_DP)))
         entities.append(IntexSwitch(coordinator, desc, device_id))
 
     # Pump auto mode: drive a linked (entity-mode) pump from the saltwater state,
@@ -96,8 +102,14 @@ class IntexSwitch(IntexPoolEntity, SwitchEntity):
         await self._set(False)
 
     async def _set(self, value: bool) -> None:
+        # Device-aware write: local coordinators (salt/Tuya pump) set the DP
+        # over the LAN; cloud coordinators (water sensor) issue a property.
+        source = self.entity_description.source
         try:
-            await self.coordinator.async_set_dp(self.entity_description.source, value)
+            if hasattr(self.coordinator, "async_set_dp"):
+                await self.coordinator.async_set_dp(source, value)
+            else:
+                await self.coordinator.async_issue(source, value)
         except Exception as err:  # noqa: BLE001
             raise HomeAssistantError(f"Failed to set {self.entity_id}: {err}") from err
 
@@ -112,7 +124,6 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
 
     _attr_has_entity_name = True
     _attr_translation_key = "pump_auto"
-    _attr_icon = "mdi:autorenew"
 
     def __init__(self, salt_coordinator, salt_device_id: str, pump_switch: str, entry) -> None:
         super().__init__(salt_coordinator)
@@ -125,8 +136,20 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         await super().async_added_to_hass()
         if (last := await self.async_get_last_state()) is not None:
             self._attr_is_on = last.state == "on"
-        if self._attr_is_on:
-            await self._sync()
+        if not self._attr_is_on:
+            return
+        # The initial sync calls the switch service of ANOTHER integration —
+        # during startup that platform may not be loaded yet, so defer until HA
+        # is fully started. On a plain integration reload HA is already running.
+        if self.hass.is_running:
+            self.hass.async_create_task(self._sync())
+        else:
+            async def _on_started(_event) -> None:
+                await self._sync()
+
+            self.async_on_remove(
+                self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _on_started)
+            )
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -138,10 +161,16 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         if not self._pump_switch:
             return
         salt_on = bool(self.coordinator.data and self.coordinator.data.get(SALT_POWER_DP))
-        await self.hass.services.async_call(
-            "switch", "turn_on" if salt_on else "turn_off",
-            {"entity_id": self._pump_switch}, blocking=False,
-        )
+        try:
+            await self.hass.services.async_call(
+                "switch", "turn_on" if salt_on else "turn_off",
+                {"entity_id": self._pump_switch}, blocking=True,
+            )
+        except Exception as err:  # noqa: BLE001 - auto-mode must never crash the update loop
+            _LOGGER.warning(
+                "Pump auto mode could not switch %s %s: %s",
+                self._pump_switch, "on" if salt_on else "off", err,
+            )
 
     async def async_turn_on(self, **kwargs) -> None:
         self._attr_is_on = True
@@ -192,10 +221,8 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         self._suspended: dict[str, dict] = {}
         if self._is_boost:
             self._attr_translation_key = "boost_slot"
-            self._attr_icon = "mdi:rocket-launch"
         else:
             self._attr_translation_key = "schedule_slot"
-            self._attr_icon = "mdi:calendar-clock"
             self._attr_translation_placeholders = {"index": str(index + 1)}
         self._attr_unique_id = f"{device_id}_schedule_{index + 1}"
         meta = DEVICE_META[DEVICE_SALT]
@@ -245,15 +272,20 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
     async def async_turn_off(self, **kwargs) -> None:
         slots = self._slots()
         slot = slots[self._index]
-        if slot.get("active"):
-            self._remembered = _slot_fields(slot)
+        remembered = _slot_fields(slot) if slot.get("active") else self._remembered
         new = schedule.set_slot(slots, self._index, clear=True)
-        if self._is_boost and self._suspended:
+        restoring = self._is_boost and bool(self._suspended)
+        if restoring:
             # Boost released: bring the suspended timed schedules back.
             for idx, rec in self._suspended.items():
                 new = _apply(new, int(idx), rec)
+        # Write FIRST — only commit the remembered/suspended bookkeeping once
+        # the cloud write succeeded, so a failed write can't leave the entity
+        # believing the slot was cleared/restored.
+        await write_slots_guarded(self.coordinator, new, self.entity_id)
+        self._remembered = remembered
+        if restoring:
             self._suspended = {}
-        await self.coordinator.async_write_slots(new)
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs) -> None:
@@ -266,6 +298,7 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         else:
             default = {"on": 1, "hour": 12, "minute": 0, "duration": 2, "days": 0xFF}
         new = _apply(slots, self._index, self._remembered or default)
+        snapshot: dict[str, dict] | None = None
         if self._is_boost:
             # Suspend (remember + clear) every active timed schedule so the UI
             # shows them off and they don't run against the boost cycle. Only
@@ -277,9 +310,10 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
                 for i in range(1, schedule.SLOT_COUNT)
                 if slots[i].get("active")
             }
-            if snapshot:
-                self._suspended = snapshot
             for i in range(1, schedule.SLOT_COUNT):
                 new = schedule.set_slot(new, i, clear=True)
-        await self.coordinator.async_write_slots(new)
+        # Write FIRST — commit the suspended snapshot only on success.
+        await write_slots_guarded(self.coordinator, new, self.entity_id)
+        if self._is_boost and snapshot:
+            self._suspended = snapshot
         self.async_write_ha_state()

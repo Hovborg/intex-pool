@@ -1,10 +1,13 @@
 """Sensor platform."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import decode, schedule
@@ -43,7 +46,6 @@ class IntexScheduleSensor(CoordinatorEntity, SensorEntity):
 
     _attr_has_entity_name = True
     _attr_translation_key = "schedules"
-    _attr_icon = "mdi:calendar-clock"
 
     def __init__(self, coordinator, device_id: str) -> None:
         super().__init__(coordinator)
@@ -80,7 +82,7 @@ class IntexSensor(IntexPoolEntity, SensorEntity):
     """A read-only sensor backed by a DP / cloud property."""
 
     @property
-    def native_value(self):
+    def native_value(self) -> StateType | datetime:
         raw = self._raw
         desc = self.entity_description
         if desc.value_fn is not None:

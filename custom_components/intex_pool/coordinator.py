@@ -42,15 +42,19 @@ class _LocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._client = client
         self._auto_version = auto_version
         self._ver_idx = 0
+        self._auth_failures = 0
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
-            return await self.hass.async_add_executor_job(self._client.status)
+            data = await self.hass.async_add_executor_job(self._client.status)
         except TuyaAuthError as err:
             # Bad key (or version). While auto-detecting the protocol version,
             # keep cycling versions; once the version is known, a rejected key
-            # means the key rotated -> trigger a reauth flow.
-            if self._auto_version:
+            # means the key rotated -> trigger a reauth flow. If EVERY version
+            # candidate has been rejected as bad-auth, the key itself rotated —
+            # escalate to reauth instead of cycling forever.
+            self._auth_failures += 1
+            if self._auto_version and self._auth_failures <= len(VERSION_CANDIDATES):
                 self._rotate_version()
                 raise UpdateFailed(str(err)) from err
             raise ConfigEntryAuthFailed(str(err)) from err
@@ -60,6 +64,8 @@ class _LocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as err:  # noqa: BLE001 - surface any transport failure
             self._rotate_version()
             raise UpdateFailed(f"{type(err).__name__}: {err}") from err
+        self._auth_failures = 0
+        return data
 
     def _rotate_version(self) -> None:
         """Advance to the next protocol-version candidate (auto-detect mode)."""

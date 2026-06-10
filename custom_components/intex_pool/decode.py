@@ -12,6 +12,7 @@ distilled live from the Tuya thing-model on 2026-06-07.
 """
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 # --- DP114 (saltwater) / sensor "error_code": integer code -> token (REF §2/§5) ---
@@ -38,6 +39,18 @@ PH_INDICATOR_OPTIONS: list[str] = ["off", "red", "green"]
 ORP_INDICATOR_OPTIONS: list[str] = ["off", "red", "green", "saltwater_abnormal"]
 FC_INDICATOR_OPTIONS: list[str] = ["off", "red", "green"]
 MAINTENANCE_OPTIONS: list[str] = ["off", "red"]
+
+# --- sensor ORP_dif_Number trend enum (REF §3): raw no/red/green/blue ---
+# Raw colour tokens map to semantic levels (0=no, 1=low, 2=mid, 3=high).
+ORP_TREND_RAW_TO_TOKEN: dict[str, str] = {
+    "no": "none", "red": "low", "green": "mid", "blue": "high",
+}
+ORP_TREND_OPTIONS: list[str] = list(dict.fromkeys(ORP_TREND_RAW_TO_TOKEN.values()))
+
+# Cloud measurement properties whose report time feeds "Last measurement".
+MEASUREMENT_CODES: tuple[str, ...] = (
+    "PH_Number", "ORP_Number", "fc_number", "water_tempture_c", "battery_capacity",
+)
 
 
 def normalize_error(raw: Any) -> str | None:
@@ -69,6 +82,33 @@ def normalize_alarm(raw: Any) -> str | None:
 def normalize_indicator(raw: Any, options: list[str]) -> str | None:
     """Generic indicator enum -> token (pass the relevant *_OPTIONS list)."""
     return _enum_token(raw, options)
+
+
+def normalize_orp_trend(raw: Any) -> str | None:
+    """ORP_dif_Number colour enum -> semantic trend token (none/low/mid/high)."""
+    if raw is None:
+        return None
+    return ORP_TREND_RAW_TO_TOKEN.get(str(raw).strip().lower())
+
+
+def last_measurement(times: Any) -> datetime | None:
+    """Newest report time (epoch ms) across the measurement properties -> datetime.
+
+    *times* is the ``{code: epoch_ms}`` dict the cloud client stashes under the
+    reserved ``_times`` key. Falls back to the newest time of any property if
+    none of the known measurement codes are present.
+    """
+    if not isinstance(times, dict) or not times:
+        return None
+    stamps = [
+        t for code in MEASUREMENT_CODES
+        if isinstance((t := times.get(code)), (int, float)) and t > 0
+    ]
+    if not stamps:
+        stamps = [t for t in times.values() if isinstance(t, (int, float)) and t > 0]
+    if not stamps:
+        return None
+    return datetime.fromtimestamp(max(stamps) / 1000, tz=UTC)
 
 
 def scaled(raw: Any, factor: float, digits: int = 2) -> float | None:

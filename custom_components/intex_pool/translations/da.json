@@ -9,6 +9,12 @@
           "access_id": "Access ID",
           "access_secret": "Access secret",
           "manual": "Opsæt manuelt i stedet (uden cloud)"
+        },
+        "data_description": {
+          "region": "Datacentret for dit Tuya IoT-projekt (eu, us, cn eller in).",
+          "access_id": "Access ID/Client ID fra projektets oversigtsside på iot.tuya.com.",
+          "access_secret": "Access Secret/Client Secret fra samme side.",
+          "manual": "Spring cloud-opdagelse over og indtast selv enheds-id'er, nøgler og IP'er."
         }
       },
       "discover": {
@@ -54,7 +60,9 @@
       "pump": {
         "title": "Sandfilter-pumpe",
         "description": "Hvordan styres din pumpe?",
-        "data": { "pump_mode": "Pumpe-type" }
+        "data": {
+          "pump_mode": "Pumpe-type"
+        }
       },
       "pump_tuya": {
         "title": "Tuya-pumpe (lokalt)",
@@ -129,10 +137,18 @@
   },
   "entity": {
     "sensor": {
-      "salinity": { "name": "Salinitet" },
-      "water_temp": { "name": "Vandtemperatur" },
-      "cell_runtime": { "name": "Celle-driftstid" },
-      "time_remaining": { "name": "Resterende driftstid" },
+      "salinity": {
+        "name": "Salinitet"
+      },
+      "water_temp": {
+        "name": "Vandtemperatur"
+      },
+      "cell_runtime": {
+        "name": "Celle-driftstid"
+      },
+      "time_remaining": {
+        "name": "Resterende driftstid"
+      },
       "status": {
         "name": "Driftsstatus",
         "state": {
@@ -163,55 +179,144 @@
         "name": "Fejlkode",
         "state": {
           "none": "Ingen",
-          "e1": "E1", "e2": "E2", "e3": "E3", "e4": "E4", "e5": "E5",
-          "e80": "E80", "e81": "E81",
-          "e90": "E90", "e91": "E91", "e92": "E92", "e93": "E93", "e94": "E94",
-          "e95": "E95", "e96": "E96", "e97": "E97", "e99": "E99", "end": "Slut"
+          "e1": "E1",
+          "e2": "E2",
+          "e3": "E3",
+          "e4": "E4",
+          "e5": "E5",
+          "e80": "E80",
+          "e81": "E81",
+          "e90": "E90",
+          "e91": "E91",
+          "e92": "E92",
+          "e93": "E93",
+          "e94": "E94",
+          "e95": "E95",
+          "e96": "E96",
+          "e97": "E97",
+          "e99": "E99",
+          "end": "Slut"
         }
       },
-      "ph": { "name": "pH" },
-      "orp": { "name": "ORP" },
-      "free_chlorine": { "name": "Frit klor" },
-      "battery": { "name": "Batteri" },
+      "ph": {
+        "name": "pH"
+      },
+      "orp": {
+        "name": "ORP"
+      },
+      "free_chlorine": {
+        "name": "Frit klor"
+      },
+      "battery": {
+        "name": "Batteri"
+      },
       "ph_indicator": {
         "name": "pH-indikator",
-        "state": { "off": "Slukket", "red": "Uden for interval", "green": "OK" }
+        "state": {
+          "off": "Slukket",
+          "red": "Uden for interval",
+          "green": "OK"
+        }
       },
       "orp_indicator": {
         "name": "ORP-indikator",
-        "state": { "off": "Slukket", "red": "Uden for interval", "green": "OK", "saltwater_abnormal": "Saltvand unormalt" }
+        "state": {
+          "off": "Slukket",
+          "red": "Uden for interval",
+          "green": "OK",
+          "saltwater_abnormal": "Saltvand unormalt"
+        }
       },
       "chlorine_indicator": {
         "name": "Klor-indikator",
-        "state": { "off": "Slukket", "red": "Uden for interval", "green": "OK" }
+        "state": {
+          "off": "Slukket",
+          "red": "Uden for interval",
+          "green": "OK"
+        }
       },
       "maintenance": {
         "name": "Vedligehold",
-        "state": { "off": "OK", "red": "Service påkrævet" }
+        "state": {
+          "off": "OK",
+          "red": "Service påkrævet"
+        }
       },
-      "schedules": { "name": "Tidsplaner" }
+      "schedules": {
+        "name": "Tidsplaner"
+      },
+      "orp_trend": {
+        "name": "ORP-trend",
+        "state": {
+          "none": "Ingen",
+          "low": "Lav",
+          "mid": "Mellem",
+          "high": "Høj"
+        }
+      },
+      "last_measurement": {
+        "name": "Seneste måling"
+      },
+      "ph_calibration": {
+        "name": "pH-kalibreringskoefficient"
+      },
+      "orp_calibration": {
+        "name": "ORP-kalibreringskoefficient"
+      }
     },
     "binary_sensor": {
-      "connectivity": { "name": "Forbindelse" },
-      "mesh": { "name": "Mesh" },
-      "pump_mesh": { "name": "Pumpe-mesh-status" }
+      "connectivity": {
+        "name": "Forbindelse"
+      },
+      "mesh": {
+        "name": "Mesh"
+      },
+      "pump_mesh": {
+        "name": "Pumpe-mesh-status"
+      }
     },
     "switch": {
-      "power": { "name": "Tænd/sluk" },
-      "chlorination": { "name": "Klor-produktion" },
-      "pump": { "name": "Pumpe" },
-      "pump_auto": { "name": "Pumpe auto-tilstand" },
-      "schedule_slot": { "name": "Tidsplan {index}" },
-      "boost_slot": { "name": "Boost" }
+      "power": {
+        "name": "Tænd/sluk"
+      },
+      "chlorination": {
+        "name": "Klor-produktion"
+      },
+      "pump": {
+        "name": "Pumpe"
+      },
+      "pump_auto": {
+        "name": "Pumpe auto-tilstand"
+      },
+      "schedule_slot": {
+        "name": "Tidsplan {index}"
+      },
+      "boost_slot": {
+        "name": "Boost"
+      },
+      "chlorination_2": {
+        "name": "Klorproduktion 2"
+      },
+      "stabilizer": {
+        "name": "Stabilisator-flag (CYA)"
+      }
     },
     "select": {
       "self_clean": {
         "name": "Self-clean-cyklus",
-        "state": { "2": "Hver 2. time", "4": "Hver 4. time", "6": "Hver 6. time", "10": "Hver 10. time" }
+        "state": {
+          "2": "Hver 2. time",
+          "4": "Hver 4. time",
+          "6": "Hver 6. time",
+          "10": "Hver 10. time"
+        }
       },
       "temp_unit": {
         "name": "Temperatur-enhed",
-        "state": { "c": "°C", "f": "°F" }
+        "state": {
+          "c": "°C",
+          "f": "°F"
+        }
       },
       "report_cadence": {
         "name": "Rapporteringsinterval",
@@ -224,20 +329,44 @@
           "fc_monthly": "Klor — månedligt"
         }
       },
-      "pump_switch_select": { "name": "Pumpe-kontakt" }
+      "pump_switch_select": {
+        "name": "Pumpe-kontakt"
+      }
     },
     "number": {
-      "ph_target": { "name": "pH-mål" },
-      "orp_target": { "name": "ORP-mål" },
-      "schedule_duration": { "name": "Tidsplan {index} varighed" },
-      "boost_duration": { "name": "Boost-varighed" }
+      "ph_target": {
+        "name": "pH-mål"
+      },
+      "orp_target": {
+        "name": "ORP-mål"
+      },
+      "schedule_duration": {
+        "name": "Tidsplan {index} varighed"
+      },
+      "boost_duration": {
+        "name": "Boost-varighed"
+      }
     },
     "time": {
-      "schedule_start": { "name": "Tidsplan {index} start" }
+      "schedule_start": {
+        "name": "Tidsplan {index} start"
+      }
     },
     "button": {
-      "refresh": { "name": "Opdater måling" },
-      "retest": { "name": "Test igen nu" }
+      "refresh": {
+        "name": "Opdater måling"
+      },
+      "retest": {
+        "name": "Test igen nu"
+      }
+    },
+    "event": {
+      "alarm_event": {
+        "name": "Alarm"
+      },
+      "error_event": {
+        "name": "Fejl"
+      }
     }
   },
   "services": {
@@ -245,16 +374,96 @@
       "name": "Sæt saltvands-tidsplan",
       "description": "Opret, ændr eller ryd en tidsplan-plads på saltvandssystemet (skrives til enheden via Tuya-cloud). Felt-betydninger er bedste bud.",
       "fields": {
-        "slot": { "name": "Plads", "description": "Tidsplan-plads der redigeres (0-6)." },
-        "clear": { "name": "Ryd", "description": "Tøm pladsen i stedet for at sætte den." },
-        "enable": { "name": "Tændt", "description": "Tænd anlægget for tidsplanen (fra opfører sig som boost-cyklus)." },
-        "hour": { "name": "Time", "description": "Start-time (0-23)." },
-        "minute": { "name": "Minut", "description": "Start-minut (0-59)." },
-        "duration": { "name": "Varighed (timer)", "description": "Varighed i timer." },
-        "month": { "name": "Måned", "description": "Måned for engangs-tidsplan (0 = ubrugt)." },
-        "date": { "name": "Dato", "description": "Dag i måneden for engangs-tidsplan (0 = ubrugt)." },
-        "days": { "name": "Dag-maske", "description": "Gentagelses-maske; 255 = hver dag, 0 = engang." }
+        "slot": {
+          "name": "Plads",
+          "description": "Tidsplan-plads der skal redigeres (0-6; 0 er Boost-cyklussen)."
+        },
+        "clear": {
+          "name": "Ryd",
+          "description": "Tøm pladsen i stedet for at sætte den."
+        },
+        "enable": {
+          "name": "Tændt",
+          "description": "Tænd anlægget for tidsplanen (fra opfører sig som boost-cyklus)."
+        },
+        "hour": {
+          "name": "Time",
+          "description": "Start-time (0-23)."
+        },
+        "minute": {
+          "name": "Minut",
+          "description": "Start-minut (0-59)."
+        },
+        "duration": {
+          "name": "Varighed (timer)",
+          "description": "Køretid i timer (0-72, matcher tidsplanens varigheds-kontroller)."
+        },
+        "month": {
+          "name": "Måned",
+          "description": "Måned for engangs-tidsplan (0 = ubrugt)."
+        },
+        "date": {
+          "name": "Dato",
+          "description": "Dag i måneden for engangs-tidsplan (0 = ubrugt)."
+        },
+        "days": {
+          "name": "Dag-maske",
+          "description": "Gentagelses-bitmaske (best-effort semantik): 255 = hver dag, 0 = engangs. Bit 7 markerer ugentlig gentagelse; bit 0-6 vælger ugedagen for engangs-poster."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationspost",
+          "description": "Entry-id for den Intex Pool-integration der skal rammes. Kun nødvendigt med mere end én opsætning."
+        }
       }
+    }
+  },
+  "exceptions": {
+    "schedule_write_failed": {
+      "message": "Skrivning af tidsplanen for {name} fejlede: {error}"
+    },
+    "no_schedule": {
+      "message": "Ingen Intex Pool-tidsplan tilgængelig — det kræver en indlæst enhed med saltvandssystem og Tuya cloud-legitimationsoplysninger."
+    },
+    "entry_not_found": {
+      "message": "Ingen Intex Pool-konfiguration med det id blev fundet."
+    }
+  },
+  "issues": {
+    "salt_alarm": {
+      "title": "Saltvandssystem-alarm ({code})",
+      "description": "Saltvandssystemet melder alarm {code}. Tjek displayet og manualens fejlkode-tabel."
+    },
+    "salt_alarm_e90": {
+      "title": "Saltvandssystem: lavt vandflow (E90)",
+      "description": "Saltvandssystemet melder lavt eller intet pumpeflow (E90). Tjek at filterpumpen kører, at ventilerne er åbne, og at flow-sensoren er ren (børst den forsigtigt med en plastbørste)."
+    },
+    "salt_alarm_e91e92": {
+      "title": "Saltvandssystem: salt uden for område (E91/E92)",
+      "description": "Saltniveauet er for lavt (E91) eller for højt (E92). Ved E91: tilsæt salt (≈0,15 g pr. liter hæver ~100 ppm). Ved E92: tøm og genfyld en del af poolen efter manualens tabel."
+    },
+    "salt_alarm_e01e02": {
+      "title": "Saltvandssystem: elektrodefejl (E01/E02)",
+      "description": "Kalk/snavs på klorelektroden, en løs elektrodeledning eller en defekt elektrode. Rens elektroden (eddikebad); gentager det sig, så forkort self-clean-cyklussen eller udskift elektroden."
+    },
+    "salt_alarm_e03e04": {
+      "title": "Saltvandssystem: vandtemperatur uden for område (E03/E04)",
+      "description": "Vandet er under 10 °C (E03) eller over 40 °C (E04). Stop brugen indtil vandtemperaturen er tilbage i området (kør om natten hvis for varmt)."
+    },
+    "salt_alarm_e97": {
+      "title": "Saltvandssystem: intern fejl (E97)",
+      "description": "Intern printkortfejl. Enheden skal serviceres — kontakt servicecentret."
+    },
+    "salt_alarm_e99": {
+      "title": "Saltvandssystem: salt/temp-sensorfejl (E99)",
+      "description": "Den kombinerede salt/temperatur-sensor er defekt og skal udskiftes."
+    },
+    "sensor_maintenance": {
+      "title": "Vandsensoren skal vedligeholdes",
+      "description": "Vandsensoren melder at dens prober skal renses eller kalibreres. Læg sensorspidserne i blød i klar eddike (op til 4 t), skyl, og kalibrér pH/ORP i appen. Lad aldrig proberne tørre ud."
+    },
+    "sensor_stale": {
+      "title": "Vandsensorens data er forældede",
+      "description": "Den nyeste måling er fra {last} — sensoren rapporterer normalt cirka én gang i timen. Tjek at sensoren er opladet, ligger i vandet og er online; tryk på “Opdater måling” for at tvinge en aflæsning. Kommer den aldrig tilbage, kan enheden være re-parret med et nyt id (brug Omkonfigurér)."
     }
   }
 }

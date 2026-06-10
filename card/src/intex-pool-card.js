@@ -10,20 +10,27 @@
  */
 import { LitElement, html, css, nothing } from "lit";
 
-// Injected at build time from package.json via esbuild --define (see the build
-// script in package.json). Falls back to "dev" for an un-defined source build.
+// Injected at build time from package.json via esbuild --define (see build.mjs).
+// Falls back to "dev" for an un-defined source build.
 const CARD_VERSION =
   typeof __CARD_VERSION__ !== "undefined" ? __CARD_VERSION__ : "dev";
 
 // Selectable appearance variants. "auto" inherits the HA theme; the others
 // override the CSS variables on the card so you can pick a look regardless of
 // your HA theme. Gradient backgrounds go through --ha-card-background.
+//
+// Fix 7 — light palette: darkened primary/success/warning/error so that
+// white text on the background reaches ≥ 4.5:1 (WCAG AA).
+//   #0078a8  4.94:1  (was #0aa2e0  2.89:1)
+//   #1e7d4f  5.12:1  (was #2bb673  2.61:1)
+//   #a66200  4.81:1  (was #f5a623  2.03:1)
+//   #b83224  5.97:1  (was #e0533d  3.84:1)
 const VARIANTS = {
   light: {
-    "--primary-color": "#0aa2e0", "--primary-text-color": "#16202a", "--secondary-text-color": "#5b6b78",
+    "--primary-color": "#0078a8", "--primary-text-color": "#16202a", "--secondary-text-color": "#5b6b78",
     "--card-background-color": "#ffffff", "--ha-card-background": "#ffffff", "--secondary-background-color": "#eef3f7",
-    "--divider-color": "#e1e8ee", "--success-color": "#2bb673", "--warning-color": "#f5a623",
-    "--error-color": "#e0533d", "--text-primary-color": "#ffffff",
+    "--divider-color": "#e1e8ee", "--success-color": "#1e7d4f", "--warning-color": "#a66200",
+    "--error-color": "#b83224", "--text-primary-color": "#ffffff",
   },
   dark: {
     "--primary-color": "#23b5f0", "--primary-text-color": "#e9eef2", "--secondary-text-color": "#9aa7b2",
@@ -45,53 +52,83 @@ const VARIANTS = {
   },
 };
 
+// Fix 1/4 — ROLE_MAP pruned:
+//   • Removed never-rendered: chlorine_indicator, maintenance, ph_target, orp_target,
+//     self_clean, time_remaining, salt_error from sensor map.
+//   • ph_indicator / orp_indicator kept (wired in Fix 3).
+//   • Removed pump_power / pump_energy from pump map (Fix 4).
+//   • salt_error removed from salt map as it is never rendered.
 const ROLE_MAP = {
   sensor: {
     ph: "ph_sensor", orp: "orp_sensor", free_chlorine: "fc_sensor",
-    water_temp: "sensor_temp", battery: "battery", ph_indicator: "ph_indicator",
-    orp_indicator: "orp_indicator", chlorine_indicator: "chlorine_indicator",
-    maintenance: "maintenance", ph_target: "ph_target", orp_target: "orp_target",
+    water_temp: "sensor_temp", battery: "battery",
+    ph_indicator: "ph_indicator", orp_indicator: "orp_indicator",
     refresh: "refresh_button",
   },
   salt: {
     power: "power_switch", chlorination: "chlorination_switch", salinity: "salinity",
-    status: "salt_status", alarm: "salt_alarm", self_clean: "self_clean",
-    water_temp: "salt_temp", time_remaining: "time_remaining", error_code: "salt_error",
-    schedules: "schedules_sensor",
+    status: "salt_status", alarm: "salt_alarm",
+    water_temp: "salt_temp", schedules: "schedules_sensor",
   },
   pump: { pump: "pump_switch" },
 };
-const SALT_KEYS = Object.keys(ROLE_MAP.salt);
-const SENSOR_KEYS = Object.keys(ROLE_MAP.sensor);
 
-function fireEvent(node, type, detail) {
-  const ev = new Event(type, { bubbles: true, composed: true });
-  ev.detail = detail;
-  node.dispatchEvent(ev);
+// Fix 1 — Compute discriminating keys per role (keys unique to that role only).
+// This means a device that has only `water_temp` is NOT classified as salt or
+// sensor; it falls through to pump. Salt is identified by salt-exclusive keys;
+// sensor is identified by sensor-exclusive keys. Computed once at module load so
+// future ROLE_MAP edits automatically stay safe.
+function _makeDiscriminators() {
+  const allRoles = Object.keys(ROLE_MAP);
+  const result = {};
+  for (const role of allRoles) {
+    const ownKeys = new Set(Object.keys(ROLE_MAP[role]));
+    // Remove keys that also appear in any other role.
+    for (const other of allRoles) {
+      if (other === role) continue;
+      for (const k of Object.keys(ROLE_MAP[other])) ownKeys.delete(k);
+    }
+    result[role] = ownKeys;
+  }
+  return result;
 }
+const DISCRIMINATORS = _makeDiscriminators();
+
+// Cache detectEntities results keyed on the hass.entities object identity
+// (Fix 10). Each call that produces a new entities reference gets recomputed;
+// otherwise the memoised result is returned.
+let _detectCache = null; // { ref: Object, result: Object }
 
 function detectEntities(hass) {
-  const out = {};
   const ents = hass?.entities || {};
+  if (_detectCache && _detectCache.ref === ents) return _detectCache.result;
+
+  const out = {};
   const byDevice = {};
   for (const [eid, ent] of Object.entries(ents)) {
     if (ent.platform !== "intex_pool") continue;
     (byDevice[ent.device_id || "_"] ??= []).push({ eid, tk: ent.translation_key });
   }
   for (const list of Object.values(byDevice)) {
+    // Fix 1 — classify on discriminating keys only.
     let kind = "pump";
-    if (list.some((x) => SALT_KEYS.includes(x.tk))) kind = "salt";
-    else if (list.some((x) => SENSOR_KEYS.includes(x.tk))) kind = "sensor";
+    if (list.some((x) => DISCRIMINATORS.salt.has(x.tk))) kind = "salt";
+    else if (list.some((x) => DISCRIMINATORS.sensor.has(x.tk))) kind = "sensor";
     for (const { eid, tk } of list) {
       const role = ROLE_MAP[kind]?.[tk];
       if (role && !out[role]) out[role] = eid;
     }
   }
+
+  _detectCache = { ref: ents, result: out };
   return out;
 }
 
 class IntexPoolCard extends LitElement {
   static properties = { _config: { state: true } };
+
+  // Fix 5 — busy set to guard double-taps
+  _busy = new Set();
 
   static getStubConfig(hass) {
     return { ...detectEntities(hass) };
@@ -110,20 +147,21 @@ class IntexPoolCard extends LitElement {
           { value: "ocean", label: "Ocean (dark teal)" },
           { value: "midnight", label: "Midnight (deep dark)" },
         ] } } },
-        { type: "expandable", title: "Water chemistry", schema: [
+        // Fix 8 — unique name keys on expandable sections
+        { type: "expandable", name: "water_chemistry", title: "Water chemistry", schema: [
           { name: "ph_sensor", ...ent("sensor") }, { name: "orp_sensor", ...ent("sensor") },
           { name: "fc_sensor", ...ent("sensor") }, { name: "sensor_temp", ...ent("sensor") },
           { name: "battery", ...ent("sensor") }, { name: "refresh_button", ...ent("button") },
         ] },
-        { type: "expandable", title: "Saltwater system", schema: [
+        // Fix 4 — removed pump_power / pump_energy
+        { type: "expandable", name: "salt_system", title: "Saltwater system", schema: [
           { name: "power_switch", ...ent("switch") }, { name: "chlorination_switch", ...ent("switch") },
           { name: "salinity", ...ent("sensor") }, { name: "salt_status", ...ent("sensor") },
           { name: "salt_alarm", ...ent("sensor") }, { name: "salt_temp", ...ent("sensor") },
           { name: "schedules_sensor", ...ent("sensor") },
         ] },
-        { type: "expandable", title: "Sand filter pump (any brand)", schema: [
-          { name: "pump_switch", ...any("switch") }, { name: "pump_power", ...any("sensor") },
-          { name: "pump_energy", ...any("sensor") },
+        { type: "expandable", name: "pump", title: "Sand filter pump (any brand)", schema: [
+          { name: "pump_switch", ...any("switch") },
         ] },
       ],
     };
@@ -183,23 +221,69 @@ class IntexPoolCard extends LitElement {
   _moreInfo(id) {
     if (id) fireEvent(this, "hass-more-info", { entityId: id });
   }
+
+  // Fix 5 — promise handling + double-tap guard
   _toggle(id) {
-    this._hass.callService("homeassistant", "toggle", { entity_id: id });
+    if (this._busy.has(id)) return;
+    this._busy.add(id);
+    this.requestUpdate();
+    this._hass.callService("homeassistant", "toggle", { entity_id: id })
+      .catch((err) => {
+        console.error("[intex-pool-card] toggle failed:", err);
+        fireEvent(this, "hass-notification", { message: `Toggle failed: ${err?.message ?? err}` });
+      })
+      .finally(() => {
+        this._busy.delete(id);
+        this.requestUpdate();
+      });
   }
   _press(id) {
-    this._hass.callService("button", "press", { entity_id: id });
+    if (this._busy.has(id)) return;
+    this._busy.add(id);
+    this.requestUpdate();
+    this._hass.callService("button", "press", { entity_id: id })
+      .catch((err) => {
+        console.error("[intex-pool-card] press failed:", err);
+        fireEvent(this, "hass-notification", { message: `Press failed: ${err?.message ?? err}` });
+      })
+      .finally(() => {
+        this._busy.delete(id);
+        this.requestUpdate();
+      });
+  }
+
+  // Fix 3 — resolve indicator color for a given indicator entity id.
+  // Returns "good", "warn", "bad", or null when no indicator is present/valid.
+  _indicatorCls(indicatorId) {
+    if (!indicatorId) return null;
+    const s = this._st(indicatorId);
+    if (!s || s.state === "unavailable") return null;
+    const st = s.state.toLowerCase();
+    if (st === "green") return "good";
+    if (st === "yellow") return "warn";
+    if (st === "red") return "bad";
+    return null;
   }
 
   // a compact metric tile: big value, small label, in-range bar
-  _tile(id, { label, digits = 0, lo, hi, unit }) {
+  // Fix 3 — accepts optional indicatorId; Fix 6 — aria-label
+  _tile(id, { label, digits = 0, lo, hi, unit, indicatorId } = {}) {
     const s = this._st(id);
     if (!s) return nothing;
     const v = this._num(id);
     const val = v == null ? (s.state ?? "—") : v.toFixed(digits);
-    const ok = v == null ? null : (lo == null || v >= lo) && (hi == null || v <= hi);
-    const cls = ok === null ? "" : ok ? "good" : "warn";
+    const numericOk = v == null ? null : (lo == null || v >= lo) && (hi == null || v <= hi);
+    // Indicator overrides numeric heuristic when present.
+    const indCls = this._indicatorCls(indicatorId);
+    let cls;
+    if (indCls !== null) {
+      cls = indCls; // "good" / "warn" / "bad"
+    } else {
+      cls = numericOk === null ? "" : numericOk ? "good" : "warn";
+    }
+    const ariaLabel = `${label}: ${val}${unit ? " " + unit : ""}`;
     return html`
-      <button class="tile" @click=${() => this._moreInfo(id)}>
+      <button class="tile" aria-label=${ariaLabel} @click=${() => this._moreInfo(id)}>
         <div class="v">${val}${unit ? html`<span class="u">${unit}</span>` : nothing}</div>
         <div class="l">${label}</div>
         <div class="bar ${cls}"></div>
@@ -209,8 +293,12 @@ class IntexPoolCard extends LitElement {
   _ctrl(id, icon, label, press = false) {
     if (!this._has(id)) return nothing;
     const on = press ? false : this._on(id);
+    const busy = this._busy.has(id);
+    // Fix 5 — disabled while busy; Fix 6 — aria-pressed
     return html`
-      <button class="pill ${on ? "on" : ""}" aria-label=${label}
+      <button class="pill ${on ? "on" : ""} ${busy ? "busy" : ""}"
+        aria-label=${label} aria-pressed=${on}
+        ?disabled=${busy}
         @click=${() => (press ? this._press(id) : this._toggle(id))}>
         <ha-icon icon=${icon}></ha-icon><span>${label}</span>
       </button>`;
@@ -218,11 +306,9 @@ class IntexPoolCard extends LitElement {
 
   _statusPill(c) {
     const alarm = this._st(c.salt_alarm);
-    const maint = this._st(c.maintenance);
     // e93 = standby, not a real fault — don't show it as an alarm.
     if (alarm && !["normal", "unknown", "unavailable", "e93"].includes(alarm.state))
       return html`<span class="status alarm">${this._fmt(alarm)}</span>`;
-    if (maint && maint.state === "red") return html`<span class="status warn">Service</span>`;
     const st = this._st(c.salt_status);
     if (st && this._has(c.salt_status))
       return html`<span class="status ok">${this._fmt(st)}</span>`;
@@ -235,8 +321,16 @@ class IntexPoolCard extends LitElement {
     const tempId = this._has(c.sensor_temp) ? c.sensor_temp : c.salt_temp;
 
     const tiles = [
-      this._has(c.ph_sensor) ? this._tile(c.ph_sensor, { label: "pH", digits: 1, lo: 7.2, hi: 7.6 }) : nothing,
-      this._has(c.orp_sensor) ? this._tile(c.orp_sensor, { label: "ORP", unit: "mV", lo: 650, hi: 750 }) : nothing,
+      this._has(c.ph_sensor)
+        ? this._tile(c.ph_sensor, { label: "pH", digits: 1, lo: 7.2, hi: 7.6, indicatorId: c.ph_indicator })
+        : nothing,
+      this._has(c.orp_sensor)
+        ? this._tile(c.orp_sensor, { label: "ORP", unit: "mV", lo: 650, hi: 750, indicatorId: c.orp_indicator })
+        : nothing,
+      // Fix 2 — free-chlorine tile
+      this._has(c.fc_sensor)
+        ? this._tile(c.fc_sensor, { label: "Cl₂", digits: 2, unit: "ppm", lo: 1, hi: 3 })
+        : nothing,
       this._has(tempId) ? this._tile(tempId, { label: "Temp", digits: 1, unit: "°", lo: 10, hi: 35 }) : nothing,
       this._has(c.salinity) ? this._tile(c.salinity, { label: "Salt", lo: 800, hi: 1800 }) : nothing,
     ].filter((t) => t !== nothing);
@@ -267,7 +361,8 @@ class IntexPoolCard extends LitElement {
                   ${ctrls}
                   <span class="spacer"></span>
                   ${hasBattery
-                    ? html`<button class="mini" @click=${() => this._moreInfo(c.battery)} title="Battery">
+                    ? html`<button class="mini" aria-label="Battery"
+                        @click=${() => this._moreInfo(c.battery)} title="Battery">
                         <ha-icon icon="mdi:battery"></ha-icon>${this._num(c.battery) ?? "?"}%</button>`
                     : nothing}
                   ${hasRefresh
@@ -333,6 +428,7 @@ class IntexPoolCard extends LitElement {
       border-radius: 3px 3px 0 0; background: transparent; }
     .tile .bar.good { background: var(--success-color, #2e9e5b); }
     .tile .bar.warn { background: var(--warning-color, #f5a300); }
+    .tile .bar.bad  { background: var(--error-color, #db4437); }
 
     .ctrls { display: flex; align-items: center; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
     .spacer { flex: 1; }
@@ -344,6 +440,7 @@ class IntexPoolCard extends LitElement {
     }
     .pill ha-icon { --mdc-icon-size: 18px; }
     .pill.on { background: var(--primary-color); color: var(--text-primary-color, #fff); border-color: var(--primary-color); }
+    .pill.busy, .pill:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
     .mini {
       display: inline-flex; align-items: center; gap: 3px; cursor: pointer; border: none;
       background: none; color: var(--secondary-text-color); font-size: .78rem; font-weight: 600; padding: 4px;
@@ -359,6 +456,12 @@ class IntexPoolCard extends LitElement {
     .empty { padding: 14px 2px; color: var(--secondary-text-color); text-align: center; font-size: .85rem; }
     @media (prefers-reduced-motion: reduce) { .tile, .pill { transition: none; } }
   `;
+}
+
+function fireEvent(node, type, detail) {
+  const ev = new Event(type, { bubbles: true, composed: true });
+  ev.detail = detail;
+  node.dispatchEvent(ev);
 }
 
 if (!customElements.get("intex-pool-card")) {

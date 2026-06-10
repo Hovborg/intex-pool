@@ -47,6 +47,29 @@ Pick **any combination** — one, two, or all three:
 > 🔌 **Any brand of pump works.** Not a Tuya device? Link any existing HA switch (Shelly,
 > Zigbee relay, …) and it joins the pool card alongside the Intex gear.
 
+> 🔄 **Pump auto mode.** With a linked pump, a **Pump auto mode** switch makes the pump follow
+> the saltwater system: it runs while chlorination is on and stops when it's off — no
+> automation needed.
+
+<details>
+<summary>📋 Full entity reference</summary>
+
+**Water sensor (cloud):** pH, ORP, free chlorine (reference only), water temperature, battery,
+**Last measurement** timestamp, pH/ORP/chlorine indicators, **ORP trend**, maintenance,
+error code, link status, connectivity · pH target & ORP target numbers · reporting-cadence &
+temperature-unit selects · stabilizer (CYA) flag switch · **Refresh measurement** button ·
+**Error** event · pH/ORP calibration-coefficient diagnostics (disabled by default).
+
+**Saltwater system (local):** power & chlorine-production switches (a second, unverified
+"Chlorine production 2" switch ships disabled), salinity, water temperature, cell runtime,
+time remaining, status, **Alarm** (sensor + event), error code, mesh/pump-mesh status,
+connectivity · self-clean & temperature-unit selects · **Re-test now** button ·
+**Schedules** sensor + per-slot toggle/duration/start-time entities (slot 0 = **Boost**).
+
+**Pump:** on/off switch (Tuya mode) or your own linked switch + **Pump auto mode** and a
+**Pump switch** selector (entity mode), connectivity (Tuya mode).
+</details>
+
 ## 📸 The card adapts to what you have
 
 It shows only the sections for the equipment you own — chemistry-only, full, or pump-only:
@@ -151,7 +174,34 @@ delete and re-add the integration:
 - 🔁 **Replaced a device?** When you swap a physical unit, the new one gets a new Tuya id.
   Open **Settings → Devices & Services → Intex Pool → ⋮ → Reconfigure** to re-run discovery
   and pick the new device. The existing entry is updated **in place** — your entity ids and
-  history are kept, and unchanged devices keep their stored IP/key (no re-scan needed).
+  history are kept, and unchanged devices keep their stored IP/key (no re-scan needed). The
+  old device can then be deleted from its device page.
+- ⏱️ **Polling intervals** are tunable under **⋮ → Configure** (local default 15 s, cloud
+  default 120 s — well inside the Tuya free-tier API quota).
+
+## 🩺 Troubleshooting
+
+- 🚨 **Repairs**: actionable problems show up in **Settings → Repairs** — saltwater alarms
+  (low flow E90, salt out of range E91/E92, electrode/temperature faults, …) with the
+  manual's fix steps, a **maintenance** reminder when the sensor probes need cleaning or
+  calibration, and a **stale data** warning when the sensor (which reports ~1×/hour) hasn't
+  measured for hours.
+- 📄 **Diagnostics**: the integration page's **Download diagnostics** includes the raw device
+  data for bug reports — local keys and cloud credentials are redacted automatically.
+- ⏰ **Alarm/error events**: `event.…_alarm` and `event.…_error` fire on every transition, so
+  you can build notifications without templating against the enum sensors.
+- ☁️ **Tuya cloud trial expired?** The free IoT Core trial eventually lapses; renew it for
+  free at [iot.tuya.com](https://iot.tuya.com) → Cloud → your project → **View Details** →
+  extend trial. The integration surfaces auth failures as a re-authentication prompt.
+
+<details>
+<summary>🗑️ Removing the integration</summary>
+
+**Settings → Devices & Services → Intex Pool → ⋮ → Delete.** This removes the entry, its
+devices and entities. To finish the cleanup, remove the HACS download (HACS → Intex Pool →
+remove) and restart Home Assistant. Nothing is left on the devices themselves — they keep
+working in the Intex Link / Smart Life app.
+</details>
 
 ## 🧪 Compatibility
 

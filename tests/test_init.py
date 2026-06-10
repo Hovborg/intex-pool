@@ -9,7 +9,7 @@ from custom_components.intex_pool.const import DOMAIN
 SALT = {"device_id": "saltdev", "local_key": "k", "host": "1.2.3.4", "version": 3.5}
 SENSOR = {"region": "eu", "access_id": "a", "access_secret": "s", "device_id": "sdev"}
 PUMP_TUYA = {"pump_mode": "tuya", "device_id": "pumpdev", "local_key": "k",
-             "host": "1.2.3.5", "version": 3.5, "on_dp": "1"}
+             "host": "1.2.3.5", "version": 3.5, "pump_on_dp": "1"}
 
 
 async def _setup(hass, data):
@@ -45,8 +45,10 @@ async def test_setup_sensor_only(hass, mock_tinytuya):
     assert data.salt is None and data.pump is None
     ids = hass.states.async_entity_ids()
     assert any(i.startswith("sensor.") for i in ids)
-    # no saltwater switches when only the sensor is configured
-    assert not any(i.startswith("switch.") for i in ids)
+    # no saltwater switches when only the sensor is configured (the sensor's
+    # own stabilizer switch is expected)
+    assert not any(i.startswith("switch.saltwater_system") for i in ids)
+    assert "switch.water_sensor_stabilizer_cya_flag" in ids
 
 
 async def test_setup_retries_when_all_devices_fail(hass, mock_tinytuya, monkeypatch):

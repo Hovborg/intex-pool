@@ -47,7 +47,6 @@ class IntexPumpSwitchSelect(SelectEntity):
 
     _attr_has_entity_name = True
     _attr_translation_key = "pump_switch_select"
-    _attr_icon = "mdi:electric-switch"
 
     def __init__(self, entry: IntexPoolConfigEntry) -> None:
         self._entry = entry
@@ -61,7 +60,8 @@ class IntexPumpSwitchSelect(SelectEntity):
     @property
     def current_option(self) -> str | None:
         cur = (self._entry.data.get(DEVICE_PUMP) or {}).get(CONF_PUMP_SWITCH)
-        return cur if cur in self.options else None
+        # O(1) existence check — don't rebuild the full options list here.
+        return cur if cur and self.hass.states.get(cur) is not None else None
 
     async def async_select_option(self, option: str) -> None:
         pump = {**(self._entry.data.get(DEVICE_PUMP) or {}), CONF_PUMP_SWITCH: option}

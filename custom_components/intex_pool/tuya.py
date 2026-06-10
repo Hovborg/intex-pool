@@ -39,11 +39,19 @@ _CLOUD_AUTH_CODES = {1004, 1010, 1011, 1100, 1106, 2406, 28841002}
 
 
 def _check_cloud(resp: Any, what: str) -> None:
-    """Raise the right error from a Tuya cloud response (auth vs transport)."""
+    """Raise the right error from a Tuya cloud response (auth vs transport).
+
+    Only the response ``code``/``msg`` fields are quoted — never the full body,
+    which can carry request-signature material on auth failures.
+    """
     if isinstance(resp, dict) and resp.get("success"):
         return
-    code = resp.get("code") if isinstance(resp, dict) else None
-    msg = f"{what} failed: {str(resp)[:160]}"
+    if isinstance(resp, dict):
+        code = resp.get("code")
+        msg = f"{what} failed: code={code} msg={str(resp.get('msg'))[:120]}"
+    else:
+        code = None
+        msg = f"{what} failed: unexpected response ({type(resp).__name__})"
     if code in _CLOUD_AUTH_CODES:
         raise TuyaAuthError(msg)
     raise TuyaError(msg)
@@ -92,15 +100,33 @@ class LocalClient:
         data = self._device().status()
         if isinstance(data, dict) and "dps" in data:
             return data["dps"]
-        err = str(data.get("Err")) if isinstance(data, dict) else ""
-        msg = f"unexpected status response: {data!r}"
+        self._raise_local("unexpected status response", data)
+
+    def set_value(self, dp: str | int, value: Any) -> None:
+        """Set a single DP (fresh dedicated connection, no poll-thread race).
+
+        tinytuya's ``set_value`` does not raise on failure — it returns an error
+        dict (offline, bad key, …). Check it so a rejected/undelivered command
+        surfaces to the caller instead of silently looking like success.
+        """
+        resp = self._device().set_value(int(dp), value)
+        if isinstance(resp, dict) and resp.get("Err"):
+            self._raise_local(f"set dp {dp}", resp)
+
+    def _raise_local(self, what: str, data: Any) -> None:
+        """Raise TuyaAuthError/TuyaError from a tinytuya error response.
+
+        Quotes only the Err/Error fields — never the full payload.
+        """
+        if isinstance(data, dict):
+            err = str(data.get("Err") or "")
+            msg = f"{what} failed: Err={err or '?'} ({str(data.get('Error'))[:80]})"
+        else:
+            err = ""
+            msg = f"{what} failed: unexpected response ({type(data).__name__})"
         if err in _LOCAL_AUTH_ERR:
             raise TuyaAuthError(msg)
         raise TuyaError(msg)
-
-    def set_value(self, dp: str | int, value: Any) -> None:
-        """Set a single DP (fresh dedicated connection, no poll-thread race)."""
-        self._device().set_value(int(dp), value)
 
 
 class CloudClient:
@@ -136,12 +162,22 @@ class CloudClient:
         ]
 
     def properties(self, device_id: str) -> dict[str, Any]:
-        """Return {code: value} for the device's thing-model shadow properties."""
+        """Return {code: value} for the device's thing-model shadow properties.
+
+        Each property's report time (epoch ms) is preserved under the reserved
+        ``_times`` key (``{code: epoch_ms}``) — it feeds the "Last measurement"
+        sensor and staleness detection. ``_times`` cannot collide with a real
+        property code (Tuya codes never start with an underscore).
+        """
         path = f"/v2.0/cloud/thing/{device_id}/shadow/properties"
         resp = self._cloud.cloudrequest(path)
         _check_cloud(resp, "cloud properties")
         props = (resp.get("result") or {}).get("properties", []) or []
-        return {p["code"]: p.get("value") for p in props if p.get("code")}
+        out: dict[str, Any] = {p["code"]: p.get("value") for p in props if p.get("code")}
+        out["_times"] = {
+            p["code"]: p.get("time") for p in props if p.get("code") and p.get("time")
+        }
+        return out
 
     def issue(self, device_id: str, code: str, value: Any) -> None:
         """Write a single property via the property-issue API."""

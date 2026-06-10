@@ -1,13 +1,17 @@
 """Base entity + platform helpers for Intex Pool."""
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
 from .const import DEVICE_META, DEVICE_PUMP, DEVICE_SALT, DEVICE_SENSOR, DOMAIN, MANUFACTURER
 from .models import IntexPoolConfigEntry, IntexPoolData
+
+if TYPE_CHECKING:
+    from .coordinator import ScheduleCoordinator
 
 
 def device_info_for(device: str, device_id: str) -> DeviceInfo:
@@ -28,9 +32,33 @@ def pump_device_info(entry: IntexPoolConfigEntry) -> DeviceInfo:
     )
 
 
-def coordinator_for(data: IntexPoolData, device: str):
+def coordinator_for(data: IntexPoolData, device: str) -> DataUpdateCoordinator | None:
     """Return the active coordinator for a device type, or None."""
-    return {DEVICE_SALT: data.salt, DEVICE_SENSOR: data.sensor, DEVICE_PUMP: data.pump}[device]
+    mapping = {DEVICE_SALT: data.salt, DEVICE_SENSOR: data.sensor, DEVICE_PUMP: data.pump}
+    if device not in mapping:
+        raise ValueError(f"Unknown Intex Pool device type: {device!r}")
+    return mapping[device]
+
+
+async def write_slots_guarded(
+    coordinator: ScheduleCoordinator, slots: list[dict[str, Any]], what: str
+) -> None:
+    """Write schedule slots, converting any failure into a HomeAssistantError.
+
+    Shared by every schedule-editing entity (slot switches, duration numbers,
+    start times) so cloud-write failures surface to the user consistently
+    instead of as raw platform exceptions.
+    """
+    try:
+        await coordinator.async_write_slots(slots)
+    except HomeAssistantError:
+        raise
+    except Exception as err:  # noqa: BLE001
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="schedule_write_failed",
+            translation_placeholders={"name": what, "error": str(err)},
+        ) from err
 
 
 def device_id_for(entry: IntexPoolConfigEntry, device: str) -> str | None:

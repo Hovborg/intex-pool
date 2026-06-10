@@ -45,6 +45,7 @@ PLATFORMS = [
     Platform.SWITCH,
     Platform.NUMBER,
     Platform.BUTTON,
+    Platform.EVENT,
     Platform.SELECT,
     Platform.TIME,
 ]
@@ -143,93 +144,120 @@ SENSORS: tuple[IntexSensorDescription, ...] = (
     IntexSensorDescription(
         key="salinity", translation_key="salinity", device=DEVICE_SALT, source="109",
         native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
-        state_class=SensorStateClass.MEASUREMENT, icon="mdi:shaker-outline",
+        state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0,
     ),
     IntexSensorDescription(
         key="salt_water_temp", translation_key="water_temp", device=DEVICE_SALT, source="111",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE, state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
     ),
     IntexSensorDescription(
         key="cell_runtime", translation_key="cell_runtime", device=DEVICE_SALT, source="105",
-        native_unit_of_measurement=UnitOfTime.HOURS, state_class=SensorStateClass.TOTAL_INCREASING,
-        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:timer-cog-outline",
+        native_unit_of_measurement=UnitOfTime.HOURS, device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC, suggested_display_precision=0,
     ),
     IntexSensorDescription(
         key="time_remaining", translation_key="time_remaining", device=DEVICE_SALT, source="110",
-        native_unit_of_measurement=UnitOfTime.HOURS, state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:timer-sand",
+        native_unit_of_measurement=UnitOfTime.HOURS, device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0,
     ),
     IntexSensorDescription(
         key="status", translation_key="status", device=DEVICE_SALT, source="125",
         device_class=SensorDeviceClass.ENUM, options=decode.STATUS_OPTIONS,
-        value_fn=decode.normalize_status, icon="mdi:state-machine",
+        value_fn=decode.normalize_status,
     ),
     IntexSensorDescription(
         key="alarm", translation_key="alarm", device=DEVICE_SALT, source="127",
         device_class=SensorDeviceClass.ENUM, options=decode.ALARM_OPTIONS,
-        value_fn=decode.normalize_alarm, icon="mdi:alert-circle-outline",
+        value_fn=decode.normalize_alarm,
     ),
     IntexSensorDescription(
         key="salt_error", translation_key="error_code", device=DEVICE_SALT, source="114",
         device_class=SensorDeviceClass.ENUM, options=decode.ERROR_OPTIONS,
         value_fn=decode.normalize_error, entity_category=EntityCategory.DIAGNOSTIC,
-        icon="mdi:alert-octagon-outline",
     ),
     # Water sensor (cloud properties)
     IntexSensorDescription(
         key="ph", translation_key="ph", device=DEVICE_SENSOR, source="PH_Number",
-        scale=0.01, state_class=SensorStateClass.MEASUREMENT, icon="mdi:ph",
+        scale=0.01, device_class=SensorDeviceClass.PH,
+        state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2,
     ),
     IntexSensorDescription(
         key="orp", translation_key="orp", device=DEVICE_SENSOR, source="ORP_Number",
         native_unit_of_measurement=UnitOfElectricPotential.MILLIVOLT,
-        state_class=SensorStateClass.MEASUREMENT, icon="mdi:flash",
+        state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0,
     ),
     IntexSensorDescription(
         key="free_chlorine", translation_key="free_chlorine", device=DEVICE_SENSOR, source="fc_number",
         scale=0.01, native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
-        state_class=SensorStateClass.MEASUREMENT, icon="mdi:test-tube",
+        state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2,
     ),
     IntexSensorDescription(
         key="sensor_water_temp", translation_key="water_temp", device=DEVICE_SENSOR, source="water_tempture_c",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE, state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
     ),
     IntexSensorDescription(
         key="battery", translation_key="battery", device=DEVICE_SENSOR, source="battery_capacity",
         native_unit_of_measurement=PERCENTAGE, device_class=SensorDeviceClass.BATTERY,
         state_class=SensorStateClass.MEASUREMENT, entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
     ),
     IntexSensorDescription(
         key="ph_indicator", translation_key="ph_indicator", device=DEVICE_SENSOR, source="ph_indcator",
         device_class=SensorDeviceClass.ENUM, options=decode.PH_INDICATOR_OPTIONS,
         value_fn=lambda r: decode.normalize_indicator(r, decode.PH_INDICATOR_OPTIONS),
-        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:alpha-p-circle",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     IntexSensorDescription(
         key="orp_indicator", translation_key="orp_indicator", device=DEVICE_SENSOR, source="orp_indicator",
         device_class=SensorDeviceClass.ENUM, options=decode.ORP_INDICATOR_OPTIONS,
         value_fn=lambda r: decode.normalize_indicator(r, decode.ORP_INDICATOR_OPTIONS),
-        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:flash-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    IntexSensorDescription(
+        key="orp_trend", translation_key="orp_trend", device=DEVICE_SENSOR, source="ORP_dif_Number",
+        device_class=SensorDeviceClass.ENUM, options=decode.ORP_TREND_OPTIONS,
+        value_fn=decode.normalize_orp_trend, entity_category=EntityCategory.DIAGNOSTIC,
     ),
     IntexSensorDescription(
         key="chlorine_indicator", translation_key="chlorine_indicator", device=DEVICE_SENSOR, source="fc_indicator",
         device_class=SensorDeviceClass.ENUM, options=decode.FC_INDICATOR_OPTIONS,
         value_fn=lambda r: decode.normalize_indicator(r, decode.FC_INDICATOR_OPTIONS),
-        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:test-tube",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     IntexSensorDescription(
         key="maintenance", translation_key="maintenance", device=DEVICE_SENSOR, source="maintenance_indicator",
         device_class=SensorDeviceClass.ENUM, options=decode.MAINTENANCE_OPTIONS,
         value_fn=lambda r: decode.normalize_indicator(r, decode.MAINTENANCE_OPTIONS),
-        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:wrench",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     IntexSensorDescription(
         key="sensor_error", translation_key="error_code", device=DEVICE_SENSOR, source="error_code",
         device_class=SensorDeviceClass.ENUM, options=decode.ERROR_OPTIONS,
         value_fn=decode.normalize_error, entity_category=EntityCategory.DIAGNOSTIC,
-        icon="mdi:alert-octagon-outline",
+    ),
+    IntexSensorDescription(
+        key="last_measurement", translation_key="last_measurement", device=DEVICE_SENSOR,
+        source="_times", device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=decode.last_measurement, entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Calibration coefficients (0-255). READ-ONLY on purpose: these are offset
+    # coefficients the device manages itself during calibration — writing them
+    # corrupts the user's calibration (live-verified in a pH-4.0 buffer). They
+    # are diagnostics for support cases, disabled by default.
+    IntexSensorDescription(
+        key="ph_calibration", translation_key="ph_calibration", device=DEVICE_SENSOR,
+        source="ph_caliberate", entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    IntexSensorDescription(
+        key="orp_calibration", translation_key="orp_calibration", device=DEVICE_SENSOR,
+        source="orp_caliberate", entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     # NOTE: a Tuya pump only exposes the on/off switch + connectivity here.
     # Pump power/energy/temperature come from the user's *existing* HA entities
@@ -244,11 +272,18 @@ BINARY_SENSORS: tuple[IntexBinaryDescription, ...] = (
     IntexBinaryDescription(
         key="mesh", translation_key="mesh", device=DEVICE_SALT, source="119",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
-        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:access-point-network",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     IntexBinaryDescription(
         key="pump_mesh", translation_key="pump_mesh", device=DEVICE_SALT, source="126",
-        entity_category=EntityCategory.DIAGNOSTIC, icon="mdi:water-pump",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # The water sensor reports its own mesh/link flag. After re-pairing one
+    # device the salt<->sensor link can dangle half-open — exactly here.
+    IntexBinaryDescription(
+        key="sensor_mesh", translation_key="mesh", device=DEVICE_SENSOR, source="mesh_indicator",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
 )
 
@@ -257,13 +292,28 @@ BINARY_SENSORS: tuple[IntexBinaryDescription, ...] = (
 # --------------------------------------------------------------------------
 SWITCHES: tuple[IntexSwitchDescription, ...] = (
     IntexSwitchDescription(
-        key="power", translation_key="power", device=DEVICE_SALT, source="104", icon="mdi:power",
+        key="power", translation_key="power", device=DEVICE_SALT, source="104",
     ),
     IntexSwitchDescription(
-        key="chlorination", translation_key="chlorination", device=DEVICE_SALT, source="103", icon="mdi:flash",
+        key="chlorination", translation_key="chlorination", device=DEVICE_SALT, source="103",
     ),
+    # DP102 "salt_switch2" (消毒#2) — the thing model's second disinfection
+    # switch. Writable per the model, but its effect on the QS1600 Plus is
+    # unverified on real hardware, so it ships disabled by default.
     IntexSwitchDescription(
-        key="pump", translation_key="pump", device=DEVICE_PUMP, source=CONF_PUMP_ON_DP, icon="mdi:water-pump",
+        key="chlorination_2", translation_key="chlorination_2", device=DEVICE_SALT, source="102",
+        entity_registry_enabled_default=False,
+    ),
+    # Cloud-written stabilizer (CYA) flag. Relevant because CYA skews ORP
+    # readings (REFERENCE.md §9) — the device offers it as a writable bool.
+    IntexSwitchDescription(
+        key="stabilizer", translation_key="stabilizer", device=DEVICE_SENSOR, source="fc_sta_flg",
+        entity_category=EntityCategory.CONFIG,
+    ),
+    # source placeholder is the SAFE default DP "1"; async_setup_entry replaces
+    # it with the configured CONF_PUMP_ON_DP value for Tuya pumps.
+    IntexSwitchDescription(
+        key="pump", translation_key="pump", device=DEVICE_PUMP, source=DEFAULT_PUMP_ON_DP,
     ),
 )
 
@@ -273,14 +323,14 @@ SWITCHES: tuple[IntexSwitchDescription, ...] = (
 SELECTS: tuple[IntexSelectDescription, ...] = (
     IntexSelectDescription(
         key="self_clean", translation_key="self_clean", device=DEVICE_SALT, source="108",
-        value_map={2: "2", 4: "4", 6: "6", 10: "10"}, icon="mdi:broom",
+        value_map={2: "2", 4: "4", 6: "6", 10: "10"},
         entity_category=EntityCategory.CONFIG,
     ),
     IntexSelectDescription(
         key="temp_unit", translation_key="temp_unit", device=DEVICE_SALT, source="124",
         # NOTE: on the real hardware DP124 is True for °C and False for °F
         # (inverse of the thing-model doc), verified against the live device.
-        value_map={True: "c", False: "f"}, icon="mdi:thermometer",
+        value_map={True: "c", False: "f"},
         entity_category=EntityCategory.CONFIG,
     ),
     # Water sensor (cloud properties, written via SensorCoordinator.async_issue)
@@ -293,7 +343,7 @@ SELECTS: tuple[IntexSelectDescription, ...] = (
             "PH_byweek": "ph_weekly", "PH_bymonth": "ph_monthly",
             "FC_byweek": "fc_weekly", "FC_bymonth": "fc_monthly",
         },
-        icon="mdi:calendar-clock", entity_category=EntityCategory.CONFIG,
+        entity_category=EntityCategory.CONFIG,
     ),
     IntexSelectDescription(
         key="sensor_temp_unit", translation_key="temp_unit", device=DEVICE_SENSOR,
@@ -302,7 +352,7 @@ SELECTS: tuple[IntexSelectDescription, ...] = (
         # verified on the salt hardware. The thing-model doc lists 0=°C/1=°F for
         # this sensor property, so the sensor-side polarity could be inverted vs
         # salt — live-verify against the real sensor before trusting it.
-        value_map={True: "c", False: "f"}, icon="mdi:thermometer",
+        value_map={True: "c", False: "f"},
         entity_category=EntityCategory.CONFIG,
     ),
 )
@@ -314,13 +364,13 @@ NUMBERS: tuple[IntexNumberDescription, ...] = (
     IntexNumberDescription(
         key="ph_target", translation_key="ph_target", device=DEVICE_SENSOR, source="ph_set",
         scale=0.01, native_min_value=7.2, native_max_value=7.8, native_step=0.1,
-        mode=NumberMode.SLIDER, icon="mdi:ph", entity_category=EntityCategory.CONFIG,
+        mode=NumberMode.SLIDER, entity_category=EntityCategory.CONFIG,
     ),
     IntexNumberDescription(
         key="orp_target", translation_key="orp_target", device=DEVICE_SENSOR, source="orp_set",
         native_min_value=650, native_max_value=750, native_step=10,
         native_unit_of_measurement=UnitOfElectricPotential.MILLIVOLT,
-        mode=NumberMode.SLIDER, icon="mdi:flash", entity_category=EntityCategory.CONFIG,
+        mode=NumberMode.SLIDER, entity_category=EntityCategory.CONFIG,
     ),
 )
 
@@ -330,13 +380,11 @@ NUMBERS: tuple[IntexNumberDescription, ...] = (
 BUTTONS: tuple[IntexButtonDescription, ...] = (
     IntexButtonDescription(
         key="refresh", translation_key="refresh", device=DEVICE_SENSOR, source="refresh_switch",
-        icon="mdi:refresh",
     ),
     # Salt "re-test now": code `retest_switch` is local DP 107 (bool, wr) — forces
     # a fresh salt/temp measurement. Salt is a LOCAL device so the source is the
     # numeric DP (set_value addresses DPs by number), not the code name.
     IntexButtonDescription(
         key="retest", translation_key="retest", device=DEVICE_SALT, source="107",
-        icon="mdi:reload-alert",
     ),
 )

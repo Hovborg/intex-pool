@@ -4,6 +4,64 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-06-10
+
+Hardening + feature release after a full multi-agent audit of the integration and card.
+
+### Fixed
+- **Tuya pump: configured on/off data point was ignored.** The switch looked the DP up under the
+  wrong config key and always fell back to DP 1 — a custom `pump_on_dp` now actually applies.
+- **Schedule writes commit state only on success.** Slot toggles / Boost no longer update their
+  remembered/suspended bookkeeping (or UI state) when the cloud write fails; all schedule editors
+  (toggle, duration, start time) now surface write failures as proper Home Assistant errors.
+- **Rotated local key is detected in auto-version mode.** When every protocol-version candidate is
+  rejected as bad auth, the coordinator now escalates to the re-authentication flow instead of
+  cycling versions forever.
+- **Local writes can no longer silently fail.** tinytuya doesn't raise on a rejected/undelivered
+  command — the response is now checked, so an offline device surfaces as an error instead of a
+  switch that looks like it worked.
+- **Pump auto mode** defers its initial sync until Home Assistant has fully started (the linked
+  switch's integration may not be loaded yet during boot) and logs a warning when the pump switch
+  can't be reached (the service call is now blocking).
+- Card: a water-sensor-only setup is no longer misclassified as a saltwater system (shared
+  `water_temp` key no longer drives detection); the configured free-chlorine entity now actually
+  renders as a tile; failed service calls from the card are caught and shown as a notification
+  (with a busy state preventing double-taps); light-variant status colors now meet WCAG AA
+  contrast; toggle pills expose `aria-pressed`.
+- Config flow: a rejected key fails immediately instead of being retried through the full
+  transport-retry budget.
+- `manifest.json` `iot_class` corrected to `cloud_polling` (the water sensor + schedules poll the
+  Tuya cloud).
+
+### Added
+- **Diagnostics** (Settings → Devices & Services → ⋮ → Download diagnostics) with local keys and
+  cloud credentials redacted — raw coordinator data included for bug reports.
+- **Repairs**: saltwater alarms (E90 flow, E91/E92 salt, E01–E04 electrode/temperature, E97/E99
+  hardware) with the manual's fix steps, a probe-maintenance reminder, and a **stale sensor data**
+  warning (newest measurement older than 3 h).
+- **Last measurement** timestamp sensor — per-property report times from the cloud are now kept
+  instead of thrown away.
+- **Alarm / Error event entities** that fire on every transition (logbook + automation triggers).
+- New entities: **ORP trend** (`ORP_dif_Number`), sensor-side **link status** (`mesh_indicator`),
+  **stabilizer (CYA) flag** switch (`fc_sta_flg`), **Chlorine production 2** switch (DP 102,
+  disabled by default — effect unverified on hardware), and read-only pH/ORP
+  calibration-coefficient diagnostics (disabled by default; writing them corrupts calibration).
+- `intex_pool.set_schedule` gained a **config entry selector** for multi-entry installs, and the
+  service is registered at component setup (a call without a loaded entry now gives a clear
+  validation error).
+- Card: pH/ORP tiles are colored by the device's own **indicator** verdicts when available;
+  free-chlorine tile; source maps for debugging; deterministic cross-platform card build
+  (`build.mjs`).
+- Quality-scale polish: `SensorDeviceClass.PH` on the pH sensor, `DURATION` on runtime sensors,
+  `suggested_display_precision` everywhere, all icons moved to `icons.json` (state-dependent alarm
+  icon), exception translations, `data_description` help texts in setup, and stale device-registry
+  entries can now be deleted from the UI after a reconfigure.
+
+### Changed
+- The `set_schedule` service caps `duration` at 72 h (matching the duration entities and the
+  longest boost cycle in the manual).
+- Tuya error messages no longer quote raw response bodies (only code/msg fields).
+
 ## [0.11.0] - 2026-06-09
 
 ### Added

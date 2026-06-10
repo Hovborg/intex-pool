@@ -20,7 +20,7 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlowWithReload,
 )
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import selector
 
 from . import tuya
@@ -154,8 +154,13 @@ def _version_value(raw: str | None) -> float | None:
     return float(raw)
 
 
-async def validate_local(hass, ui: dict) -> None:
-    """Open a local Tuya connection, retrying past transient contention."""
+async def validate_local(hass: HomeAssistant, ui: dict) -> None:
+    """Open a local Tuya connection, retrying past transient contention.
+
+    Only transport failures are retried — a rejected key (auth) will never
+    succeed with the same credentials, so it surfaces immediately instead of
+    making the user wait through the retry budget.
+    """
     version = _version_value(ui.get(CONF_VERSION))
     client = tuya.LocalClient(
         ui[CONF_DEVICE_ID], ui[CONF_LOCAL_KEY], ui[CONF_HOST],
@@ -165,13 +170,15 @@ async def validate_local(hass, ui: dict) -> None:
         try:
             await hass.async_add_executor_job(client.status)
             return
+        except tuya.TuyaAuthError:
+            raise
         except Exception:  # noqa: BLE001
             if attempt == 3:
                 raise  # re-raise the last failure with its traceback intact
             await asyncio.sleep(2)
 
 
-async def validate_sensor(hass, ui: dict) -> None:
+async def validate_sensor(hass: HomeAssistant, ui: dict) -> None:
     """Fetch cloud properties to validate cloud creds + device id."""
     cloud = await hass.async_add_executor_job(
         tuya.CloudClient, ui[CONF_REGION], ui[CONF_ACCESS_ID], ui[CONF_ACCESS_SECRET]
@@ -179,7 +186,7 @@ async def validate_sensor(hass, ui: dict) -> None:
     await hass.async_add_executor_job(cloud.properties, ui[CONF_DEVICE_ID])
 
 
-async def discover(hass, creds: dict) -> tuple[list[dict], dict]:
+async def discover(hass: HomeAssistant, creds: dict) -> tuple[list[dict], dict]:
     """Return (cloud device list with keys, LAN scan map) for auto-discovery."""
     cloud = await hass.async_add_executor_job(
         tuya.CloudClient, creds[CONF_REGION], creds[CONF_ACCESS_ID], creds[CONF_ACCESS_SECRET]

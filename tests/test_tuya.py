@@ -39,8 +39,8 @@ class FakeCloud:
         self.requests.append((path, post))
         if path.endswith("/shadow/properties"):
             return {"success": True, "result": {"properties": [
-                {"code": "PH_Number", "value": 740},
-                {"code": "battery_capacity", "value": 97},
+                {"code": "PH_Number", "value": 740, "time": 1765000000000},
+                {"code": "battery_capacity", "value": 97, "time": 1765000300000},
                 {"code": None, "value": "ignored"},
             ]}}
         return {"success": True, "result": {}}
@@ -109,7 +109,31 @@ def test_set_version(fake_tinytuya):
 def test_cloud_properties_parses_codes(fake_tinytuya):
     client = tuya.CloudClient("eu", "id", "secret")
     props = client.properties("devid")
-    assert props == {"PH_Number": 740, "battery_capacity": 97}  # None-code dropped
+    # None-code dropped; per-property report times kept under reserved _times
+    times = props.pop("_times")
+    assert props == {"PH_Number": 740, "battery_capacity": 97}
+    assert times == {"PH_Number": 1765000000000, "battery_capacity": 1765000300000}
+
+
+def test_local_set_value_error_response_raises(fake_tinytuya, monkeypatch):
+    """A rejected/undelivered local write must raise, not look like success."""
+    client = tuya.LocalClient("dev", "key", "1.2.3.4", version=3.5)
+    monkeypatch.setattr(
+        FakeDevice, "set_value",
+        lambda self, dp, val: {"Error": "offline", "Err": "905"},
+    )
+    with pytest.raises(tuya.TuyaError):
+        client.set_value("104", True)
+
+
+def test_local_set_value_auth_error_raises_auth(fake_tinytuya, monkeypatch):
+    client = tuya.LocalClient("dev", "key", "1.2.3.4", version=3.5)
+    monkeypatch.setattr(
+        FakeDevice, "set_value",
+        lambda self, dp, val: {"Error": "key", "Err": "914"},
+    )
+    with pytest.raises(tuya.TuyaAuthError):
+        client.set_value("104", True)
 
 
 def test_cloud_issue_builds_json_body(fake_tinytuya):

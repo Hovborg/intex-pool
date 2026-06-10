@@ -9,6 +9,12 @@
           "access_id": "Access ID",
           "access_secret": "Access secret",
           "manual": "Set up manually instead (no cloud)"
+        },
+        "data_description": {
+          "region": "The data center of your Tuya IoT project (eu, us, cn or in).",
+          "access_id": "The Access ID/Client ID from your project's overview page on iot.tuya.com.",
+          "access_secret": "The Access Secret/Client Secret from the same page.",
+          "manual": "Skip cloud discovery and type device IDs, keys and IPs yourself."
         }
       },
       "discover": {
@@ -181,6 +187,13 @@
         "name": "ORP indicator",
         "state": { "off": "Off", "red": "Out of range", "green": "OK", "saltwater_abnormal": "Saltwater abnormal" }
       },
+      "orp_trend": {
+        "name": "ORP trend",
+        "state": { "none": "None", "low": "Low", "mid": "Medium", "high": "High" }
+      },
+      "last_measurement": { "name": "Last measurement" },
+      "ph_calibration": { "name": "pH calibration coefficient" },
+      "orp_calibration": { "name": "ORP calibration coefficient" },
       "chlorine_indicator": {
         "name": "Chlorine indicator",
         "state": { "off": "Off", "red": "Out of range", "green": "OK" }
@@ -199,6 +212,8 @@
     "switch": {
       "power": { "name": "Power" },
       "chlorination": { "name": "Chlorine production" },
+      "chlorination_2": { "name": "Chlorine production 2" },
+      "stabilizer": { "name": "Stabilizer (CYA) flag" },
       "pump": { "name": "Pump" },
       "pump_auto": { "name": "Pump auto mode" },
       "schedule_slot": { "name": "Schedule {index}" },
@@ -238,6 +253,59 @@
     "button": {
       "refresh": { "name": "Refresh measurement" },
       "retest": { "name": "Re-test now" }
+    },
+    "event": {
+      "alarm_event": { "name": "Alarm" },
+      "error_event": { "name": "Error" }
+    }
+  },
+  "exceptions": {
+    "schedule_write_failed": {
+      "message": "Writing the schedule for {name} failed: {error}"
+    },
+    "no_schedule": {
+      "message": "No Intex Pool schedule available — this needs a loaded entry with a saltwater system and Tuya cloud credentials."
+    },
+    "entry_not_found": {
+      "message": "No Intex Pool config entry with that id was found."
+    }
+  },
+  "issues": {
+    "salt_alarm": {
+      "title": "Saltwater system alarm ({code})",
+      "description": "The saltwater system reports alarm {code}. Check the display and the manual's error-code table."
+    },
+    "salt_alarm_e90": {
+      "title": "Saltwater system: low water flow (E90)",
+      "description": "The saltwater system reports low or no pump flow (E90). Make sure the filter pump is running, valves are open and the flow sensor is clean (brush it gently with a plastic brush)."
+    },
+    "salt_alarm_e91e92": {
+      "title": "Saltwater system: salt out of range (E91/E92)",
+      "description": "Salt is too low (E91) or too high (E92). For E91 add salt (≈0.15 g per litre raises ~100 ppm). For E92 drain and refill part of the pool per the manual's table."
+    },
+    "salt_alarm_e01e02": {
+      "title": "Saltwater system: electrode fault (E01/E02)",
+      "description": "Scale or dirt on the chlorine electrode, a loose electrode wire, or a failed electrode. Clean the electrode (vinegar soak); if it repeats, shorten the self-clean cycle or replace the electrode."
+    },
+    "salt_alarm_e03e04": {
+      "title": "Saltwater system: water temperature out of range (E03/E04)",
+      "description": "Water is below 10 °C (E03) or above 40 °C (E04). Stop using the system until the water temperature is back in range (run at night when too warm)."
+    },
+    "salt_alarm_e97": {
+      "title": "Saltwater system: internal fault (E97)",
+      "description": "Internal PCB fault. The unit needs service — contact the service center."
+    },
+    "salt_alarm_e99": {
+      "title": "Saltwater system: salt/temp sensor fault (E99)",
+      "description": "The combined salt/temperature sensor is defective and needs replacing."
+    },
+    "sensor_maintenance": {
+      "title": "Water sensor needs maintenance",
+      "description": "The water sensor reports that its probes need cleaning or calibration. Soak the sensor tips in white vinegar (up to 4 h), rinse, and calibrate pH/ORP in the app. Never let the probes dry out."
+    },
+    "sensor_stale": {
+      "title": "Water sensor data is stale",
+      "description": "The newest measurement is from {last} — the sensor normally reports about once an hour. Check that the sensor is charged, in the water and online; press “Refresh measurement” to force a reading. If it never recovers, the device may have been re-paired with a new id (use Reconfigure)."
     }
   },
   "services": {
@@ -245,15 +313,16 @@
       "name": "Set saltwater schedule",
       "description": "Create, change or clear a saltwater-system schedule slot (written to the device via the Tuya cloud). Field meanings are best-effort.",
       "fields": {
-        "slot": { "name": "Slot", "description": "Schedule slot to edit (0-6)." },
+        "slot": { "name": "Slot", "description": "Schedule slot to edit (0-6; 0 is the Boost cycle)." },
+        "config_entry_id": { "name": "Config entry", "description": "Entry id of the Intex Pool integration to target. Only needed when more than one is set up." },
         "clear": { "name": "Clear", "description": "Empty this slot instead of setting it." },
         "enable": { "name": "On", "description": "Turn the system on for the schedule (off behaves like the boost cycle)." },
         "hour": { "name": "Hour", "description": "Start hour (0-23)." },
         "minute": { "name": "Minute", "description": "Start minute (0-59)." },
-        "duration": { "name": "Duration (hours)", "description": "Run duration in hours." },
+        "duration": { "name": "Duration (hours)", "description": "Run duration in hours (0-72, matching the schedule duration controls)." },
         "month": { "name": "Month", "description": "Month for a one-time schedule (0 = unused)." },
         "date": { "name": "Date", "description": "Day of month for a one-time schedule (0 = unused)." },
-        "days": { "name": "Days mask", "description": "Repeat mask; 255 = every day, 0 = one-time." }
+        "days": { "name": "Days mask", "description": "Repeat bitmask (best-effort semantics): 255 = every day, 0 = one-time. Bit 7 marks a weekly repeat; bits 0-6 pick the weekday for one-time entries." }
       }
     }
   }

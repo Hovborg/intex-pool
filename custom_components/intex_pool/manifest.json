@@ -7,9 +7,9 @@
   "dependencies": ["http"],
   "documentation": "https://github.com/Hovborg/intex-pool",
   "integration_type": "hub",
-  "iot_class": "local_polling",
+  "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Hovborg/intex-pool/issues",
   "loggers": ["tinytuya"],
   "requirements": ["tinytuya==1.18.1"],
-  "version": "0.11.0"
+  "version": "0.12.0"
 }

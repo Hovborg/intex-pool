@@ -8,6 +8,11 @@ set_schedule:
           min: 0
           max: 6
           mode: box
+    config_entry_id:
+      example: 0123456789abcdef0123456789abcdef
+      selector:
+        config_entry:
+          integration: intex_pool
     clear:
       example: false
       selector:
@@ -35,7 +40,7 @@ set_schedule:
       selector:
         number:
           min: 0
-          max: 255
+          max: 72
           mode: box
     month:
       example: 6
