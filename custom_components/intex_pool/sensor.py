@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.const import UnitOfMass
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -11,9 +15,13 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from . import calibration, decode, schedule
+from . import calibration, chemistry, decode, schedule
 from .const import (
+    CONF_CALCIUM_HARDNESS,
+    CONF_CYA,
     CONF_SALT_TARGET,
+    CONF_TDS,
+    CONF_TOTAL_ALKALINITY,
     DEFAULT_SALT_TARGET,
     DEVICE_SALT,
     DEVICE_SENSOR,
@@ -70,7 +78,127 @@ async def async_setup_entry(
     if data.salt is not None and salt_id is not None:
         entities.append(IntexSaltDoseSensor(data.salt, salt_id, entry))
 
+    # LSI / water balance — needs the analyzer (live pH + temp) plus the
+    # manual test-input entities (TA/CH, optionally CYA/TDS).
+    if data.sensor is not None and sensor_id is not None:
+        entities.append(IntexLsiSensor(entry, data, sensor_id))
+        entities.append(IntexWaterBalanceSensor(entry, data, sensor_id))
+
     async_add_entities(entities)
+
+
+class _LsiBase(SensorEntity):
+    """Shared wiring for the LSI-derived sensors.
+
+    Recomputes on analyzer updates (pH/temp), on salt updates (live salinity
+    is the TDS fallback for SWG pools) and on option changes (test inputs,
+    calibration offsets).
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+
+    def __init__(self, entry: IntexPoolConfigEntry, data, device_id: str) -> None:
+        self._entry = entry
+        self._data = data
+        self._attr_unique_id = f"{device_id}_{self._attr_translation_key}"
+        self._attr_device_info = device_info_for(DEVICE_SENSOR, device_id)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        for coordinator in (self._data.sensor, self._data.salt):
+            if coordinator is not None:
+                self.async_on_remove(coordinator.async_add_listener(self._refresh))
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                SIGNAL_OPTIONS_UPDATED.format(self._entry.entry_id),
+                self._refresh,
+            )
+        )
+
+    @callback
+    def _refresh(self) -> None:
+        self.async_write_ha_state()
+
+    def _option(self, key: str) -> float:
+        try:
+            return float(self._entry.options.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _inputs(self) -> dict | None:
+        """Collect the LSI inputs, or None when they can't produce an LSI."""
+        sensor = self._data.sensor
+        if sensor is None or not sensor.last_update_success:
+            return None
+        props = sensor.data or {}
+        ph = decode.scaled(props.get("PH_Number"), 0.01)
+        try:
+            temp_c = float(props.get("water_tempture_c"))
+        except (TypeError, ValueError):
+            return None
+        if ph is None:
+            return None
+        ph += calibration.ph_offset(self._entry)  # judge the corrected value
+        ta = self._option(CONF_TOTAL_ALKALINITY)
+        ch = self._option(CONF_CALCIUM_HARDNESS)
+        cya = self._option(CONF_CYA)
+        tds = self._option(CONF_TDS)
+        tds_source = "manual"
+        if not tds and self._data.salt is not None and self._data.salt.last_update_success:
+            # SWG pools: salt dominates TDS — use the live salinity reading.
+            try:
+                tds = float((self._data.salt.data or {}).get("109") or 0)
+                tds_source = "salinity"
+            except (TypeError, ValueError):
+                tds = 0.0
+        return {
+            "ph": round(ph, 2), "temp_c": temp_c, "ta": ta, "ch": ch,
+            "cya": cya, "tds": tds, "tds_source": tds_source if tds else None,
+        }
+
+    def _lsi(self) -> tuple[float | None, dict]:
+        inputs = self._inputs()
+        if inputs is None:
+            return None, {}
+        value = chemistry.lsi(
+            inputs["ph"], inputs["temp_c"], inputs["ta"], inputs["ch"],
+            cya=inputs["cya"], tds=inputs["tds"],
+        )
+        return value, inputs
+
+
+class IntexLsiSensor(_LsiBase):
+    """Langelier Saturation Index from live pH/temp + manual test inputs."""
+
+    _attr_translation_key = "lsi"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 2
+
+    @property
+    def native_value(self) -> float | None:
+        return self._lsi()[0]
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        value, inputs = self._lsi()
+        attrs = {"water_balance": chemistry.classify(value), **inputs}
+        if not inputs.get("ta") or not inputs.get("ch"):
+            attrs["status"] = "set_test_inputs"  # TA + CH entities must be set
+        return attrs
+
+
+class IntexWaterBalanceSensor(_LsiBase):
+    """Interpretation of the LSI (corrosive / balanced / scale-forming)."""
+
+    _attr_translation_key = "water_balance"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = chemistry.WATER_BALANCE_OPTIONS
+
+    @property
+    def native_value(self) -> str | None:
+        return chemistry.classify(self._lsi()[0])
 
 
 class IntexScheduleSensor(CoordinatorEntity, SensorEntity):

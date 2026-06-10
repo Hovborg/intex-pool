@@ -1,66 +1,202 @@
 {
   "entity": {
     "sensor": {
-      "salinity": { "default": "mdi:shaker-outline" },
-      "cell_runtime": { "default": "mdi:timer-cog-outline" },
-      "time_remaining": { "default": "mdi:timer-sand" },
-      "status": { "default": "mdi:state-machine" },
+      "salinity": {
+        "default": "mdi:shaker-outline"
+      },
+      "cell_runtime": {
+        "default": "mdi:timer-cog-outline"
+      },
+      "time_remaining": {
+        "default": "mdi:timer-sand"
+      },
+      "status": {
+        "default": "mdi:state-machine"
+      },
       "alarm": {
         "default": "mdi:alert-circle-outline",
-        "state": { "normal": "mdi:check-circle-outline" }
+        "state": {
+          "normal": "mdi:check-circle-outline"
+        }
       },
-      "error_code": { "default": "mdi:alert-octagon-outline" },
-      "orp": { "default": "mdi:flash" },
-      "free_chlorine": { "default": "mdi:test-tube" },
-      "ph_indicator": { "default": "mdi:alpha-p-circle" },
-      "orp_indicator": { "default": "mdi:flash-alert" },
-      "orp_trend": { "default": "mdi:trending-up" },
-      "chlorine_indicator": { "default": "mdi:test-tube" },
-      "maintenance": { "default": "mdi:wrench" },
-      "last_measurement": { "default": "mdi:history" },
-      "ph_calibration": { "default": "mdi:alpha-p-circle-outline" },
-      "orp_calibration": { "default": "mdi:flash-outline" },
-      "schedules": { "default": "mdi:calendar-clock" }
+      "error_code": {
+        "default": "mdi:alert-octagon-outline"
+      },
+      "orp": {
+        "default": "mdi:flash"
+      },
+      "free_chlorine": {
+        "default": "mdi:test-tube"
+      },
+      "ph_indicator": {
+        "default": "mdi:alpha-p-circle"
+      },
+      "orp_indicator": {
+        "default": "mdi:flash-alert"
+      },
+      "orp_trend": {
+        "default": "mdi:trending-up"
+      },
+      "chlorine_indicator": {
+        "default": "mdi:test-tube"
+      },
+      "maintenance": {
+        "default": "mdi:wrench"
+      },
+      "last_measurement": {
+        "default": "mdi:history"
+      },
+      "ph_calibration": {
+        "default": "mdi:alpha-p-circle-outline"
+      },
+      "orp_calibration": {
+        "default": "mdi:flash-outline"
+      },
+      "schedules": {
+        "default": "mdi:calendar-clock"
+      },
+      "lsi": {
+        "default": "mdi:scale-balance"
+      },
+      "water_balance": {
+        "default": "mdi:water-check",
+        "state": {
+          "severely_corrosive": "mdi:water-alert",
+          "slightly_corrosive": "mdi:water-minus",
+          "slightly_scaling": "mdi:water-plus",
+          "scale_forming": "mdi:water-alert"
+        }
+      },
+      "cell_wear": {
+        "default": "mdi:gauge"
+      },
+      "analyzer_schedules": {
+        "default": "mdi:calendar-clock"
+      },
+      "salt_to_add": {
+        "default": "mdi:shaker-outline"
+      }
     },
     "binary_sensor": {
-      "mesh": { "default": "mdi:access-point-network" },
-      "pump_mesh": { "default": "mdi:water-pump" }
+      "mesh": {
+        "default": "mdi:access-point-network"
+      },
+      "pump_mesh": {
+        "default": "mdi:water-pump"
+      }
     },
     "switch": {
-      "power": { "default": "mdi:power" },
-      "chlorination": { "default": "mdi:flash" },
-      "chlorination_2": { "default": "mdi:flash-outline" },
-      "stabilizer": { "default": "mdi:flask-outline" },
-      "pump": { "default": "mdi:water-pump" },
-      "pump_auto": { "default": "mdi:autorenew" },
-      "schedule_slot": { "default": "mdi:calendar-clock" },
-      "boost_slot": { "default": "mdi:rocket-launch" }
+      "power": {
+        "default": "mdi:power"
+      },
+      "chlorination": {
+        "default": "mdi:flash"
+      },
+      "chlorination_2": {
+        "default": "mdi:flash-outline"
+      },
+      "stabilizer": {
+        "default": "mdi:flask-outline"
+      },
+      "pump": {
+        "default": "mdi:water-pump"
+      },
+      "pump_auto": {
+        "default": "mdi:autorenew"
+      },
+      "schedule_slot": {
+        "default": "mdi:calendar-clock"
+      },
+      "boost_slot": {
+        "default": "mdi:rocket-launch"
+      }
     },
     "select": {
-      "self_clean": { "default": "mdi:broom" },
-      "temp_unit": { "default": "mdi:thermometer" },
-      "report_cadence": { "default": "mdi:calendar-clock" },
-      "pump_switch_select": { "default": "mdi:electric-switch" }
+      "self_clean": {
+        "default": "mdi:broom"
+      },
+      "temp_unit": {
+        "default": "mdi:thermometer"
+      },
+      "report_cadence": {
+        "default": "mdi:calendar-clock"
+      },
+      "pump_switch_select": {
+        "default": "mdi:electric-switch"
+      },
+      "volume_unit": {
+        "default": "mdi:ruler"
+      }
     },
     "number": {
-      "ph_target": { "default": "mdi:ph" },
-      "orp_target": { "default": "mdi:flash" },
-      "schedule_duration": { "default": "mdi:timer-outline" },
-      "boost_duration": { "default": "mdi:rocket-launch-outline" }
+      "ph_target": {
+        "default": "mdi:ph"
+      },
+      "orp_target": {
+        "default": "mdi:flash"
+      },
+      "schedule_duration": {
+        "default": "mdi:timer-outline"
+      },
+      "boost_duration": {
+        "default": "mdi:rocket-launch-outline"
+      },
+      "total_alkalinity": {
+        "default": "mdi:test-tube"
+      },
+      "calcium_hardness": {
+        "default": "mdi:test-tube"
+      },
+      "cya": {
+        "default": "mdi:test-tube"
+      },
+      "tds": {
+        "default": "mdi:water-opacity"
+      },
+      "pool_volume": {
+        "default": "mdi:pool"
+      },
+      "ph_offset": {
+        "default": "mdi:tune"
+      },
+      "orp_offset": {
+        "default": "mdi:tune-variant"
+      }
     },
     "time": {
-      "schedule_start": { "default": "mdi:clock-outline" }
+      "schedule_start": {
+        "default": "mdi:clock-outline"
+      }
     },
     "button": {
-      "refresh": { "default": "mdi:refresh" },
-      "retest": { "default": "mdi:reload-alert" }
+      "refresh": {
+        "default": "mdi:refresh"
+      },
+      "retest": {
+        "default": "mdi:reload-alert"
+      }
     },
     "event": {
-      "alarm_event": { "default": "mdi:alert-decagram-outline" },
-      "error_event": { "default": "mdi:alert-octagon-outline" }
+      "alarm_event": {
+        "default": "mdi:alert-decagram-outline"
+      },
+      "error_event": {
+        "default": "mdi:alert-octagon-outline"
+      }
     }
   },
   "services": {
-    "set_schedule": { "service": "mdi:calendar-edit" }
+    "set_schedule": {
+      "service": "mdi:calendar-edit"
+    },
+    "get_schedule": {
+      "service": "mdi:calendar-search"
+    },
+    "calibrate": {
+      "service": "mdi:tune"
+    },
+    "clear_calibration": {
+      "service": "mdi:tune-vertical-variant"
+    }
   }
 }

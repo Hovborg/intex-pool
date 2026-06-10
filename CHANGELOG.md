@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.15.0] - 2026-06-11
+
+LSI water balance + audit test gaps closed.
+
+### Added
+- **LSI sensor** (Langelier Saturation Index): computed continuously from live (calibrated)
+  pH + water temperature and your manual test inputs — new **Total alkalinity / Calcium
+  hardness / Cyanuric acid / TDS (test)** number entities on the water-sensor device.
+  Math verified against the published industry tables (CDC MAHC 2024 Annex 5.7.4.6,
+  Taylor/CPO charts, Wojtowicz JSPSI closed forms, PHTA CYA correction): AF = log₁₀(carb.
+  alk), CF = log₁₀(0.4·CH), Wojtowicz temperature polynomial, MAHC TDS constant
+  (12.1/12.2), pH-dependent cyanurate correction (~CYA/3 at pH 7.6). For SWG pools the
+  TDS automatically falls back to the live salinity reading when not set manually.
+- **Water balance** enum sensor interpreting the LSI: severely corrosive / slightly
+  corrosive / balanced (−0.3…+0.3 per CDC MAHC & Orenda) / slightly scaling (+0.3…+0.5,
+  tolerated by APSP/Taylor) / scale forming.
+- Tests for the previously untested paths: card/static-path + service registration in
+  `async_setup`, the cloud-secret reauth branch, pump-auto restore-on-restart.
+
+### Notes
+- **Measurement-history backfill was investigated and dropped**: Tuya's device-log APIs do
+  not return data-point report history on the free IoT Core tier (verified live — only
+  online/offline events come back). Documented in the README troubleshooting section.
+
 ## [0.14.0] - 2026-06-10
 
 Calibration against your own reference tests + user-adjustable pool volume.

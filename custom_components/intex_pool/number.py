@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import (
+    CONCENTRATION_PARTS_PER_MILLION,
     EntityCategory,
     UnitOfElectricPotential,
     UnitOfTime,
@@ -17,7 +18,11 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import calibration, decode, schedule
 from .const import (
+    CONF_CALCIUM_HARDNESS,
+    CONF_CYA,
     CONF_POOL_VOLUME,
+    CONF_TDS,
+    CONF_TOTAL_ALKALINITY,
     CONF_VOLUME_UNIT,
     DEVICE_META,
     DEVICE_SALT,
@@ -72,8 +77,80 @@ async def async_setup_entry(
     if data.sensor is not None and sensor_id is not None:
         entities.append(IntexCalibrationOffsetNumber(entry, sensor_id, "ph"))
         entities.append(IntexCalibrationOffsetNumber(entry, sensor_id, "orp"))
+        # Manual water-test inputs feeding the LSI / water-balance sensors.
+        for parameter, maximum, step in _CHEMISTRY_INPUTS:
+            entities.append(
+                IntexChemistryInputNumber(entry, sensor_id, parameter, maximum, step)
+            )
 
     async_add_entities(entities)
+
+
+# (options key, max ppm, step) — TA/CH are required for LSI; CYA/TDS optional.
+_CHEMISTRY_INPUTS = (
+    (CONF_TOTAL_ALKALINITY, 400, 5),
+    (CONF_CALCIUM_HARDNESS, 1000, 5),
+    (CONF_CYA, 300, 5),
+    (CONF_TDS, 6000, 50),
+)
+
+
+class IntexChemistryInputNumber(NumberEntity):
+    """A manual water-test result (ppm) feeding the LSI calculation.
+
+    Update these after each strip/drop test; the LSI sensor recomputes live.
+    Stored in the entry options (0 = not measured/unknown).
+    """
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_native_min_value = 0
+    _attr_mode = NumberMode.BOX
+    _attr_native_unit_of_measurement = CONCENTRATION_PARTS_PER_MILLION
+    _attr_should_poll = False
+
+    def __init__(
+        self, entry: IntexPoolConfigEntry, device_id: str, parameter: str,
+        maximum: int, step: int,
+    ) -> None:
+        self._entry = entry
+        self._parameter = parameter
+        self._attr_translation_key = parameter
+        self._attr_unique_id = f"{device_id}_{parameter}"
+        self._attr_device_info = device_info_for(DEVICE_SENSOR, device_id)
+        self._attr_native_max_value = maximum
+        self._attr_native_step = step
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                SIGNAL_OPTIONS_UPDATED.format(self._entry.entry_id),
+                self._refresh,
+            )
+        )
+
+    @callback
+    def _refresh(self) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> float:
+        try:
+            return float(self._entry.options.get(self._parameter, 0) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    async def async_set_native_value(self, value: float) -> None:
+        self.hass.config_entries.async_update_entry(
+            self._entry,
+            options={**self._entry.options, self._parameter: int(value)},
+        )
+        async_dispatcher_send(
+            self.hass, SIGNAL_OPTIONS_UPDATED.format(self._entry.entry_id)
+        )
+        self.async_write_ha_state()
 
 
 class IntexCalibrationOffsetNumber(NumberEntity):

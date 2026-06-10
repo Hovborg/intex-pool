@@ -79,6 +79,14 @@ per-slot toggle/duration/start-time entities (slot 0 = **Boost**) · **Salt to a
 > the QS-series optimum) — or, above 1800 ppm, how much water to drain per the manual.
 > Advisory only; it never actuates anything.
 
+> ⚖️ **LSI water balance.** Enter your latest test-strip/drop-kit results in the
+> **Total alkalinity / Calcium hardness / Cyanuric acid (test)** entities and the **LSI**
+> sensor computes the Langelier Saturation Index live from the (calibrated) pH and water
+> temperature — with a **Water balance** sensor interpreting it (balanced −0.3…+0.3 per
+> CDC MAHC; corrosive below, scaling above). For saltwater pools the TDS term
+> automatically uses the live salinity. Math follows the published industry tables
+> (Taylor watergram / CDC MAHC / Wojtowicz).
+
 > 🧪 **Calibrate against your own test.** Took a strip or drop test? Call
 > **`intex_pool.calibrate`** with what it showed (e.g. `parameter: ph`,
 > `reference_value: 7.4`) and the pH reading is aligned via a software offset — the raw
@@ -211,6 +219,10 @@ delete and re-add the integration:
 - ☁️ **Tuya cloud trial expired?** The free IoT Core trial eventually lapses; renew it for
   free at [iot.tuya.com](https://iot.tuya.com) → Cloud → your project → **View Details** →
   extend trial. The integration surfaces auth failures as a re-authentication prompt.
+- 📉 **No measurement-history backfill**: Tuya's device-log APIs do not return data-point
+  report history on the free IoT Core tier (verified live — only online/offline events come
+  back), so readings taken while Home Assistant was down cannot be recovered. History
+  accumulates normally in HA's own recorder while it runs.
 
 <details>
 <summary>🗑️ Removing the integration</summary>

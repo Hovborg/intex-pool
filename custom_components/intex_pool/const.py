@@ -77,6 +77,11 @@ CONF_POOL_VOLUME = "pool_volume"      # in CONF_VOLUME_UNIT; 0/unset disables th
 CONF_SALT_TARGET = "salt_target"      # target salinity (ppm) for the advisor
 CONF_VOLUME_UNIT = "volume_unit"      # "liter" | "gallon" (US)
 CONF_CALIBRATION = "calibration"      # software offsets record (see calibration.py)
+# Manual water-test inputs for the LSI / water-balance calculation (ppm).
+CONF_TOTAL_ALKALINITY = "total_alkalinity"
+CONF_CALCIUM_HARDNESS = "calcium_hardness"
+CONF_CYA = "cya"
+CONF_TDS = "tds"
 
 VOLUME_UNIT_LITER = "liter"
 VOLUME_UNIT_GALLON = "gallon"

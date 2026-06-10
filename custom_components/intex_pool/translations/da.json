@@ -323,6 +323,19 @@
       },
       "salt_to_add": {
         "name": "Salt at tilsætte"
+      },
+      "lsi": {
+        "name": "LSI"
+      },
+      "water_balance": {
+        "name": "Vandbalance",
+        "state": {
+          "severely_corrosive": "Stærkt korrosivt",
+          "slightly_corrosive": "Let korrosivt",
+          "balanced": "Balanceret",
+          "slightly_scaling": "Let kalkdannende",
+          "scale_forming": "Kalkdannende"
+        }
       }
     },
     "binary_sensor": {
@@ -428,6 +441,18 @@
       },
       "orp_offset": {
         "name": "ORP-kalibreringsoffset"
+      },
+      "total_alkalinity": {
+        "name": "Total alkalinitet (test)"
+      },
+      "calcium_hardness": {
+        "name": "Kalkhårdhed (test)"
+      },
+      "cya": {
+        "name": "Cyanursyre (test)"
+      },
+      "tds": {
+        "name": "TDS (test)"
       }
     },
     "time": {
