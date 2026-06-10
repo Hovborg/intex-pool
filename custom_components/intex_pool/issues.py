@@ -20,7 +20,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 
 from . import decode
-from .const import DOMAIN
+from .const import DOMAIN, STALE_AFTER_HOURS
 from .models import IntexPoolConfigEntry
 
 # Alarm tokens that get their own translated repair text (manual fix steps).
@@ -31,7 +31,7 @@ _ALARM_OK = {None, "normal", "e93"}
 _ALARM_SEVERE = {"e97", "e99"}
 
 # The sensor reports ~1x/hour; treat anything older than this as stale.
-STALE_AFTER = timedelta(hours=3)
+STALE_AFTER = timedelta(hours=STALE_AFTER_HOURS)
 
 
 def async_setup_issue_listeners(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> None:
@@ -93,12 +93,15 @@ def async_setup_issue_listeners(hass: HomeAssistant, entry: IntexPoolConfigEntry
             if last is not None and dt_util.utcnow() - last > STALE_AFTER:
                 ir.async_create_issue(
                     hass, DOMAIN, stale_issue,
-                    is_fixable=False,
+                    # Fixable: the repair flow forces a fresh measurement
+                    # (refresh_switch) on confirm — see repairs.py.
+                    is_fixable=True,
                     severity=ir.IssueSeverity.WARNING,
                     translation_key="sensor_stale",
                     translation_placeholders={
                         "last": last.isoformat(timespec="minutes")
                     },
+                    data={"entry_id": entry.entry_id},
                 )
             else:
                 ir.async_delete_issue(hass, DOMAIN, stale_issue)

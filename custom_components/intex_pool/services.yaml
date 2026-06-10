@@ -63,3 +63,11 @@ set_schedule:
           min: 0
           max: 255
           mode: box
+
+get_schedule:
+  fields:
+    config_entry_id:
+      example: 0123456789abcdef0123456789abcdef
+      selector:
+        config_entry:
+          integration: intex_pool

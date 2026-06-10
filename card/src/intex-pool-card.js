@@ -58,12 +58,14 @@ const VARIANTS = {
 //   • ph_indicator / orp_indicator kept (wired in Fix 3).
 //   • Removed pump_power / pump_energy from pump map (Fix 4).
 //   • salt_error removed from salt map as it is never rendered.
+//   • orp_trend / last_measurement added to sensor map (Feature 1 & 2).
 const ROLE_MAP = {
   sensor: {
     ph: "ph_sensor", orp: "orp_sensor", free_chlorine: "fc_sensor",
     water_temp: "sensor_temp", battery: "battery",
     ph_indicator: "ph_indicator", orp_indicator: "orp_indicator",
     refresh: "refresh_button",
+    orp_trend: "orp_trend", last_measurement: "last_measurement",
   },
   salt: {
     power: "power_switch", chlorination: "chlorination_switch", salinity: "salinity",
@@ -130,6 +132,20 @@ class IntexPoolCard extends LitElement {
   // Fix 5 — busy set to guard double-taps
   _busy = new Set();
 
+  // Feature 2 — 5-minute interval handle for stale-age re-render
+  _staleTimer = null;
+
+  connectedCallback() {
+    super.connectedCallback();
+    this._staleTimer = setInterval(() => this.requestUpdate(), 5 * 60 * 1000);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    clearInterval(this._staleTimer);
+    this._staleTimer = null;
+  }
+
   static getStubConfig(hass) {
     return { ...detectEntities(hass) };
   }
@@ -152,6 +168,7 @@ class IntexPoolCard extends LitElement {
           { name: "ph_sensor", ...ent("sensor") }, { name: "orp_sensor", ...ent("sensor") },
           { name: "fc_sensor", ...ent("sensor") }, { name: "sensor_temp", ...ent("sensor") },
           { name: "battery", ...ent("sensor") }, { name: "refresh_button", ...ent("button") },
+          { name: "orp_trend", ...ent("sensor") }, { name: "last_measurement", ...ent("sensor") },
         ] },
         // Fix 4 — removed pump_power / pump_energy
         { type: "expandable", name: "salt_system", title: "Saltwater system", schema: [
@@ -268,9 +285,45 @@ class IntexPoolCard extends LitElement {
     return null; // "off" / unknown -> fall back to the numeric heuristic
   }
 
+  // Feature 2 — human-readable relative age from an ISO datetime entity state.
+  // Returns e.g. "5h", "3d", "45m". Returns null when id is absent/unavailable
+  // or state is not a parseable date.
+  _ageText(id) {
+    if (!id) return null;
+    const s = this._st(id);
+    if (!s || s.state === "unavailable" || s.state === "unknown") return null;
+    const ts = Date.parse(s.state);
+    if (!Number.isFinite(ts)) return null;
+    const diffMs = Date.now() - ts;
+    if (diffMs < 0) return null;
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 48) return `${hours}h`;
+    return `${Math.floor(hours / 24)}d`;
+  }
+
+  // Feature 2 — amber stale-badge shown next to the battery mini-button when
+  // last_measurement is older than 3 hours. Returns nothing when fresh/absent.
+  _staleBadge(id) {
+    if (!id) return nothing;
+    const s = this._st(id);
+    if (!s || s.state === "unavailable" || s.state === "unknown") return nothing;
+    const ts = Date.parse(s.state);
+    if (!Number.isFinite(ts)) return nothing;
+    const diffMs = Date.now() - ts;
+    if (diffMs < 3 * 60 * 60 * 1000) return nothing; // fresh — no badge
+    const age = this._ageText(id) ?? "?";
+    const title = `Last measurement: ${age} ago — readings may be outdated`;
+    return html`<span class="stale-badge" title=${title} aria-label=${title}>
+      <span class="stale-dot"></span><span class="stale-age">${age}</span>
+    </span>`;
+  }
+
   // a compact metric tile: big value, small label, in-range bar
   // Fix 3 — accepts optional indicatorId; Fix 6 — aria-label
-  _tile(id, { label, digits = 0, lo, hi, unit, indicatorId } = {}) {
+  // Feature 1 — accepts optional orpTrendId for ORP trend superscript marker
+  _tile(id, { label, digits = 0, lo, hi, unit, indicatorId, orpTrendId } = {}) {
     const s = this._st(id);
     if (!s) return nothing;
     const v = this._num(id);
@@ -285,9 +338,26 @@ class IntexPoolCard extends LitElement {
       cls = numericOk === null ? "" : numericOk ? "good" : "warn";
     }
     const ariaLabel = `${label}: ${val}${unit ? " " + unit : ""}`;
+
+    // Feature 1 — ORP trend superscript: ▴ with opacity by level (none/unavailable = hidden)
+    let trendMarker = nothing;
+    if (orpTrendId) {
+      const ts = this._st(orpTrendId);
+      if (ts && ts.state !== "unavailable" && ts.state !== "unknown") {
+        const lvl = ts.state.toLowerCase();
+        const opacityMap = { low: 0.45, mid: 0.7, high: 1.0 };
+        const opacity = opacityMap[lvl];
+        if (opacity != null) {
+          const trendLabel = `ORP trend: ${lvl}`;
+          trendMarker = html`<sup class="orp-trend" style="opacity:${opacity}"
+            title=${trendLabel} aria-label=${trendLabel}>▴</sup>`;
+        }
+      }
+    }
+
     return html`
       <button class="tile" aria-label=${ariaLabel} @click=${() => this._moreInfo(id)}>
-        <div class="v">${val}${unit ? html`<span class="u">${unit}</span>` : nothing}</div>
+        <div class="v">${val}${unit ? html`<span class="u">${unit}</span>` : nothing}${trendMarker}</div>
         <div class="l">${label}</div>
         <div class="bar ${cls}"></div>
       </button>`;
@@ -328,7 +398,7 @@ class IntexPoolCard extends LitElement {
         ? this._tile(c.ph_sensor, { label: "pH", digits: 1, lo: 7.2, hi: 7.6, indicatorId: c.ph_indicator })
         : nothing,
       this._has(c.orp_sensor)
-        ? this._tile(c.orp_sensor, { label: "ORP", unit: "mV", lo: 650, hi: 750, indicatorId: c.orp_indicator })
+        ? this._tile(c.orp_sensor, { label: "ORP", unit: "mV", lo: 650, hi: 750, indicatorId: c.orp_indicator, orpTrendId: c.orp_trend })
         : nothing,
       // Fix 2 — free-chlorine tile
       this._has(c.fc_sensor)
@@ -368,6 +438,7 @@ class IntexPoolCard extends LitElement {
                         @click=${() => this._moreInfo(c.battery)} title="Battery">
                         <ha-icon icon="mdi:battery"></ha-icon>${this._num(c.battery) ?? "?"}%</button>`
                     : nothing}
+                  ${this._staleBadge(c.last_measurement)}
                   ${hasRefresh
                     ? html`<button class="mini" @click=${() => this._press(c.refresh_button)} title="Refresh measurement">
                         <ha-icon icon="mdi:refresh"></ha-icon></button>`
@@ -433,6 +504,13 @@ class IntexPoolCard extends LitElement {
     .tile .bar.warn { background: var(--warning-color, #f5a300); }
     .tile .bar.bad  { background: var(--error-color, #db4437); }
 
+    /* Feature 1 — ORP trend superscript marker */
+    .orp-trend {
+      font-size: .55rem; font-weight: 700; margin-left: 2px;
+      vertical-align: super; line-height: 1; color: var(--primary-color);
+      transition: opacity .2s;
+    }
+
     .ctrls { display: flex; align-items: center; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
     .spacer { flex: 1; }
     .pill {
@@ -449,6 +527,18 @@ class IntexPoolCard extends LitElement {
       background: none; color: var(--secondary-text-color); font-size: .78rem; font-weight: 600; padding: 4px;
     }
     .mini ha-icon { --mdc-icon-size: 17px; }
+
+    /* Feature 2 — stale-measurement badge */
+    .stale-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      color: var(--warning-color, #f5a300); font-size: .72rem; font-weight: 600;
+    }
+    .stale-dot {
+      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--warning-color, #f5a300); flex-shrink: 0;
+    }
+    .stale-age { line-height: 1; }
+
     .sched { margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--divider-color); cursor: pointer; }
     .sched-head { display: flex; align-items: center; gap: 6px; font-size: .72rem; font-weight: 600;
       text-transform: uppercase; letter-spacing: .05em; color: var(--secondary-text-color); margin-bottom: 5px; }

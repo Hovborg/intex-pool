@@ -27,6 +27,12 @@
           "pump_switch": "Sandfilter-pumpe — eksisterende kontakt (alle mærker)",
           "pump_power": "Pumpe effekt-sensor (valgfri)",
           "pump_energy": "Pumpe energi-sensor (valgfri)"
+        },
+        "data_description": {
+          "sensor": "AGP Smart Sensor / Water Analyzer (ren cloud-enhed).",
+          "saltwater": "QS-seriens kloranlæg — styres lokalt over dit LAN.",
+          "pump_tuya": "Vælg kun denne hvis din pumpe selv er en Tuya-enhed.",
+          "pump_switch": "En eksisterende Home Assistant-switch (Shelly, Zigbee-relæ, …) der forsyner pumpen."
         }
       },
       "manual": {
@@ -46,6 +52,9 @@
           "access_id": "Access ID",
           "access_secret": "Access secret",
           "device_id": "Device ID"
+        },
+        "data_description": {
+          "device_id": "Analysatorens Tuya enheds-id (enhedslisten på iot.tuya.com)."
         }
       },
       "salt": {
@@ -55,6 +64,12 @@
           "local_key": "Local key",
           "host": "IP-adresse",
           "version": "Protokol-version"
+        },
+        "data_description": {
+          "device_id": "Kloranlæggets Tuya enheds-id.",
+          "local_key": "Enhedens lokale nøgle — den roterer når enheden re-parres i appen.",
+          "host": "Enhedens LAN-IP (DHCP-reservation anbefales).",
+          "version": "Tuya-protokolversion — lad den stå på auto medmindre du kender den."
         }
       },
       "pump": {
@@ -72,6 +87,9 @@
           "host": "IP-adresse",
           "version": "Protokol-version",
           "pump_on_dp": "Tænd/sluk datapunkt"
+        },
+        "data_description": {
+          "pump_on_dp": "Datapunktet der tænder/slukker pumpen (1 på de fleste enheder)."
         }
       },
       "pump_entity": {
@@ -81,6 +99,9 @@
           "pump_switch": "Pumpe-kontakt",
           "pump_power": "Effekt-sensor (valgfri)",
           "pump_energy": "Energi-sensor (valgfri)"
+        },
+        "data_description": {
+          "pump_switch": "Switchen der forsyner pumpen — aktiverer Pumpe auto-tilstand."
         }
       },
       "reauth_confirm": {
@@ -90,6 +111,11 @@
           "local_key": "Local key",
           "pump_local_key": "Pumpe local key",
           "access_secret": "Cloud access secret"
+        },
+        "data_description": {
+          "local_key": "Saltvandssystemets aktuelle lokale nøgle.",
+          "pump_local_key": "Tuya-pumpens aktuelle lokale nøgle.",
+          "access_secret": "Dit Tuya cloud-projekts aktuelle Access Secret."
         }
       },
       "reconfigure_user": {
@@ -119,10 +145,22 @@
   "options": {
     "step": {
       "init": {
-        "title": "Poll-intervaller",
+        "title": "Indstillinger",
         "data": {
           "local_interval": "Lokalt poll-interval (sekunder)",
-          "cloud_interval": "Cloud poll-interval (sekunder)"
+          "cloud_interval": "Cloud poll-interval (sekunder)",
+          "pool_volume": "Pool-volumen (liter)",
+          "salt_target": "Mål-salinitet (ppm)",
+          "pump_switch": "Pumpe-switch",
+          "pump_power": "Effektsensor (valgfri)",
+          "pump_energy": "Energisensor (valgfri)"
+        },
+        "data_description": {
+          "local_interval": "Hvor ofte LAN-enhederne (saltvandssystem, Tuya-pumpe) polles.",
+          "cloud_interval": "Hvor ofte Tuya-clouden (vandsensoren) polles — hold den moderat, gratis-niveauet har en månedlig kald-kvote.",
+          "pool_volume": "Aktiverer “Salt at tilsætte”-rådgiveren. Sæt til 0 for at slå den fra.",
+          "salt_target": "Den salinitet rådgiveren sigter efter (QS-seriens optimum er 950 ppm, område 800–1800).",
+          "pump_switch": "Den switch-entitet der driver din sandfilterpumpe."
         }
       }
     }
@@ -262,6 +300,15 @@
       },
       "orp_calibration": {
         "name": "ORP-kalibreringskoefficient"
+      },
+      "analyzer_schedules": {
+        "name": "Måleplaner"
+      },
+      "cell_wear": {
+        "name": "Celle-slid"
+      },
+      "salt_to_add": {
+        "name": "Salt at tilsætte"
       }
     },
     "binary_sensor": {
@@ -273,6 +320,12 @@
       },
       "pump_mesh": {
         "name": "Pumpe-mesh-status"
+      },
+      "cold_water": {
+        "name": "Koldt vand"
+      },
+      "action_required": {
+        "name": "Handling påkrævet"
       }
     },
     "switch": {
@@ -415,6 +468,16 @@
           "description": "Entry-id for den Intex Pool-integration der skal rammes. Kun nødvendigt med mere end én opsætning."
         }
       }
+    },
+    "get_schedule": {
+      "name": "Hent tidsplaner",
+      "description": "Returnerer de afkodede tidsplan-pladser for saltvandssystemet og vandanalysatoren (målevinduer) som svardata.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konfigurationspost",
+          "description": "Entry-id for den Intex Pool-integration der skal rammes. Kun nødvendigt med mere end én opsætning."
+        }
+      }
     }
   },
   "exceptions": {
@@ -463,7 +526,14 @@
     },
     "sensor_stale": {
       "title": "Vandsensorens data er forældede",
-      "description": "Den nyeste måling er fra {last} — sensoren rapporterer normalt cirka én gang i timen. Tjek at sensoren er opladet, ligger i vandet og er online; tryk på “Opdater måling” for at tvinge en aflæsning. Kommer den aldrig tilbage, kan enheden være re-parret med et nyt id (brug Omkonfigurér)."
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Tving en frisk måling",
+            "description": "Den nyeste måling er fra {last} — sensoren rapporterer normalt cirka én gang i timen. Bekræftelse sender en opdaterings-kommando, der vækker sensoren til en øjeblikkelig aflæsning. Tjek også at sensoren er opladet, ligger i vandet og er online; kommer den aldrig tilbage, kan enheden være re-parret med et nyt id (brug Omkonfigurér)."
+          }
+        }
+      }
     }
   }
 }

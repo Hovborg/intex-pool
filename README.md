@@ -56,19 +56,27 @@ Pick **any combination** — one, two, or all three:
 
 **Water sensor (cloud):** pH, ORP, free chlorine (reference only), water temperature, battery,
 **Last measurement** timestamp, pH/ORP/chlorine indicators, **ORP trend**, maintenance,
-error code, link status, connectivity · pH target & ORP target numbers · reporting-cadence &
-temperature-unit selects · stabilizer (CYA) flag switch · **Refresh measurement** button ·
-**Error** event · pH/ORP calibration-coefficient diagnostics (disabled by default).
+error code, link status, connectivity, **Measurement schedules** · pH target & ORP target
+numbers · reporting-cadence & temperature-unit selects · stabilizer (CYA) flag switch ·
+**Refresh measurement** button · **Error** event · pH/ORP calibration-coefficient diagnostics
+(disabled by default).
 
 **Saltwater system (local):** power & chlorine-production switches (a second, unverified
 "Chlorine production 2" switch ships disabled), salinity, water temperature, cell runtime,
-time remaining, status, **Alarm** (sensor + event), error code, mesh/pump-mesh status,
-connectivity · self-clean & temperature-unit selects · **Re-test now** button ·
-**Schedules** sensor + per-slot toggle/duration/start-time entities (slot 0 = **Boost**).
+**cell wear**, time remaining, status, **Alarm** (sensor + event), error code, **Cold water**
+guard, **Action required** roll-up (with `reasons`), mesh/pump-mesh status, connectivity ·
+self-clean & temperature-unit selects · **Re-test now** button · **Schedules** sensor +
+per-slot toggle/duration/start-time entities (slot 0 = **Boost**) · **Salt to add** advisor
+(enable by setting your pool volume under ⋮ → Configure).
 
 **Pump:** on/off switch (Tuya mode) or your own linked switch + **Pump auto mode** and a
 **Pump switch** selector (entity mode), connectivity (Tuya mode).
 </details>
+
+> 🧂 **Salt dose advisor.** Set your pool volume (litres) under **⋮ → Configure** and the
+> **Salt to add** sensor tells you how many kg reach the target salinity (default 950 ppm,
+> the QS-series optimum) — or, above 1800 ppm, how much water to drain per the manual.
+> Advisory only; it never actuates anything.
 
 ## 📸 The card adapts to what you have
 

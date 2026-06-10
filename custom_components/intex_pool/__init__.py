@@ -15,7 +15,12 @@ import voluptuous as vol
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -50,6 +55,8 @@ from .issues import async_setup_issue_listeners
 from .models import IntexPoolConfigEntry, IntexPoolData
 
 SERVICE_SET_SCHEDULE = "set_schedule"
+SERVICE_GET_SCHEDULE = "get_schedule"
+GET_SCHEDULE_SCHEMA = vol.Schema({vol.Optional("config_entry_id"): str})
 SET_SCHEDULE_SCHEMA = vol.Schema(
     {
         vol.Required("slot"): vol.All(vol.Coerce(int), vol.Range(min=0, max=6)),
@@ -172,6 +179,14 @@ async def _build_data(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> Intex
             hass, entry, cloud, salt_cfg["device_id"], DEFAULT_SCHEDULE_INTERVAL
         )
 
+    # The analyzer's own measurement-window schedule (skdl_orpph) — same
+    # 7-slot blob format (live-verified), exposed read-only.
+    if data.sensor is not None and cloud is not None and sensor:
+        data.analyzer_schedule = ScheduleCoordinator(
+            hass, entry, cloud, sensor["device_id"], DEFAULT_SCHEDULE_INTERVAL,
+            code="skdl_orpph",
+        )
+
     return data
 
 
@@ -186,7 +201,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) ->
     # A bad key surfaces as ConfigEntryAuthFailed from the coordinator, which
     # auto-starts a reauth flow.
     coordinators = [
-        c for c in (data.salt, data.sensor, data.pump, data.schedule) if c is not None
+        c
+        for c in (data.salt, data.sensor, data.pump, data.schedule, data.analyzer_schedule)
+        if c is not None
     ]
     for coordinator in coordinators:
         await coordinator.async_refresh()
@@ -200,8 +217,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) ->
     return True
 
 
-def _schedule_coordinator_for_call(hass: HomeAssistant, call: ServiceCall):
-    """Resolve the target ScheduleCoordinator for a set_schedule call."""
+def _data_for_call(hass: HomeAssistant, call: ServiceCall) -> IntexPoolData:
+    """Resolve the target entry's runtime data for a schedule service call."""
     entry_id = call.data.get("config_entry_id")
     entries = hass.config_entries.async_entries(DOMAIN)
     if entry_id:
@@ -215,20 +232,45 @@ def _schedule_coordinator_for_call(hass: HomeAssistant, call: ServiceCall):
         if entry.state is not ConfigEntryState.LOADED:
             continue
         data: IntexPoolData | None = getattr(entry, "runtime_data", None)
-        if data and data.schedule is not None:
-            return data.schedule
+        if data and (data.schedule is not None or data.analyzer_schedule is not None):
+            return data
     raise ServiceValidationError(
         translation_domain=DOMAIN, translation_key="no_schedule"
     )
 
 
+def _serialize_slots(coordinator) -> dict | None:
+    """Decoded slot table for service responses (JSON-serializable)."""
+    if coordinator is None:
+        return None
+    data = coordinator.data or {}
+    slots = data.get("slots") or schedule_mod.decode_schedules("")
+    return {
+        "raw": data.get("raw"),
+        "slots": [
+            {
+                **{k: s.get(k) for k in schedule_mod.FIELDS[:7]},
+                "active": bool(s.get("active")),
+                "mode": schedule_mod.mode_of(s) if s.get("active") else None,
+                "summary": schedule_mod.summarize(s) if s.get("active") else None,
+            }
+            for s in slots
+        ],
+    }
+
+
 def _register_services(hass: HomeAssistant) -> None:
-    """Register the schedule-editing service once."""
+    """Register the schedule services once."""
     if hass.services.has_service(DOMAIN, SERVICE_SET_SCHEDULE):
         return
 
-    async def _set_schedule(call: ServiceCall) -> None:
-        coordinator = _schedule_coordinator_for_call(hass, call)
+    async def _set_schedule(call: ServiceCall) -> ServiceResponse:
+        data = _data_for_call(hass, call)
+        coordinator = data.schedule
+        if coordinator is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="no_schedule"
+            )
         slots = (coordinator.data or {}).get("slots") or schedule_mod.decode_schedules("")
         new = schedule_mod.set_slot(
             slots, call.data["slot"],
@@ -238,9 +280,24 @@ def _register_services(hass: HomeAssistant) -> None:
             days=call.data.get("days"), clear=call.data.get("clear", False),
         )
         await coordinator.async_write_slots(new)
+        if call.return_response:
+            return _serialize_slots(coordinator)
+        return None
+
+    async def _get_schedule(call: ServiceCall) -> ServiceResponse:
+        data = _data_for_call(hass, call)
+        return {
+            "saltwater": _serialize_slots(data.schedule),
+            "analyzer": _serialize_slots(data.analyzer_schedule),
+        }
 
     hass.services.async_register(
-        DOMAIN, SERVICE_SET_SCHEDULE, _set_schedule, schema=SET_SCHEDULE_SCHEMA
+        DOMAIN, SERVICE_SET_SCHEDULE, _set_schedule, schema=SET_SCHEDULE_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_SCHEDULE, _get_schedule, schema=GET_SCHEDULE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
     )
 
 

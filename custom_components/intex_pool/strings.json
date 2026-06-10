@@ -27,6 +27,12 @@
           "pump_switch": "Sand filter pump — existing switch (any brand)",
           "pump_power": "Pump power sensor (optional)",
           "pump_energy": "Pump energy sensor (optional)"
+        },
+        "data_description": {
+          "sensor": "The AGP Smart Sensor / Water Analyzer (cloud-only device).",
+          "saltwater": "The QS-series chlorinator — controlled locally over your LAN.",
+          "pump_tuya": "Pick this only if your pump is itself a Tuya device.",
+          "pump_switch": "Any existing Home Assistant switch (Shelly, Zigbee relay, …) that powers the pump."
         }
       },
       "manual": {
@@ -46,6 +52,9 @@
           "access_id": "Access ID",
           "access_secret": "Access secret",
           "device_id": "Device ID"
+        },
+        "data_description": {
+          "device_id": "The analyzer's Tuya device id (Devices list on iot.tuya.com)."
         }
       },
       "salt": {
@@ -55,12 +64,20 @@
           "local_key": "Local key",
           "host": "IP address",
           "version": "Protocol version"
+        },
+        "data_description": {
+          "device_id": "The chlorinator's Tuya device id.",
+          "local_key": "The device's local key — it rotates when the device is re-paired in the app.",
+          "host": "The device's LAN IP (a DHCP reservation is recommended).",
+          "version": "Tuya protocol version — leave on auto unless you know it."
         }
       },
       "pump": {
         "title": "Sand filter pump",
         "description": "How is your pump controlled?",
-        "data": { "pump_mode": "Pump type" }
+        "data": {
+          "pump_mode": "Pump type"
+        }
       },
       "pump_tuya": {
         "title": "Tuya pump (local)",
@@ -70,6 +87,9 @@
           "host": "IP address",
           "version": "Protocol version",
           "pump_on_dp": "On/off data point"
+        },
+        "data_description": {
+          "pump_on_dp": "The data point that switches the pump on/off (1 on most devices)."
         }
       },
       "pump_entity": {
@@ -79,6 +99,9 @@
           "pump_switch": "Pump switch",
           "pump_power": "Power sensor (optional)",
           "pump_energy": "Energy sensor (optional)"
+        },
+        "data_description": {
+          "pump_switch": "The switch that powers the pump — enables Pump auto mode."
         }
       },
       "reauth_confirm": {
@@ -88,6 +111,11 @@
           "local_key": "Local key",
           "pump_local_key": "Pump local key",
           "access_secret": "Cloud access secret"
+        },
+        "data_description": {
+          "local_key": "Current local key of the saltwater system.",
+          "pump_local_key": "Current local key of the Tuya pump.",
+          "access_secret": "Current Access Secret of your Tuya cloud project."
         }
       },
       "reconfigure_user": {
@@ -117,10 +145,22 @@
   "options": {
     "step": {
       "init": {
-        "title": "Polling intervals",
+        "title": "Options",
         "data": {
           "local_interval": "Local poll interval (seconds)",
-          "cloud_interval": "Cloud poll interval (seconds)"
+          "cloud_interval": "Cloud poll interval (seconds)",
+          "pool_volume": "Pool volume (litres)",
+          "salt_target": "Target salinity (ppm)",
+          "pump_switch": "Pump switch",
+          "pump_power": "Power sensor (optional)",
+          "pump_energy": "Energy sensor (optional)"
+        },
+        "data_description": {
+          "local_interval": "How often the LAN devices (saltwater system, Tuya pump) are polled.",
+          "cloud_interval": "How often the Tuya cloud (water sensor) is polled — keep modest, the free tier has a monthly call quota.",
+          "pool_volume": "Enables the “Salt to add” advisor. Set to 0 to disable it.",
+          "salt_target": "The salinity the advisor aims for (QS-series optimum is 950 ppm, range 800–1800).",
+          "pump_switch": "The switch entity that drives your sand-filter pump."
         }
       }
     }
@@ -135,10 +175,18 @@
   },
   "entity": {
     "sensor": {
-      "salinity": { "name": "Salinity" },
-      "water_temp": { "name": "Water temperature" },
-      "cell_runtime": { "name": "Cell runtime" },
-      "time_remaining": { "name": "Time remaining" },
+      "salinity": {
+        "name": "Salinity"
+      },
+      "water_temp": {
+        "name": "Water temperature"
+      },
+      "cell_runtime": {
+        "name": "Cell runtime"
+      },
+      "time_remaining": {
+        "name": "Time remaining"
+      },
       "status": {
         "name": "Status",
         "state": {
@@ -169,64 +217,159 @@
         "name": "Error code",
         "state": {
           "none": "None",
-          "e1": "E1", "e2": "E2", "e3": "E3", "e4": "E4", "e5": "E5",
-          "e80": "E80", "e81": "E81",
-          "e90": "E90", "e91": "E91", "e92": "E92", "e93": "E93", "e94": "E94",
-          "e95": "E95", "e96": "E96", "e97": "E97", "e99": "E99", "end": "End"
+          "e1": "E1",
+          "e2": "E2",
+          "e3": "E3",
+          "e4": "E4",
+          "e5": "E5",
+          "e80": "E80",
+          "e81": "E81",
+          "e90": "E90",
+          "e91": "E91",
+          "e92": "E92",
+          "e93": "E93",
+          "e94": "E94",
+          "e95": "E95",
+          "e96": "E96",
+          "e97": "E97",
+          "e99": "E99",
+          "end": "End"
         }
       },
-      "ph": { "name": "pH" },
-      "orp": { "name": "ORP" },
-      "free_chlorine": { "name": "Free chlorine" },
-      "battery": { "name": "Battery" },
+      "ph": {
+        "name": "pH"
+      },
+      "orp": {
+        "name": "ORP"
+      },
+      "free_chlorine": {
+        "name": "Free chlorine"
+      },
+      "battery": {
+        "name": "Battery"
+      },
       "ph_indicator": {
         "name": "pH indicator",
-        "state": { "off": "Off", "red": "Out of range", "green": "OK" }
+        "state": {
+          "off": "Off",
+          "red": "Out of range",
+          "green": "OK"
+        }
       },
       "orp_indicator": {
         "name": "ORP indicator",
-        "state": { "off": "Off", "red": "Out of range", "green": "OK", "saltwater_abnormal": "Saltwater abnormal" }
+        "state": {
+          "off": "Off",
+          "red": "Out of range",
+          "green": "OK",
+          "saltwater_abnormal": "Saltwater abnormal"
+        }
       },
       "orp_trend": {
         "name": "ORP trend",
-        "state": { "none": "None", "low": "Low", "mid": "Medium", "high": "High" }
+        "state": {
+          "none": "None",
+          "low": "Low",
+          "mid": "Medium",
+          "high": "High"
+        }
       },
-      "last_measurement": { "name": "Last measurement" },
-      "ph_calibration": { "name": "pH calibration coefficient" },
-      "orp_calibration": { "name": "ORP calibration coefficient" },
+      "last_measurement": {
+        "name": "Last measurement"
+      },
+      "ph_calibration": {
+        "name": "pH calibration coefficient"
+      },
+      "orp_calibration": {
+        "name": "ORP calibration coefficient"
+      },
       "chlorine_indicator": {
         "name": "Chlorine indicator",
-        "state": { "off": "Off", "red": "Out of range", "green": "OK" }
+        "state": {
+          "off": "Off",
+          "red": "Out of range",
+          "green": "OK"
+        }
       },
       "maintenance": {
         "name": "Maintenance",
-        "state": { "off": "OK", "red": "Service needed" }
+        "state": {
+          "off": "OK",
+          "red": "Service needed"
+        }
       },
-      "schedules": { "name": "Schedules" }
+      "schedules": {
+        "name": "Schedules"
+      },
+      "analyzer_schedules": {
+        "name": "Measurement schedules"
+      },
+      "cell_wear": {
+        "name": "Cell wear"
+      },
+      "salt_to_add": {
+        "name": "Salt to add"
+      }
     },
     "binary_sensor": {
-      "connectivity": { "name": "Connectivity" },
-      "mesh": { "name": "Mesh" },
-      "pump_mesh": { "name": "Pump mesh status" }
+      "connectivity": {
+        "name": "Connectivity"
+      },
+      "mesh": {
+        "name": "Mesh"
+      },
+      "pump_mesh": {
+        "name": "Pump mesh status"
+      },
+      "cold_water": {
+        "name": "Cold water"
+      },
+      "action_required": {
+        "name": "Action required"
+      }
     },
     "switch": {
-      "power": { "name": "Power" },
-      "chlorination": { "name": "Chlorine production" },
-      "chlorination_2": { "name": "Chlorine production 2" },
-      "stabilizer": { "name": "Stabilizer (CYA) flag" },
-      "pump": { "name": "Pump" },
-      "pump_auto": { "name": "Pump auto mode" },
-      "schedule_slot": { "name": "Schedule {index}" },
-      "boost_slot": { "name": "Boost" }
+      "power": {
+        "name": "Power"
+      },
+      "chlorination": {
+        "name": "Chlorine production"
+      },
+      "chlorination_2": {
+        "name": "Chlorine production 2"
+      },
+      "stabilizer": {
+        "name": "Stabilizer (CYA) flag"
+      },
+      "pump": {
+        "name": "Pump"
+      },
+      "pump_auto": {
+        "name": "Pump auto mode"
+      },
+      "schedule_slot": {
+        "name": "Schedule {index}"
+      },
+      "boost_slot": {
+        "name": "Boost"
+      }
     },
     "select": {
       "self_clean": {
         "name": "Self-clean cycle",
-        "state": { "2": "Every 2 h", "4": "Every 4 h", "6": "Every 6 h", "10": "Every 10 h" }
+        "state": {
+          "2": "Every 2 h",
+          "4": "Every 4 h",
+          "6": "Every 6 h",
+          "10": "Every 10 h"
+        }
       },
       "temp_unit": {
         "name": "Temperature unit",
-        "state": { "c": "°C", "f": "°F" }
+        "state": {
+          "c": "°C",
+          "f": "°F"
+        }
       },
       "report_cadence": {
         "name": "Reporting cadence",
@@ -239,24 +382,44 @@
           "fc_monthly": "Chlorine — monthly"
         }
       },
-      "pump_switch_select": { "name": "Pump switch" }
+      "pump_switch_select": {
+        "name": "Pump switch"
+      }
     },
     "number": {
-      "ph_target": { "name": "pH target" },
-      "orp_target": { "name": "ORP target" },
-      "schedule_duration": { "name": "Schedule {index} duration" },
-      "boost_duration": { "name": "Boost duration" }
+      "ph_target": {
+        "name": "pH target"
+      },
+      "orp_target": {
+        "name": "ORP target"
+      },
+      "schedule_duration": {
+        "name": "Schedule {index} duration"
+      },
+      "boost_duration": {
+        "name": "Boost duration"
+      }
     },
     "time": {
-      "schedule_start": { "name": "Schedule {index} start" }
+      "schedule_start": {
+        "name": "Schedule {index} start"
+      }
     },
     "button": {
-      "refresh": { "name": "Refresh measurement" },
-      "retest": { "name": "Re-test now" }
+      "refresh": {
+        "name": "Refresh measurement"
+      },
+      "retest": {
+        "name": "Re-test now"
+      }
     },
     "event": {
-      "alarm_event": { "name": "Alarm" },
-      "error_event": { "name": "Error" }
+      "alarm_event": {
+        "name": "Alarm"
+      },
+      "error_event": {
+        "name": "Error"
+      }
     }
   },
   "exceptions": {
@@ -305,7 +468,14 @@
     },
     "sensor_stale": {
       "title": "Water sensor data is stale",
-      "description": "The newest measurement is from {last} — the sensor normally reports about once an hour. Check that the sensor is charged, in the water and online; press “Refresh measurement” to force a reading. If it never recovers, the device may have been re-paired with a new id (use Reconfigure)."
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Force a fresh measurement",
+            "description": "The newest measurement is from {last} — the sensor normally reports about once an hour. Confirming sends a refresh command that wakes the sensor for an immediate reading. Also check that the sensor is charged, in the water and online; if it never recovers, the device may have been re-paired with a new id (use Reconfigure)."
+          }
+        }
+      }
     }
   },
   "services": {
@@ -313,16 +483,56 @@
       "name": "Set saltwater schedule",
       "description": "Create, change or clear a saltwater-system schedule slot (written to the device via the Tuya cloud). Field meanings are best-effort.",
       "fields": {
-        "slot": { "name": "Slot", "description": "Schedule slot to edit (0-6; 0 is the Boost cycle)." },
-        "config_entry_id": { "name": "Config entry", "description": "Entry id of the Intex Pool integration to target. Only needed when more than one is set up." },
-        "clear": { "name": "Clear", "description": "Empty this slot instead of setting it." },
-        "enable": { "name": "On", "description": "Turn the system on for the schedule (off behaves like the boost cycle)." },
-        "hour": { "name": "Hour", "description": "Start hour (0-23)." },
-        "minute": { "name": "Minute", "description": "Start minute (0-59)." },
-        "duration": { "name": "Duration (hours)", "description": "Run duration in hours (0-72, matching the schedule duration controls)." },
-        "month": { "name": "Month", "description": "Month for a one-time schedule (0 = unused)." },
-        "date": { "name": "Date", "description": "Day of month for a one-time schedule (0 = unused)." },
-        "days": { "name": "Days mask", "description": "Repeat bitmask (best-effort semantics): 255 = every day, 0 = one-time. Bit 7 marks a weekly repeat; bits 0-6 pick the weekday for one-time entries." }
+        "slot": {
+          "name": "Slot",
+          "description": "Schedule slot to edit (0-6; 0 is the Boost cycle)."
+        },
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Entry id of the Intex Pool integration to target. Only needed when more than one is set up."
+        },
+        "clear": {
+          "name": "Clear",
+          "description": "Empty this slot instead of setting it."
+        },
+        "enable": {
+          "name": "On",
+          "description": "Turn the system on for the schedule (off behaves like the boost cycle)."
+        },
+        "hour": {
+          "name": "Hour",
+          "description": "Start hour (0-23)."
+        },
+        "minute": {
+          "name": "Minute",
+          "description": "Start minute (0-59)."
+        },
+        "duration": {
+          "name": "Duration (hours)",
+          "description": "Run duration in hours (0-72, matching the schedule duration controls)."
+        },
+        "month": {
+          "name": "Month",
+          "description": "Month for a one-time schedule (0 = unused)."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Day of month for a one-time schedule (0 = unused)."
+        },
+        "days": {
+          "name": "Days mask",
+          "description": "Repeat bitmask (best-effort semantics): 255 = every day, 0 = one-time. Bit 7 marks a weekly repeat; bits 0-6 pick the weekday for one-time entries."
+        }
+      }
+    },
+    "get_schedule": {
+      "name": "Get schedules",
+      "description": "Returns the decoded schedule slots for the saltwater system and the water analyzer (measurement windows) as response data.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Entry id of the Intex Pool integration to target. Only needed when more than one is set up."
+        }
       }
     }
   }

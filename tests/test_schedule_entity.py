@@ -39,7 +39,7 @@ async def test_schedule_coordinator_decodes_blob(hass):
 async def test_schedule_sensor_state_and_attributes(hass):
     coord, _ = _coord(hass, REAL)
     await coord.async_refresh()
-    sensor = IntexScheduleSensor(coord, "saltid")
+    sensor = IntexScheduleSensor(coord, "salt", "saltid", "schedules")
     assert sensor.native_value == 5
     attrs = sensor.extra_state_attributes
     assert len(attrs["schedules"]) == 5

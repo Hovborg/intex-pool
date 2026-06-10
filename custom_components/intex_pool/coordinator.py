@@ -131,10 +131,11 @@ class SensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
 
 class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """Read/write the saltwater system's schedule blob (``skdl_salt``) via cloud.
+    """Read/write a device's schedule blob via the cloud.
 
-    The schedule is cloud-only (the device never reports it locally), so this
-    polls the salt device's thing-model properties and decodes the blob.
+    The schedule properties are cloud-only (never reported locally). The same
+    7-slot codec covers both the chlorinator's ``skdl_salt`` and the analyzer's
+    ``skdl_orpph`` measurement windows (byte-format live-verified 2026-06-10).
     """
 
     def __init__(
@@ -144,13 +145,15 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         client: CloudClient,
         device_id: str,
         interval: int,
+        code: str = "skdl_salt",
     ) -> None:
         super().__init__(
-            hass, _LOGGER, name="Intex salt schedule", config_entry=entry,
+            hass, _LOGGER, name=f"Intex schedule {code}", config_entry=entry,
             update_interval=timedelta(seconds=interval),
         )
         self._client = client
         self.device_id = device_id
+        self.code = code
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -163,7 +166,7 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise UpdateFailed(str(err)) from err
         except Exception as err:  # noqa: BLE001
             raise UpdateFailed(f"{type(err).__name__}: {err}") from err
-        raw = props.get("skdl_salt")
+        raw = props.get(self.code)
         return {"raw": raw, "slots": schedule.decode_schedules(raw)}
 
     async def async_write_slots(self, slots: list[dict[str, Any]]) -> None:
@@ -175,7 +178,7 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         b64 = schedule.encode_schedules(slots)
         await self.hass.async_add_executor_job(
-            self._client.issue, self.device_id, "skdl_salt", b64
+            self._client.issue, self.device_id, self.code, b64
         )
         await asyncio.sleep(5)
         await self.async_request_refresh()

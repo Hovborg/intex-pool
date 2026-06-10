@@ -73,6 +73,8 @@ CONF_PUMP_ENERGY = "pump_energy"
 CONF_PUMP_ON_DP = "pump_on_dp"        # DP string for tuya pump on/off
 CONF_LOCAL_INTERVAL = "local_interval"
 CONF_CLOUD_INTERVAL = "cloud_interval"
+CONF_POOL_VOLUME = "pool_volume"      # litres; 0/unset disables the salt advisor
+CONF_SALT_TARGET = "salt_target"      # target salinity (ppm) for the advisor
 
 PUMP_MODE_TUYA = "tuya"
 PUMP_MODE_ENTITY = "entity"
@@ -82,6 +84,26 @@ DEFAULT_LOCAL_INTERVAL = 15
 DEFAULT_CLOUD_INTERVAL = 120
 DEFAULT_SCHEDULE_INTERVAL = 600  # schedules change rarely; poll the cloud blob slowly
 DEFAULT_PUMP_ON_DP = "1"
+
+# --- water-quality guidance (QS-series manual §6/§9 + industry ORP floor) ---
+# Salinity: QS-series operating range 800-1800 ppm, optimum 950 ppm.
+SALT_MIN_PPM = 800
+SALT_MAX_PPM = 1800
+DEFAULT_SALT_TARGET = 950
+# pH ideal band per the Intex manual (7.2 min, 7.8 max).
+PH_MIN = 7.2
+PH_MAX = 7.8
+# Industry sanitation floor for ORP (Pentair/chloramine guidance: >=650 mV).
+ORP_MIN_MV = 650
+# Below ~15 degC cold water stresses/wears the electrolysis cell (the device
+# itself hard-errors at <10 degC with E03).
+COLD_WATER_C = 15.0
+# The electrolysis cell's runtime counter range in the thing model is
+# 0-5000 h - treated as the rated cell life for the wear estimate
+# (assumption: Intex does not document the cap's meaning).
+CELL_RATED_HOURS = 5000
+# The sleeping analyzer reports roughly hourly; older than this is stale.
+STALE_AFTER_HOURS = 3
 
 VERSION_CANDIDATES = [3.4, 3.5, 3.3, 3.1]
 
@@ -108,6 +130,7 @@ class IntexSensorDescription(SensorEntityDescription):
 class IntexBinaryDescription(BinarySensorEntityDescription):
     device: str
     source: str
+    value_fn: Callable[[Any], bool | None] | None = None  # raw -> is_on (default: as_bool)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -157,6 +180,14 @@ SENSORS: tuple[IntexSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.HOURS, device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC, suggested_display_precision=0,
+    ),
+    # Electrolysis-cell wear estimate: runtime as % of the 0-5000 h counter
+    # range (assumed rated life - see CELL_RATED_HOURS note above).
+    IntexSensorDescription(
+        key="cell_wear", translation_key="cell_wear", device=DEVICE_SALT, source="105",
+        scale=100 / CELL_RATED_HOURS, native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC, suggested_display_precision=1,
     ),
     IntexSensorDescription(
         key="time_remaining", translation_key="time_remaining", device=DEVICE_SALT, source="110",
@@ -284,6 +315,13 @@ BINARY_SENSORS: tuple[IntexBinaryDescription, ...] = (
         key="sensor_mesh", translation_key="mesh", device=DEVICE_SENSOR, source="mesh_indicator",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Cold-water guard: electrolysis below ~15 degC stresses the cell (the
+    # device itself errors with E03 below 10 degC). Advisory only.
+    IntexBinaryDescription(
+        key="cold_water", translation_key="cold_water", device=DEVICE_SALT, source="111",
+        device_class=BinarySensorDeviceClass.COLD,
+        value_fn=lambda raw: None if raw is None else float(raw) < COLD_WATER_C,
     ),
 )
 

@@ -23,6 +23,8 @@ class IntexPoolData:
     sensor: "SensorCoordinator | None" = None
     pump: "PumpCoordinator | None" = None
     schedule: "ScheduleCoordinator | None" = None
+    # The analyzer's own measurement-window schedule (skdl_orpph, read-only).
+    analyzer_schedule: "ScheduleCoordinator | None" = None
 
 
 type IntexPoolConfigEntry = ConfigEntry[IntexPoolData]

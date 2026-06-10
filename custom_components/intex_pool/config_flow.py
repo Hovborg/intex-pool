@@ -35,23 +35,28 @@ from .const import (
     CONF_HOST,
     CONF_LOCAL_INTERVAL,
     CONF_LOCAL_KEY,
+    CONF_POOL_VOLUME,
     CONF_PUMP_ENERGY,
     CONF_PUMP_MODE,
     CONF_PUMP_ON_DP,
     CONF_PUMP_POWER,
     CONF_PUMP_SWITCH,
     CONF_REGION,
+    CONF_SALT_TARGET,
     CONF_VERSION,
     DEFAULT_CLOUD_INTERVAL,
     DEFAULT_LOCAL_INTERVAL,
     DEFAULT_PUMP_ON_DP,
     DEFAULT_REGION,
+    DEFAULT_SALT_TARGET,
     DEVICE_PUMP,
     DEVICE_SALT,
     DEVICE_SENSOR,
     DOMAIN,
     PUMP_MODE_ENTITY,
     PUMP_MODE_TUYA,
+    SALT_MAX_PPM,
+    SALT_MIN_PPM,
     VERSION_CANDIDATES,
 )
 
@@ -608,6 +613,8 @@ class IntexPoolOptionsFlow(OptionsFlowWithReload):
                 data={
                     CONF_LOCAL_INTERVAL: user_input[CONF_LOCAL_INTERVAL],
                     CONF_CLOUD_INTERVAL: user_input[CONF_CLOUD_INTERVAL],
+                    CONF_POOL_VOLUME: user_input.get(CONF_POOL_VOLUME, 0),
+                    CONF_SALT_TARGET: user_input.get(CONF_SALT_TARGET, DEFAULT_SALT_TARGET),
                 }
             )
 
@@ -617,6 +624,13 @@ class IntexPoolOptionsFlow(OptionsFlowWithReload):
             ),
             vol.Required(CONF_CLOUD_INTERVAL, default=DEFAULT_CLOUD_INTERVAL): vol.All(
                 vol.Coerce(int), vol.Range(min=30, max=3600)
+            ),
+            # Salt advisor: pool volume in litres (0 = advisor off) + target ppm.
+            vol.Optional(CONF_POOL_VOLUME, default=0): vol.All(
+                vol.Coerce(int), vol.Range(min=0, max=200_000)
+            ),
+            vol.Optional(CONF_SALT_TARGET, default=DEFAULT_SALT_TARGET): vol.All(
+                vol.Coerce(int), vol.Range(min=SALT_MIN_PPM, max=SALT_MAX_PPM)
             ),
         }
         if is_entity_pump:

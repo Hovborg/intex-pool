@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-06-10
+
+Advisory features grounded in the device manuals + deep online research (iopool/poolchem
+patterns, TFP community practice, Tuya thing-model verification).
+
+### Added
+- **Salt dose advisor** (`Salt to add`, kg): set your pool volume under ⋮ → Configure and the
+  sensor computes how much salt reaches the target salinity (default 950 ppm — the QS-series
+  optimum; formula kg = L × Δppm ÷ 10⁶, matching the manual's own examples). Above 1800 ppm it
+  flips to the manual's E92 dilution advice (drain/refill %). Advisory only.
+- **Action required** binary sensor — one PROBLEM flag rolling up: active salt alarm, probe
+  maintenance, pH outside 7.2–7.8, ORP below the 650 mV sanitation floor, salinity outside
+  800–1800 ppm, stale analyzer data. The `reasons` attribute lists what triggered for
+  notifications/automations.
+- **Cold water** binary sensor — flags electrolysis-hostile water below 15 °C (the unit itself
+  errors with E03 under 10 °C); protects the cell in shoulder season.
+- **Cell wear** sensor — electrolysis-cell runtime as % of the 5000 h counter range (assumed
+  rated life).
+- **Analyzer measurement schedules** (read-only): the water analyzer's own `skdl_orpph` schedule
+  blob is now decoded — same 7-slot format as the saltwater schedule (byte-format live-verified).
+  Per the manual these windows drive hourly measurements and group-mode authority.
+- **`intex_pool.get_schedule` service** with response data — returns the decoded slot tables for
+  both devices. `set_schedule` now optionally returns the resulting table too.
+- **Fixable stale-data repair**: the "stale sensor data" issue now has a Fix button that forces a
+  fresh measurement (wakes the sleeping sensor).
+- Card: **ORP trend marker** on the ORP tile (from the trend entity) and a **stale badge** with
+  relative age next to the battery when the newest measurement is older than 3 h.
+- Setup polish: contextual help texts (`data_description`) on all config/options fields.
+
+### Changed
+- Options now include pool volume + target salinity (advisor), alongside polling intervals.
+
 ## [0.12.1] - 2026-06-10
 
 Follow-up fixes found by a re-audit of the v0.12.0 release.
