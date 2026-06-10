@@ -28,6 +28,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
+from . import calibration, decode
 from . import schedule as schedule_mod
 from . import tuya
 from .const import (
@@ -56,7 +57,17 @@ from .models import IntexPoolConfigEntry, IntexPoolData
 
 SERVICE_SET_SCHEDULE = "set_schedule"
 SERVICE_GET_SCHEDULE = "get_schedule"
+SERVICE_CALIBRATE = "calibrate"
+SERVICE_CLEAR_CALIBRATION = "clear_calibration"
 GET_SCHEDULE_SCHEMA = vol.Schema({vol.Optional("config_entry_id"): str})
+CALIBRATE_SCHEMA = vol.Schema(
+    {
+        vol.Required("parameter"): vol.In(["ph", "orp"]),
+        vol.Required("reference_value"): vol.Coerce(float),
+        vol.Optional("config_entry_id"): str,
+    }
+)
+CLEAR_CALIBRATION_SCHEMA = vol.Schema({vol.Optional("config_entry_id"): str})
 SET_SCHEDULE_SCHEMA = vol.Schema(
     {
         vol.Required("slot"): vol.All(vol.Coerce(int), vol.Range(min=0, max=6)),
@@ -217,8 +228,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) ->
     return True
 
 
-def _data_for_call(hass: HomeAssistant, call: ServiceCall) -> IntexPoolData:
-    """Resolve the target entry's runtime data for a schedule service call."""
+def _entry_for_call(
+    hass: HomeAssistant, call: ServiceCall, has_target, error_key: str
+) -> IntexPoolConfigEntry:
+    """Resolve the target loaded entry for a service call.
+
+    *has_target* is a predicate on the entry's runtime data selecting entries
+    that can actually serve the call (e.g. has a schedule / has the sensor).
+    """
     entry_id = call.data.get("config_entry_id")
     entries = hass.config_entries.async_entries(DOMAIN)
     if entry_id:
@@ -232,11 +249,19 @@ def _data_for_call(hass: HomeAssistant, call: ServiceCall) -> IntexPoolData:
         if entry.state is not ConfigEntryState.LOADED:
             continue
         data: IntexPoolData | None = getattr(entry, "runtime_data", None)
-        if data and (data.schedule is not None or data.analyzer_schedule is not None):
-            return data
-    raise ServiceValidationError(
-        translation_domain=DOMAIN, translation_key="no_schedule"
+        if data and has_target(data):
+            return entry
+    raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error_key)
+
+
+def _data_for_call(hass: HomeAssistant, call: ServiceCall) -> IntexPoolData:
+    """Resolve the target entry's runtime data for a schedule service call."""
+    entry = _entry_for_call(
+        hass, call,
+        lambda d: d.schedule is not None or d.analyzer_schedule is not None,
+        "no_schedule",
     )
+    return entry.runtime_data
 
 
 def _serialize_slots(coordinator) -> dict | None:
@@ -291,6 +316,71 @@ def _register_services(hass: HomeAssistant) -> None:
             "analyzer": _serialize_slots(data.analyzer_schedule),
         }
 
+    async def _calibrate(call: ServiceCall) -> ServiceResponse:
+        entry = _entry_for_call(
+            hass, call, lambda d: d.sensor is not None, "no_sensor"
+        )
+        sensor = entry.runtime_data.sensor
+        if not sensor.last_update_success:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="sensor_unavailable"
+            )
+        props = sensor.data or {}
+        parameter = call.data["parameter"]
+        reference = float(call.data["reference_value"])
+        if parameter == "ph":
+            current = decode.scaled(props.get("PH_Number"), 0.01)
+            max_offset, deadband, digits = (
+                calibration.PH_MAX_OFFSET, calibration.PH_DEADBAND, 2,
+            )
+        else:
+            current = props.get("ORP_Number")
+            max_offset, deadband, digits = (
+                calibration.ORP_MAX_OFFSET, calibration.ORP_DEADBAND, 0,
+            )
+        try:
+            current = float(current)
+        except (TypeError, ValueError):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="no_reading"
+            ) from None
+        offset = round(reference - current, digits)
+        if abs(offset) < deadband:
+            # Below the device's resolving power — the probe agrees with the
+            # reference; clear any stored offset instead of storing noise.
+            offset = 0.0
+        if abs(offset) > max_offset:
+            # That much error is clean/recalibrate/replace territory — a
+            # software offset would hide a real problem.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="offset_too_large",
+                translation_placeholders={
+                    "offset": str(offset), "max": str(max_offset), "parameter": parameter,
+                },
+            )
+        calibration.async_store_calibration(
+            hass, entry, {f"{parameter}_offset": offset},
+            device_coeffs={
+                "ph": props.get("ph_caliberate"),
+                "orp": props.get("orp_caliberate"),
+            },
+        )
+        if call.return_response:
+            return {
+                "parameter": parameter,
+                "device_value": current,
+                "reference_value": reference,
+                "offset": offset,
+            }
+        return None
+
+    async def _clear_calibration(call: ServiceCall) -> None:
+        entry = _entry_for_call(
+            hass, call, lambda d: d.sensor is not None, "no_sensor"
+        )
+        calibration.async_store_calibration(hass, entry, None)
+
     hass.services.async_register(
         DOMAIN, SERVICE_SET_SCHEDULE, _set_schedule, schema=SET_SCHEDULE_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
@@ -298,6 +388,14 @@ def _register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_GET_SCHEDULE, _get_schedule, schema=GET_SCHEDULE_SCHEMA,
         supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CALIBRATE, _calibrate, schema=CALIBRATE_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CLEAR_CALIBRATION, _clear_calibration,
+        schema=CLEAR_CALIBRATION_SCHEMA,
     )
 
 

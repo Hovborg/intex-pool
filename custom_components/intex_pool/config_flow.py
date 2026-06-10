@@ -44,6 +44,7 @@ from .const import (
     CONF_REGION,
     CONF_SALT_TARGET,
     CONF_VERSION,
+    CONF_VOLUME_UNIT,
     DEFAULT_CLOUD_INTERVAL,
     DEFAULT_LOCAL_INTERVAL,
     DEFAULT_PUMP_ON_DP,
@@ -58,6 +59,8 @@ from .const import (
     SALT_MAX_PPM,
     SALT_MIN_PPM,
     VERSION_CANDIDATES,
+    VOLUME_UNIT_GALLON,
+    VOLUME_UNIT_LITER,
 )
 
 _VERSION_OPTIONS = ["auto", "3.1", "3.3", "3.4", "3.5"]
@@ -614,6 +617,7 @@ class IntexPoolOptionsFlow(OptionsFlowWithReload):
                     CONF_LOCAL_INTERVAL: user_input[CONF_LOCAL_INTERVAL],
                     CONF_CLOUD_INTERVAL: user_input[CONF_CLOUD_INTERVAL],
                     CONF_POOL_VOLUME: user_input.get(CONF_POOL_VOLUME, 0),
+                    CONF_VOLUME_UNIT: user_input.get(CONF_VOLUME_UNIT, VOLUME_UNIT_LITER),
                     CONF_SALT_TARGET: user_input.get(CONF_SALT_TARGET, DEFAULT_SALT_TARGET),
                 }
             )
@@ -625,9 +629,15 @@ class IntexPoolOptionsFlow(OptionsFlowWithReload):
             vol.Required(CONF_CLOUD_INTERVAL, default=DEFAULT_CLOUD_INTERVAL): vol.All(
                 vol.Coerce(int), vol.Range(min=30, max=3600)
             ),
-            # Salt advisor: pool volume in litres (0 = advisor off) + target ppm.
+            # Salt advisor: pool volume (0 = advisor off), its unit + target ppm.
             vol.Optional(CONF_POOL_VOLUME, default=0): vol.All(
                 vol.Coerce(int), vol.Range(min=0, max=200_000)
+            ),
+            vol.Optional(CONF_VOLUME_UNIT, default=VOLUME_UNIT_LITER): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[VOLUME_UNIT_LITER, VOLUME_UNIT_GALLON],
+                    translation_key="volume_unit",
+                )
             ),
             vol.Optional(CONF_SALT_TARGET, default=DEFAULT_SALT_TARGET): vol.All(
                 vol.Coerce(int), vol.Range(min=SALT_MIN_PPM, max=SALT_MAX_PPM)

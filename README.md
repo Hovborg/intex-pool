@@ -73,10 +73,20 @@ per-slot toggle/duration/start-time entities (slot 0 = **Boost**) · **Salt to a
 **Pump switch** selector (entity mode), connectivity (Tuya mode).
 </details>
 
-> 🧂 **Salt dose advisor.** Set your pool volume (litres) under **⋮ → Configure** and the
+> 🧂 **Salt dose advisor.** Set your pool volume (the **Pool volume** entity on the device
+> page, or **⋮ → Configure**; litres or US gallons via the **Volume unit** select) and the
 > **Salt to add** sensor tells you how many kg reach the target salinity (default 950 ppm,
 > the QS-series optimum) — or, above 1800 ppm, how much water to drain per the manual.
 > Advisory only; it never actuates anything.
+
+> 🧪 **Calibrate against your own test.** Took a strip or drop test? Call
+> **`intex_pool.calibrate`** with what it showed (e.g. `parameter: ph`,
+> `reference_value: 7.4`) and the pH reading is aligned via a software offset — the raw
+> value stays in the `raw_value` attribute. Guardrails reject offsets beyond ±0.5 pH
+> (that's clean-and-recalibrate territory), and the offsets auto-reset when you run the
+> real buffer calibration in the Intex app. A drop test kit is the recommended reference —
+> strips are coarse (±0.3–0.5 pH). The app's buffer-powder calibration every 4 months
+> remains the authoritative baseline; this is the drift bridge in between.
 
 ## 📸 The card adapts to what you have
 

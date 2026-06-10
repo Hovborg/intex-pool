@@ -71,3 +71,38 @@ get_schedule:
       selector:
         config_entry:
           integration: intex_pool
+
+calibrate:
+  fields:
+    parameter:
+      required: true
+      example: ph
+      default: ph
+      selector:
+        select:
+          options:
+            - ph
+            - orp
+          translation_key: calibrate_parameter
+    reference_value:
+      required: true
+      example: 7.4
+      selector:
+        number:
+          min: 0
+          max: 1000
+          step: 0.01
+          mode: box
+    config_entry_id:
+      example: 0123456789abcdef0123456789abcdef
+      selector:
+        config_entry:
+          integration: intex_pool
+
+clear_calibration:
+  fields:
+    config_entry_id:
+      example: 0123456789abcdef0123456789abcdef
+      selector:
+        config_entry:
+          integration: intex_pool

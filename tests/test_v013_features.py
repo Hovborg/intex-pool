@@ -37,9 +37,51 @@ def _entities(hass):
 
 # ------------------------------------------------------- salt dose advisor ---
 
-async def test_salt_advisor_disabled_without_volume(hass, mock_tinytuya):
+async def test_salt_advisor_idle_without_volume(hass, mock_tinytuya):
+    """The advisor entity always exists; without a pool volume it is empty
+    and hints that the volume must be set (v0.14: live-editable options)."""
     await _setup(hass, {"has_salt": True, "salt": SALT})
-    assert "saltdev_salt_to_add" not in _entities(hass)
+    advisor = _entities(hass)["saltdev_salt_to_add"]
+    assert advisor.native_value is None
+    assert advisor.extra_state_attributes["status"] == "set_pool_volume"
+
+
+async def test_salt_advisor_gallon_unit_converts(hass, mock_tinytuya):
+    """A volume entered in US gallons is converted to litres for the math."""
+    entry = await _setup(
+        hass, {"has_salt": True, "salt": SALT},
+        options={"pool_volume": 2417, "volume_unit": "gallon", "salt_target": 950},
+    )
+    mock_tinytuya.tinytuya.Device.status = lambda self: {"dps": {"104": True, "109": 700}}
+    await entry.runtime_data.salt.async_refresh()
+    advisor = _entities(hass)["saltdev_salt_to_add"]
+    litres = 2417 * 3.785411784  # ~9150 L
+    assert advisor.native_value == pytest.approx(litres * 250 / 1_000_000, abs=0.02)
+
+
+async def test_pool_volume_number_and_unit_select(hass, mock_tinytuya):
+    """Pool volume is user-editable as an entity; the unit select switches
+    the displayed unit without converting the stored number."""
+    entry = await _setup(hass, {"has_salt": True, "salt": SALT})
+    ents = _entities(hass)
+    volume = ents["saltdev_pool_volume"]
+    unit = ents["saltdev_volume_unit"]
+
+    assert volume.native_value == 0.0
+    assert volume.native_unit_of_measurement == "L"
+    assert unit.current_option == "liter"
+
+    await volume.async_set_native_value(9150)
+    assert entry.options["pool_volume"] == 9150
+    # advisor picks the new volume up live — no reload involved
+    advisor = ents["saltdev_salt_to_add"]
+    assert advisor.extra_state_attributes["pool_volume_l"] == 9150
+
+    await unit.async_select_option("gallon")
+    assert entry.options["volume_unit"] == "gallon"
+    assert volume.native_unit_of_measurement == "gal"
+    assert volume.native_value == 9150  # number NOT converted, by design
+    assert advisor.extra_state_attributes["pool_volume_l"] == round(9150 * 3.785411784)
 
 
 async def test_salt_advisor_math_and_status(hass, mock_tinytuya):

@@ -1,19 +1,32 @@
-"""Select platform (self-clean cycle, temperature unit)."""
+"""Select platform (self-clean cycle, temperature unit, volume unit)."""
 from __future__ import annotations
 
 from homeassistant.components.select import SelectEntity
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
     CONF_PUMP_MODE,
     CONF_PUMP_SWITCH,
+    CONF_VOLUME_UNIT,
     DEVICE_PUMP,
+    DEVICE_SALT,
     PUMP_MODE_ENTITY,
     SELECTS,
+    SIGNAL_OPTIONS_UPDATED,
+    VOLUME_UNIT_GALLON,
+    VOLUME_UNIT_LITER,
 )
-from .entity import IntexPoolEntity, coordinator_for, device_id_for, pump_device_info
+from .entity import (
+    IntexPoolEntity,
+    coordinator_for,
+    device_id_for,
+    device_info_for,
+    pump_device_info,
+)
 from .models import IntexPoolConfigEntry
 
 PARALLEL_UPDATES = 1
@@ -39,7 +52,59 @@ async def async_setup_entry(
     if (entry.data.get(DEVICE_PUMP) or {}).get(CONF_PUMP_MODE) == PUMP_MODE_ENTITY:
         entities.append(IntexPumpSwitchSelect(entry))
 
+    # Volume unit for the pool-volume entity + salt advisor.
+    salt_id = device_id_for(entry, DEVICE_SALT)
+    if data.salt is not None and salt_id is not None:
+        entities.append(IntexVolumeUnitSelect(entry, salt_id))
+
     async_add_entities(entities)
+
+
+class IntexVolumeUnitSelect(SelectEntity):
+    """Unit for the pool volume (litres or US gallons) — stored in options.
+
+    Changing the unit does NOT convert the stored number: the Pool volume
+    value is interpreted in whichever unit is selected here.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "volume_unit"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_options = [VOLUME_UNIT_LITER, VOLUME_UNIT_GALLON]
+    _attr_should_poll = False
+
+    def __init__(self, entry: IntexPoolConfigEntry, device_id: str) -> None:
+        self._entry = entry
+        self._attr_unique_id = f"{device_id}_volume_unit"
+        self._attr_device_info = device_info_for(DEVICE_SALT, device_id)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                SIGNAL_OPTIONS_UPDATED.format(self._entry.entry_id),
+                self._refresh,
+            )
+        )
+
+    @callback
+    def _refresh(self) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def current_option(self) -> str:
+        return self._entry.options.get(CONF_VOLUME_UNIT, VOLUME_UNIT_LITER)
+
+    async def async_select_option(self, option: str) -> None:
+        self.hass.config_entries.async_update_entry(
+            self._entry, options={**self._entry.options, CONF_VOLUME_UNIT: option}
+        )
+        # Nudge siblings (the Pool volume number shows this unit).
+        async_dispatcher_send(
+            self.hass, SIGNAL_OPTIONS_UPDATED.format(self._entry.entry_id)
+        )
+        self.async_write_ha_state()
 
 
 class IntexPumpSwitchSelect(SelectEntity):

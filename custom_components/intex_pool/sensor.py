@@ -5,22 +5,29 @@ from datetime import datetime
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.const import UnitOfMass
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from . import decode, schedule
+from . import calibration, decode, schedule
 from .const import (
-    CONF_POOL_VOLUME,
     CONF_SALT_TARGET,
     DEFAULT_SALT_TARGET,
     DEVICE_SALT,
     DEVICE_SENSOR,
     SALT_MAX_PPM,
     SENSORS,
+    SIGNAL_OPTIONS_UPDATED,
 )
-from .entity import IntexPoolEntity, coordinator_for, device_id_for, device_info_for
+from .entity import (
+    IntexPoolEntity,
+    coordinator_for,
+    device_id_for,
+    device_info_for,
+    pool_volume_liters,
+)
 from .models import IntexPoolConfigEntry
 
 PARALLEL_UPDATES = 0
@@ -57,11 +64,11 @@ async def async_setup_entry(
             )
         )
 
-    # Salt dose advisor — needs the salt device + a configured pool volume.
-    volume = entry.options.get(CONF_POOL_VOLUME, 0)
-    if data.salt is not None and salt_id is not None and volume:
-        target = entry.options.get(CONF_SALT_TARGET, DEFAULT_SALT_TARGET)
-        entities.append(IntexSaltDoseSensor(data.salt, salt_id, int(volume), int(target)))
+    # Salt dose advisor — always created with the salt device; it reads the
+    # pool volume/target live from the entry options, so adjusting them (via
+    # the Pool volume entity or ⋮ → Configure) needs no reload.
+    if data.salt is not None and salt_id is not None:
+        entities.append(IntexSaltDoseSensor(data.salt, salt_id, entry))
 
     async_add_entities(entities)
 
@@ -98,10 +105,30 @@ class IntexScheduleSensor(CoordinatorEntity, SensorEntity):
 
 
 class IntexSensor(IntexPoolEntity, SensorEntity):
-    """A read-only sensor backed by a DP / cloud property."""
+    """A read-only sensor backed by a DP / cloud property.
 
-    @property
-    def native_value(self) -> StateType | datetime:
+    pH/ORP apply the user's software calibration offset (see calibration.py);
+    the uncorrected reading stays available as the ``raw_value`` attribute.
+    """
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if self.entity_description.calibration:
+            # Refresh immediately when offsets change (service / number entity).
+            entry = self.coordinator.config_entry
+            self.async_on_remove(
+                async_dispatcher_connect(
+                    self.hass,
+                    SIGNAL_OPTIONS_UPDATED.format(entry.entry_id),
+                    self._on_options_updated,
+                )
+            )
+
+    @callback
+    def _on_options_updated(self) -> None:
+        self.async_write_ha_state()
+
+    def _uncalibrated(self) -> StateType | datetime:
         raw = self._raw
         desc = self.entity_description
         if desc.value_fn is not None:
@@ -109,6 +136,29 @@ class IntexSensor(IntexPoolEntity, SensorEntity):
         if desc.scale is not None:
             return decode.scaled(raw, desc.scale)
         return raw
+
+    @property
+    def native_value(self) -> StateType | datetime:
+        value = self._uncalibrated()
+        param = self.entity_description.calibration
+        if param and isinstance(value, (int, float)):
+            offset = calibration.offset_for(self.coordinator.config_entry, param)
+            if offset:
+                return round(value + offset, 2)
+        return value
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        param = self.entity_description.calibration
+        if not param:
+            return None
+        entry = self.coordinator.config_entry
+        offset = calibration.offset_for(entry, param)
+        return {
+            "raw_value": self._uncalibrated(),
+            "calibration_offset": offset or 0,
+            "calibrated_at": calibration.get_calibration(entry).get("calibrated_at"),
+        }
 
 
 class IntexSaltDoseSensor(CoordinatorEntity, SensorEntity):
@@ -118,6 +168,9 @@ class IntexSaltDoseSensor(CoordinatorEntity, SensorEntity):
     (1 ppm = 1 mg/L), matching the QS-series manual's own dosing examples.
     Above the manual's 1800 ppm max the advice flips to dilution (drain %
     straight from the manual's E92 table). Advisory only — never actuates.
+
+    Pool volume/unit/target are read live from the entry options (set them via
+    the Pool volume / Volume unit / target entities or ⋮ → Configure).
     """
 
     _attr_has_entity_name = True
@@ -126,10 +179,9 @@ class IntexSaltDoseSensor(CoordinatorEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.WEIGHT
     _attr_suggested_display_precision = 1
 
-    def __init__(self, coordinator, device_id: str, volume_l: int, target_ppm: int) -> None:
+    def __init__(self, coordinator, device_id: str, entry: IntexPoolConfigEntry) -> None:
         super().__init__(coordinator)
-        self._volume = volume_l
-        self._target = target_ppm
+        self._entry = entry
         self._attr_unique_id = f"{device_id}_salt_to_add"
         self._attr_device_info = device_info_for(DEVICE_SALT, device_id)
 
@@ -140,23 +192,31 @@ class IntexSaltDoseSensor(CoordinatorEntity, SensorEntity):
         except (TypeError, ValueError):
             return None
 
+    def _target(self) -> int:
+        return int(self._entry.options.get(CONF_SALT_TARGET, DEFAULT_SALT_TARGET))
+
     @property
     def native_value(self) -> float | None:
         salinity = self._salinity()
-        if salinity is None:
+        volume_l = pool_volume_liters(self._entry)
+        if salinity is None or volume_l <= 0:
             return None
-        return round(max(0.0, self._volume * (self._target - salinity) / 1_000_000), 2)
+        return round(max(0.0, volume_l * (self._target() - salinity) / 1_000_000), 2)
 
     @property
     def extra_state_attributes(self) -> dict:
         salinity = self._salinity()
+        volume_l = pool_volume_liters(self._entry)
         attrs: dict = {
             "salinity_ppm": salinity,
-            "target_ppm": self._target,
-            "pool_volume_l": self._volume,
+            "target_ppm": self._target(),
+            "pool_volume_l": round(volume_l) if volume_l else 0,
             "status": None,
             "drain_refill_pct": None,
         }
+        if volume_l <= 0:
+            attrs["status"] = "set_pool_volume"
+            return attrs
         if salinity is None:
             return attrs
         if salinity > SALT_MAX_PPM:
@@ -164,7 +224,7 @@ class IntexSaltDoseSensor(CoordinatorEntity, SensorEntity):
             attrs["drain_refill_pct"] = next(
                 (pct for limit, pct in _DILUTE_TABLE if salinity <= limit), 70
             )
-        elif salinity < self._target:
+        elif salinity < self._target():
             attrs["status"] = "add_salt"
         else:
             attrs["status"] = "ok"

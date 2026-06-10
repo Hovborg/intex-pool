@@ -153,14 +153,16 @@
           "salt_target": "Mål-salinitet (ppm)",
           "pump_switch": "Pumpe-switch",
           "pump_power": "Effektsensor (valgfri)",
-          "pump_energy": "Energisensor (valgfri)"
+          "pump_energy": "Energisensor (valgfri)",
+          "volume_unit": "Volumen-enhed"
         },
         "data_description": {
           "local_interval": "Hvor ofte LAN-enhederne (saltvandssystem, Tuya-pumpe) polles.",
           "cloud_interval": "Hvor ofte Tuya-clouden (vandsensoren) polles — hold den moderat, gratis-niveauet har en månedlig kald-kvote.",
-          "pool_volume": "Aktiverer “Salt at tilsætte”-rådgiveren. Sæt til 0 for at slå den fra.",
+          "pool_volume": "Aktiverer “Salt at tilsætte”-rådgiveren (kan også ændres som Pool-volumen-entiteten). Sæt til 0 for at slå fra.",
           "salt_target": "Den salinitet rådgiveren sigter efter (QS-seriens optimum er 950 ppm, område 800–1800).",
-          "pump_switch": "Den switch-entitet der driver din sandfilterpumpe."
+          "pump_switch": "Den switch-entitet der driver din sandfilterpumpe.",
+          "volume_unit": "Enheden pool-volumen indtastes i. Ændring konverterer ikke det gemte tal."
         }
       }
     }
@@ -170,6 +172,18 @@
       "options": {
         "entity": "Eksisterende Home Assistant-entitet (alle mærker)",
         "tuya": "Tuya / Intex smart-pumpe (lokalt)"
+      }
+    },
+    "volume_unit": {
+      "options": {
+        "liter": "Liter",
+        "gallon": "US gallons"
+      }
+    },
+    "calibrate_parameter": {
+      "options": {
+        "ph": "pH",
+        "orp": "ORP (avanceret)"
       }
     }
   },
@@ -384,6 +398,13 @@
       },
       "pump_switch_select": {
         "name": "Pumpe-kontakt"
+      },
+      "volume_unit": {
+        "name": "Volumen-enhed",
+        "state": {
+          "liter": "Liter",
+          "gallon": "US gallons"
+        }
       }
     },
     "number": {
@@ -398,6 +419,15 @@
       },
       "boost_duration": {
         "name": "Boost-varighed"
+      },
+      "pool_volume": {
+        "name": "Pool-volumen"
+      },
+      "ph_offset": {
+        "name": "pH-kalibreringsoffset"
+      },
+      "orp_offset": {
+        "name": "ORP-kalibreringsoffset"
       }
     },
     "time": {
@@ -478,6 +508,34 @@
           "description": "Entry-id for den Intex Pool-integration der skal rammes. Kun nødvendigt med mere end én opsætning."
         }
       }
+    },
+    "calibrate": {
+      "name": "Kalibrér mod en referencetest",
+      "description": "Justerer pH- (eller ORP-) aflæsningen efter din egen referencetest ved at gemme et software-offset (offset = reference − aktuel aflæsning). Et dråbetestsæt er den anbefalede reference; strips er grove (±0,3-0,5 pH). Dette er en drift-bro — den rigtige kalibrering er buffer-pulver-flowet i Intex-appen hver 4. måned. Afvigelser over ±0,5 pH / ±100 mV afvises (rens + rekalibrér i stedet).",
+      "fields": {
+        "parameter": {
+          "name": "Parameter",
+          "description": "Hvilken aflæsning der skal justeres. ORP er avanceret: hjemmetests måler klor, ikke ORP — lav ORP er normalt kemi (CYA) eller tilsmudsning."
+        },
+        "reference_value": {
+          "name": "Referenceværdi",
+          "description": "Værdien din referencetest viste (pH, eller mV for ORP)."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationspost",
+          "description": "Entry-id for den Intex Pool-integration der skal rammes. Kun nødvendigt med mere end én opsætning."
+        }
+      }
+    },
+    "clear_calibration": {
+      "name": "Ryd kalibreringsoffsets",
+      "description": "Fjerner de gemte software-kalibreringsoffsets (pH og ORP), så enhedens egne aflæsninger vises uændret.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konfigurationspost",
+          "description": "Entry-id for den Intex Pool-integration der skal rammes. Kun nødvendigt med mere end én opsætning."
+        }
+      }
     }
   },
   "exceptions": {
@@ -489,6 +547,18 @@
     },
     "entry_not_found": {
       "message": "Ingen Intex Pool-konfiguration med det id blev fundet."
+    },
+    "no_sensor": {
+      "message": "Ingen Intex Pool-opsætning med en vandsensor er indlæst."
+    },
+    "sensor_unavailable": {
+      "message": "Vandsensoren kan ikke nås lige nu — prøv igen når den er online."
+    },
+    "no_reading": {
+      "message": "Sensoren har ingen aktuel aflæsning for den parameter."
+    },
+    "offset_too_large": {
+      "message": "Det beregnede {parameter}-offset ({offset}) overskrider den sikre grænse (±{max}). Så stor afvigelse betyder at proben skal renses og buffer-kalibreres i Intex-appen — et software-offset ville skjule et reelt problem."
     }
   },
   "issues": {
@@ -534,6 +604,14 @@
           }
         }
       }
+    },
+    "calibration_reset": {
+      "title": "Software-kalibreringsoffsets blev nulstillet",
+      "description": "Vandsensoren blev rekalibreret i Intex-appen (dens interne kalibreringskoefficienter ændrede sig), så software-offsets i Home Assistant var forældede og er nulstillet til 0. Kør intex_pool.calibrate mod en frisk referencetest igen hvis nødvendigt."
+    },
+    "calibration_stale": {
+      "title": "Software-kalibreringen er forældet",
+      "description": "Software-kalibreringsoffsets er ældre end {days} dage. Intex anbefaler buffer-kalibrering i appen hver 4. måned — gør det først, og justér derefter med intex_pool.calibrate mod en frisk referencetest."
     }
   }
 }

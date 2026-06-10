@@ -7,7 +7,18 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
-from .const import DEVICE_META, DEVICE_PUMP, DEVICE_SALT, DEVICE_SENSOR, DOMAIN, MANUFACTURER
+from .const import (
+    CONF_POOL_VOLUME,
+    CONF_VOLUME_UNIT,
+    DEVICE_META,
+    DEVICE_PUMP,
+    DEVICE_SALT,
+    DEVICE_SENSOR,
+    DOMAIN,
+    GAL_TO_L,
+    MANUFACTURER,
+    VOLUME_UNIT_GALLON,
+)
 from .models import IntexPoolConfigEntry, IntexPoolData
 
 if TYPE_CHECKING:
@@ -65,6 +76,21 @@ def device_id_for(entry: IntexPoolConfigEntry, device: str) -> str | None:
     """Return the Tuya device id stored for a device type (None if not applicable)."""
     section = entry.data.get(device) or {}
     return section.get("device_id")
+
+
+def pool_volume_liters(entry: IntexPoolConfigEntry) -> float:
+    """The configured pool volume converted to litres (0 = not configured).
+
+    The volume is stored in whichever unit the user picked (liter/US gallon);
+    advisors always compute in litres.
+    """
+    try:
+        volume = float(entry.options.get(CONF_POOL_VOLUME, 0) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if entry.options.get(CONF_VOLUME_UNIT) == VOLUME_UNIT_GALLON:
+        volume *= GAL_TO_L
+    return volume
 
 
 class IntexPoolEntity(CoordinatorEntity):

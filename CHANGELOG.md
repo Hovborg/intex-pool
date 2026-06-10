@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.14.0] - 2026-06-10
+
+Calibration against your own reference tests + user-adjustable pool volume.
+
+### Added
+- **Calibrate against a reference test** (`intex_pool.calibrate`): aligns the pH (or ORP)
+  reading with your own drop-test/strip result by storing a software offset
+  (offset = reference − current reading). Research-grounded guardrails: deadband below the
+  device's 0.1 pH resolution, hard clamp at ±0.5 pH / ±100 mV (beyond that the probe needs
+  cleaning + a buffer calibration in the Intex app — an offset would hide a real problem),
+  and the corrected value is what the Action-required roll-up judges. The raw reading stays
+  visible as the `raw_value` attribute. `clear_calibration` removes the offsets.
+- **pH / ORP calibration offset number entities** (config category; ORP is advanced and
+  disabled by default — home tests measure chlorine, not ORP, and a low ORP is usually
+  chemistry or fouling).
+- **Auto-reset on app recalibration**: the integration watches the device's own (read-only)
+  calibration coefficients; when the Intex app recalibrates the probes, the now-obsolete
+  software offsets are reset to 0 and a repair issue explains why. A repair also warns when
+  software offsets are older than the manual's 4-month calibration cadence.
+- **Pool volume entity** (`number`) + **Volume unit** select (litres / US gallons) right on
+  the saltwater device — no need to open Configure. The salt advisor reads them live; the
+  unit choice never converts the stored figure.
+
+### Changed
+- The salt advisor entity now always exists; without a pool volume it stays empty with a
+  `set_pool_volume` status hint.
+- FC remains uncalibrated by design: it is computed device-side from the *uncorrected*
+  pH/ORP and labeled "reference only" by Intex; ground truth for chlorine is a FAS-DPD
+  drop test.
+
 ## [0.13.0] - 2026-06-10
 
 Advisory features grounded in the device manuals + deep online research (iopool/poolchem

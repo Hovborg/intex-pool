@@ -153,14 +153,16 @@
           "salt_target": "Target salinity (ppm)",
           "pump_switch": "Pump switch",
           "pump_power": "Power sensor (optional)",
-          "pump_energy": "Energy sensor (optional)"
+          "pump_energy": "Energy sensor (optional)",
+          "volume_unit": "Volume unit"
         },
         "data_description": {
           "local_interval": "How often the LAN devices (saltwater system, Tuya pump) are polled.",
           "cloud_interval": "How often the Tuya cloud (water sensor) is polled — keep modest, the free tier has a monthly call quota.",
-          "pool_volume": "Enables the “Salt to add” advisor. Set to 0 to disable it.",
+          "pool_volume": "Enables the “Salt to add” advisor (also editable as the Pool volume entity). Set to 0 to disable.",
           "salt_target": "The salinity the advisor aims for (QS-series optimum is 950 ppm, range 800–1800).",
-          "pump_switch": "The switch entity that drives your sand-filter pump."
+          "pump_switch": "The switch entity that drives your sand-filter pump.",
+          "volume_unit": "Unit the pool volume is entered in. Changing it does not convert the stored number."
         }
       }
     }
@@ -170,6 +172,18 @@
       "options": {
         "entity": "Existing Home Assistant entity (any brand)",
         "tuya": "Tuya / Intex smart pump (local)"
+      }
+    },
+    "volume_unit": {
+      "options": {
+        "liter": "Litres",
+        "gallon": "US gallons"
+      }
+    },
+    "calibrate_parameter": {
+      "options": {
+        "ph": "pH",
+        "orp": "ORP (advanced)"
       }
     }
   },
@@ -384,6 +398,13 @@
       },
       "pump_switch_select": {
         "name": "Pump switch"
+      },
+      "volume_unit": {
+        "name": "Volume unit",
+        "state": {
+          "liter": "Litres",
+          "gallon": "US gallons"
+        }
       }
     },
     "number": {
@@ -398,6 +419,15 @@
       },
       "boost_duration": {
         "name": "Boost duration"
+      },
+      "pool_volume": {
+        "name": "Pool volume"
+      },
+      "ph_offset": {
+        "name": "pH calibration offset"
+      },
+      "orp_offset": {
+        "name": "ORP calibration offset"
       }
     },
     "time": {
@@ -431,6 +461,18 @@
     },
     "entry_not_found": {
       "message": "No Intex Pool config entry with that id was found."
+    },
+    "no_sensor": {
+      "message": "No Intex Pool entry with a water sensor is loaded."
+    },
+    "sensor_unavailable": {
+      "message": "The water sensor is not reachable right now — try again when it is online."
+    },
+    "no_reading": {
+      "message": "The sensor has no current reading for that parameter."
+    },
+    "offset_too_large": {
+      "message": "The computed {parameter} offset ({offset}) exceeds the safe limit (±{max}). That much deviation means the probe needs cleaning and a buffer calibration in the Intex app — a software offset would hide a real problem."
     }
   },
   "issues": {
@@ -476,6 +518,14 @@
           }
         }
       }
+    },
+    "calibration_reset": {
+      "title": "Software calibration offsets were reset",
+      "description": "The water sensor was recalibrated in the Intex app (its internal calibration coefficients changed), so the software offsets in Home Assistant were obsolete and have been reset to 0. Re-run intex_pool.calibrate against a fresh reference test if needed."
+    },
+    "calibration_stale": {
+      "title": "Software calibration is stale",
+      "description": "The software calibration offsets are older than {days} days. Intex recommends a buffer calibration in the app every 4 months — do that first, then re-align with intex_pool.calibrate against a fresh reference test."
     }
   },
   "services": {
@@ -528,6 +578,34 @@
     "get_schedule": {
       "name": "Get schedules",
       "description": "Returns the decoded schedule slots for the saltwater system and the water analyzer (measurement windows) as response data.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Entry id of the Intex Pool integration to target. Only needed when more than one is set up."
+        }
+      }
+    },
+    "calibrate": {
+      "name": "Calibrate against a reference test",
+      "description": "Aligns the pH (or ORP) reading with your own reference test by storing a software offset (offset = reference − current reading). A drop test kit is the recommended reference; strips are coarse (±0.3-0.5 pH). This is a drift bridge — the real calibration is the buffer-powder flow in the Intex app every 4 months. Deviations beyond ±0.5 pH / ±100 mV are rejected (clean + recalibrate instead).",
+      "fields": {
+        "parameter": {
+          "name": "Parameter",
+          "description": "Which reading to align. ORP is advanced: home tests measure chlorine, not ORP — a low ORP is usually chemistry (CYA) or fouling."
+        },
+        "reference_value": {
+          "name": "Reference value",
+          "description": "The value your reference test showed (pH, or mV for ORP)."
+        },
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Entry id of the Intex Pool integration to target. Only needed when more than one is set up."
+        }
+      }
+    },
+    "clear_calibration": {
+      "name": "Clear calibration offsets",
+      "description": "Removes the stored software calibration offsets (pH and ORP) so the device's own readings are shown unmodified.",
       "fields": {
         "config_entry_id": {
           "name": "Config entry",

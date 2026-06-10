@@ -12,7 +12,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from . import decode
+from . import calibration, decode
 from .const import (
     BINARY_SENSORS,
     DEVICE_META,
@@ -139,11 +139,14 @@ class IntexActionRequired(BinarySensorEntity):
             )
             if maint == "red":
                 reasons.append("maintenance")
+            entry = sensor.config_entry
             ph = decode.scaled(props.get("PH_Number"), 0.01)
-            if ph is not None and not PH_MIN <= ph <= PH_MAX:
-                reasons.append("ph_low" if ph < PH_MIN else "ph_high")
+            if ph is not None:
+                ph += calibration.ph_offset(entry)  # judge the corrected value
+                if not PH_MIN <= ph <= PH_MAX:
+                    reasons.append("ph_low" if ph < PH_MIN else "ph_high")
             orp = _as_float(props.get("ORP_Number"))
-            if orp is not None and orp < ORP_MIN_MV:
+            if orp is not None and orp + calibration.orp_offset(entry) < ORP_MIN_MV:
                 reasons.append("orp_low")
             last = decode.last_measurement(props.get("_times"))
             if (

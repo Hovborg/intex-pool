@@ -73,8 +73,18 @@ CONF_PUMP_ENERGY = "pump_energy"
 CONF_PUMP_ON_DP = "pump_on_dp"        # DP string for tuya pump on/off
 CONF_LOCAL_INTERVAL = "local_interval"
 CONF_CLOUD_INTERVAL = "cloud_interval"
-CONF_POOL_VOLUME = "pool_volume"      # litres; 0/unset disables the salt advisor
+CONF_POOL_VOLUME = "pool_volume"      # in CONF_VOLUME_UNIT; 0/unset disables the advisor
 CONF_SALT_TARGET = "salt_target"      # target salinity (ppm) for the advisor
+CONF_VOLUME_UNIT = "volume_unit"      # "liter" | "gallon" (US)
+CONF_CALIBRATION = "calibration"      # software offsets record (see calibration.py)
+
+VOLUME_UNIT_LITER = "liter"
+VOLUME_UNIT_GALLON = "gallon"
+GAL_TO_L = 3.785411784  # US liquid gallon
+
+# Dispatcher signal (per entry) fired when options are updated programmatically
+# by the config entities, so sibling entities refresh their displayed state.
+SIGNAL_OPTIONS_UPDATED = "intex_pool_options_updated_{}"
 
 PUMP_MODE_TUYA = "tuya"
 PUMP_MODE_ENTITY = "entity"
@@ -124,6 +134,8 @@ class IntexSensorDescription(SensorEntityDescription):
     source: str
     scale: float | None = None
     value_fn: Callable[[Any], Any] | None = None
+    # "ph" | "orp": user calibration offset is applied to this sensor's value.
+    calibration: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -214,11 +226,13 @@ SENSORS: tuple[IntexSensorDescription, ...] = (
         key="ph", translation_key="ph", device=DEVICE_SENSOR, source="PH_Number",
         scale=0.01, device_class=SensorDeviceClass.PH,
         state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2,
+        calibration="ph",
     ),
     IntexSensorDescription(
         key="orp", translation_key="orp", device=DEVICE_SENSOR, source="ORP_Number",
         native_unit_of_measurement=UnitOfElectricPotential.MILLIVOLT,
         state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0,
+        calibration="orp",
     ),
     IntexSensorDescription(
         key="free_chlorine", translation_key="free_chlorine", device=DEVICE_SENSOR, source="fc_number",
