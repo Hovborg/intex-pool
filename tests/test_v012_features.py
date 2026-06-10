@@ -398,3 +398,76 @@ async def test_alarm_event_fires_on_transition_only(hass, mock_tinytuya):
     await entry.runtime_data.salt.async_refresh()
     await hass.async_block_till_done()
     assert hass.states.get(eid).state == last
+
+
+# ------------------------------------------------- v0.12.1 regression fixes ---
+
+async def test_error_event_absent_key_seeds_silently(hass, mock_tinytuya):
+    """The cloud omits properties the device never emitted. When error_code
+    appears for the first time it's an ongoing state, not a transition — no
+    event may fire (v0.12.1 fix for the None-baseline bug)."""
+    entry = await _setup(hass, {"has_sensor": True, "sensor": SENSOR})
+    eid = "event.water_sensor_error"
+    assert hass.states.get(eid).state == "unknown"  # error_code absent in conftest
+
+    def _props_with(error_code):
+        return lambda self, path, post=None: {
+            "success": True,
+            "result": {"properties": [
+                {"code": "PH_Number", "value": 740},
+                {"code": "error_code", "value": error_code},
+            ]},
+        }
+
+    # error_code appears for the first time (healthy: 0 -> "none") — must NOT fire
+    mock_tinytuya.tinytuya.Cloud.cloudrequest = _props_with(0)
+    await entry.runtime_data.sensor.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(eid).state == "unknown"
+
+    # a real transition afterwards MUST fire
+    mock_tinytuya.tinytuya.Cloud.cloudrequest = _props_with(190)  # E90
+    await entry.runtime_data.sensor.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(eid).attributes.get("event_type") == "e90"
+
+
+async def test_alarm_issue_survives_device_offline(hass, mock_tinytuya):
+    """An active alarm repair issue must NOT disappear just because the device
+    went offline — only a confirmed clear deletes it (v0.12.1 fix)."""
+    entry = await _setup(hass, {"has_salt": True, "salt": SALT})
+    registry = ir.async_get(hass)
+    issue_id = f"salt_alarm_{entry.entry_id}"
+
+    mock_tinytuya.tinytuya.Device.status = lambda self: {"dps": {"104": True, "127": "E90"}}
+    await entry.runtime_data.salt.async_refresh()
+    assert registry.async_get_issue(DOMAIN, issue_id) is not None
+
+    # device goes offline -> poll fails -> issue must remain
+    def _raise(self):
+        raise OSError("offline")
+
+    mock_tinytuya.tinytuya.Device.status = _raise
+    await entry.runtime_data.salt.async_refresh()
+    assert entry.runtime_data.salt.last_update_success is False
+    assert registry.async_get_issue(DOMAIN, issue_id) is not None
+
+    # back online and clear -> issue deleted
+    mock_tinytuya.tinytuya.Device.status = lambda self: {"dps": {"104": True, "127": "normal"}}
+    await entry.runtime_data.salt.async_refresh()
+    assert registry.async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_remove_entry_purges_issues(hass, mock_tinytuya):
+    """Deleting the config entry must remove its repair issues (v0.12.1 fix)."""
+    entry = await _setup(hass, {"has_salt": True, "salt": SALT})
+    registry = ir.async_get(hass)
+    issue_id = f"salt_alarm_{entry.entry_id}"
+
+    mock_tinytuya.tinytuya.Device.status = lambda self: {"dps": {"104": True, "127": "E90"}}
+    await entry.runtime_data.salt.async_refresh()
+    assert registry.async_get_issue(DOMAIN, issue_id) is not None
+
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+    assert registry.async_get_issue(DOMAIN, issue_id) is None

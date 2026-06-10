@@ -19,6 +19,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
@@ -246,6 +247,17 @@ def _register_services(hass: HomeAssistant) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> bool:
     """Unload a config entry. The service stays registered (it validates entries)."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> None:
+    """Purge this entry's repair issues when the entry is deleted.
+
+    HA does not clean the issue registry up automatically — without this, an
+    alarm/maintenance/stale issue active at removal time would linger in the
+    Repairs dashboard forever, pointing at a deleted integration.
+    """
+    for prefix in ("salt_alarm", "sensor_maintenance", "sensor_stale"):
+        ir.async_delete_issue(hass, DOMAIN, f"{prefix}_{entry.entry_id}")
 
 
 async def async_remove_config_entry_device(

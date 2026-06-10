@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.12.1] - 2026-06-10
+
+Follow-up fixes found by a re-audit of the v0.12.0 release.
+
+### Fixed
+- **Event entities: no more spurious event after restart.** When a cloud property (e.g.
+  `error_code`) was absent from the first poll — the cloud only reports properties the device has
+  ever emitted — its first appearance later fired a false transition event. The first observed
+  value now seeds the baseline silently.
+- **Card: `saltwater_abnormal` no longer masked.** The ORP indicator's fourth state now colors the
+  ORP tile as a problem instead of silently falling back to the numeric range (which could show
+  green while the device reported a fault).
+- **Repairs survive connectivity loss.** An active alarm/maintenance/stale repair issue is no
+  longer deleted just because the device went offline — only a confirmed clear removes it.
+- **Repairs are purged when the integration is removed** (`async_remove_entry`), so no orphaned
+  issues linger in the Repairs dashboard.
+- **Pump auto mode** no longer stacks concurrent sync service calls on rapid coordinator updates.
+
+### Changed
+- `hacs.json`: added `hide_default_branch` (the `main` branch is no longer offered as a
+  downloadable "version" in HACS) and dropped the legacy `render_readme` flag (dead in HACS 2.x).
+
 ## [0.12.0] - 2026-06-10
 
 Hardening + feature release after a full multi-agent audit of the integration and card.

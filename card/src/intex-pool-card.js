@@ -262,7 +262,10 @@ class IntexPoolCard extends LitElement {
     if (st === "green") return "good";
     if (st === "yellow") return "warn";
     if (st === "red") return "bad";
-    return null;
+    // ORP indicator's fourth state: the device says salt/water conditions
+    // invalidate the reading — that's a problem, never "looks fine".
+    if (st === "saltwater_abnormal") return "bad";
+    return null; // "off" / unknown -> fall back to the numeric heuristic
   }
 
   // a compact metric tile: big value, small label, in-range bar

@@ -131,6 +131,7 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         self._attr_unique_id = f"{salt_device_id}_pump_auto"
         self._attr_is_on = False
         self._attr_device_info = pump_device_info(entry)
+        self._sync_task = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -153,8 +154,10 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        if self._attr_is_on:
-            self.hass.async_create_task(self._sync())
+        # One sync at a time: rapid coordinator updates (poll + an explicit
+        # refresh) must not stack concurrent service calls to the pump.
+        if self._attr_is_on and (self._sync_task is None or self._sync_task.done()):
+            self._sync_task = self.hass.async_create_task(self._sync())
         super()._handle_coordinator_update()
 
     async def _sync(self) -> None:

@@ -44,8 +44,12 @@ def async_setup_issue_listeners(hass: HomeAssistant, entry: IntexPoolConfigEntry
 
         @callback
         def _check_alarm() -> None:
+            if not salt.last_update_success:
+                # Offline: we can't confirm the alarm cleared — leave any
+                # existing issue intact instead of hiding a real problem.
+                return
             token = decode.normalize_alarm((salt.data or {}).get("127"))
-            if not salt.last_update_success or token in _ALARM_OK:
+            if token in _ALARM_OK:
                 ir.async_delete_issue(hass, DOMAIN, alarm_issue)
                 return
             key = f"salt_alarm_{token}" if token in _ALARM_ISSUE_KEYS else "salt_alarm"
@@ -68,11 +72,14 @@ def async_setup_issue_listeners(hass: HomeAssistant, entry: IntexPoolConfigEntry
 
         @callback
         def _check_sensor() -> None:
+            if not sensor.last_update_success:
+                # Offline: can't confirm anything cleared — keep existing issues.
+                return
             props = sensor.data or {}
             maint = decode.normalize_indicator(
                 props.get("maintenance_indicator"), decode.MAINTENANCE_OPTIONS
             )
-            if sensor.last_update_success and maint == "red":
+            if maint == "red":
                 ir.async_create_issue(
                     hass, DOMAIN, maint_issue,
                     is_fixable=False,
@@ -83,11 +90,7 @@ def async_setup_issue_listeners(hass: HomeAssistant, entry: IntexPoolConfigEntry
                 ir.async_delete_issue(hass, DOMAIN, maint_issue)
 
             last = decode.last_measurement(props.get("_times"))
-            if (
-                sensor.last_update_success
-                and last is not None
-                and dt_util.utcnow() - last > STALE_AFTER
-            ):
+            if last is not None and dt_util.utcnow() - last > STALE_AFTER:
                 ir.async_create_issue(
                     hass, DOMAIN, stale_issue,
                     is_fixable=False,

@@ -1,5 +1,5 @@
 {
   "name": "Intex Pool",
   "homeassistant": "2025.8.0",
-  "render_readme": true
+  "hide_default_branch": true
 }

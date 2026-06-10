@@ -94,13 +94,15 @@ class IntexTransitionEvent(CoordinatorEntity, EventEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         current = self._current()
-        if self._last is _UNSEEN:
+        if self._last is _UNSEEN or self._last is None:
+            # No real value observed yet. A None baseline happens when the
+            # source property is absent from the first poll (the cloud only
+            # reports properties the device has ever emitted) — the first
+            # value to appear is an ongoing state, not a transition, so it
+            # must seed silently instead of firing a spurious event.
             self._last = current
         elif current is not None and current != self._last:
             self._last = current
             self._trigger_event(current)
             self.async_write_ha_state()
-        elif current is None:
-            # Unknown raw value — keep the baseline, don't fire.
-            pass
         super()._handle_coordinator_update()
