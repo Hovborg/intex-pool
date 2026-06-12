@@ -15,3 +15,6 @@ card/dist/
 *.log
 .spike/
 intex_pool_investigation.md
+
+# Suppleret af oprydningskonvention 2026-06-10
+._*

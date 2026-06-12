@@ -6,6 +6,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.intex_pool.const import DOMAIN, VERSION_CANDIDATES
 from custom_components.intex_pool.coordinator import (
+    AUTH_FAILURES_BEFORE_REAUTH,
     PumpCoordinator,
     SaltCoordinator,
     SensorCoordinator,
@@ -122,12 +123,34 @@ async def test_sensor_failure(hass):
 
 
 async def test_salt_bad_key_known_version_raises_auth(hass):
-    """A rejected key on a known protocol version -> ConfigEntryAuthFailed (reauth)."""
+    """Repeated key rejects on a known protocol version -> ConfigEntryAuthFailed.
+
+    The first rejects are treated as transient (weak Wi-Fi garbles replies into
+    auth errors); only AUTH_FAILURES_BEFORE_REAUTH consecutive rejects escalate.
+    """
     client = FakeLocal()
     client.auth_fail = True
     coord = SaltCoordinator(hass, _entry(hass), client, "salt", 15, auto_version=False)
+    for _ in range(AUTH_FAILURES_BEFORE_REAUTH - 1):
+        with pytest.raises(UpdateFailed):
+            await coord._async_update_data()
     with pytest.raises(ConfigEntryAuthFailed):
         await coord._async_update_data()
+
+
+async def test_salt_transient_auth_error_recovers_without_reauth(hass):
+    """An isolated auth reject followed by a good poll never reaches reauth."""
+    client = FakeLocal()
+    client.auth_fail = True
+    coord = SaltCoordinator(hass, _entry(hass), client, "salt", 15, auto_version=False)
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+    client.auth_fail = False
+    assert await coord._async_update_data()  # succeeds, resets the counter
+    client.auth_fail = True
+    for _ in range(AUTH_FAILURES_BEFORE_REAUTH - 1):
+        with pytest.raises(UpdateFailed):
+            await coord._async_update_data()
 
 
 async def test_salt_bad_key_auto_version_retries_versions_first(hass):

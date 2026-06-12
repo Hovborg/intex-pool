@@ -22,6 +22,11 @@ from .tuya import CloudClient, LocalClient, TuyaAuthError, TuyaError
 
 _LOGGER = logging.getLogger(__name__)
 
+# Consecutive bad-auth polls (after any version cycling) before the key is
+# considered rotated and a reauth flow is started. >1 so a single corrupted
+# reply on a marginal Wi-Fi link cannot kick the entry into reauth.
+AUTH_FAILURES_BEFORE_REAUTH = 3
+
 
 class _LocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Shared logic for local (LAN) Tuya devices, with protocol auto-detect."""
@@ -49,12 +54,17 @@ class _LocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             data = await self.hass.async_add_executor_job(self._client.status)
         except TuyaAuthError as err:
             # Bad key (or version). While auto-detecting the protocol version,
-            # keep cycling versions; once the version is known, a rejected key
-            # means the key rotated -> trigger a reauth flow. If EVERY version
-            # candidate has been rejected as bad-auth, the key itself rotated —
-            # escalate to reauth instead of cycling forever.
+            # keep cycling versions first. A single auth reject is NOT proof
+            # the key rotated: on a weak Wi-Fi link a truncated/garbled reply
+            # decrypts to the same error (seen in the field as a spurious
+            # "reauth required" while the key was still valid). Only escalate
+            # to reauth after several consecutive rejects with no success in
+            # between.
             self._auth_failures += 1
-            if self._auto_version and self._auth_failures <= len(VERSION_CANDIDATES):
+            threshold = AUTH_FAILURES_BEFORE_REAUTH + (
+                len(VERSION_CANDIDATES) if self._auto_version else 0
+            )
+            if self._auth_failures < threshold:
                 self._rotate_version()
                 raise UpdateFailed(str(err)) from err
             raise ConfigEntryAuthFailed(str(err)) from err

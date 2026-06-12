@@ -22,6 +22,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.intex_pool import const, decode
 from custom_components.intex_pool.const import DOMAIN, VERSION_CANDIDATES
 from custom_components.intex_pool.coordinator import (
+    AUTH_FAILURES_BEFORE_REAUTH,
     SaltCoordinator,
     ScheduleCoordinator,
 )
@@ -126,10 +127,11 @@ async def test_auto_version_escalates_to_reauth_after_full_cycle(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
     coord = SaltCoordinator(hass, entry, BadKeyClient(), "salt", 15, auto_version=True)
-    for _ in range(len(VERSION_CANDIDATES)):
+    for _ in range(len(VERSION_CANDIDATES) + AUTH_FAILURES_BEFORE_REAUTH - 1):
         with pytest.raises(UpdateFailed):
             await coord._async_update_data()
-    # every version candidate rejected as bad auth -> the key itself rotated
+    # every version candidate rejected as bad auth, repeatedly -> the key
+    # itself rotated (single rejects are tolerated as Wi-Fi transients)
     with pytest.raises(ConfigEntryAuthFailed):
         await coord._async_update_data()
 
