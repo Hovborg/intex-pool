@@ -26,13 +26,15 @@
           "pump_tuya": "Sand filter pump (Tuya device)",
           "pump_switch": "Sand filter pump — existing switch (any brand)",
           "pump_power": "Pump power sensor (optional)",
-          "pump_energy": "Pump energy sensor (optional)"
+          "pump_energy": "Pump energy sensor (optional)",
+          "manual": "Enter device details manually instead"
         },
         "data_description": {
           "sensor": "The AGP Smart Sensor / Water Analyzer (cloud-only device).",
           "saltwater": "The QS-series chlorinator — controlled locally over your LAN.",
           "pump_tuya": "Pick this only if your pump is itself a Tuya device.",
-          "pump_switch": "Any existing Home Assistant switch (Shelly, Zigbee relay, …) that powers the pump."
+          "pump_switch": "Any existing Home Assistant switch (Shelly, Zigbee relay, …) that powers the pump.",
+          "manual": "Use this when a selected device is on another VLAN/subnet, so the LAN scan cannot find its IP."
         }
       },
       "manual": {
@@ -124,7 +126,11 @@
         "data": {
           "region": "Region",
           "access_id": "Access ID",
-          "access_secret": "Access secret"
+          "access_secret": "Access secret",
+          "manual": "Enter device details manually instead"
+        },
+        "data_description": {
+          "manual": "Skip re-discovery and type IDs, keys and IPs yourself — needed when a device sits on another VLAN/subnet the LAN scan cannot see."
         }
       }
     },

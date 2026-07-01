@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.16.0] - 2026-07-01
+
+Reconfigure can now heal a moved device and reach devices on other VLANs.
+
+### Added
+- **Manual reconfigure escape**: both the reconfigure credentials prompt and the
+  device picker now offer "Enter device details manually instead" — needed when a
+  device sits on another VLAN/subnet the LAN broadcast scan cannot see (real-world
+  case: the chlorinator re-joined WiFi on an SSID mapped to a different VLAN and
+  got a new IP the scan could not discover). The manual chain pre-fills the
+  entry's current device selections and values.
+
+### Fixed
+- **Stale IP/key after a network change**: the discover step kept the stored
+  host/key whenever the device id was unchanged, so a device that moved to a new
+  IP (new DHCP lease, other subnet) or rotated its local key could never be
+  repaired by reconfigure. A live LAN-scan hit now takes precedence over the
+  stored config; the stored config is only reused when the scan cannot see the
+  device. A Tuya pump keeps its configured on-DP when refreshed this way.
+
 ## [0.15.0] - 2026-06-11
 
 LSI water balance + audit test gaps closed.

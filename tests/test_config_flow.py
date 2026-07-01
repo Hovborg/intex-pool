@@ -308,3 +308,83 @@ async def test_options_flow(hass, mock_tinytuya):
     )
     assert r["type"] == FlowResultType.CREATE_ENTRY
     assert entry.options["local_interval"] == 30
+
+
+# --- reconfigure: stale-IP healing + manual escape (v0.16.0) ---
+
+async def test_reconfigure_scan_refreshes_stale_ip(hass, mock_tinytuya, monkeypatch):
+    """A LAN-scan hit updates host/key/version even when the device id is unchanged."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"salt": SALT_INPUT, "sensor": SENSOR_INPUT},
+        unique_id="saltdev", version=2,
+    )
+    entry.add_to_hass(hass)
+
+    async def fake_discover(hass_, creds):
+        devices = [
+            {"id": "saltdev", "name": "AGP Salt", "key": "freshkey", "category": "rs"},
+            {"id": "sdev", "name": "Sensor", "key": "k", "category": "rs"},
+        ]
+        return (devices, {"saltdev": ("10.0.0.42", 3.5)})
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    r = await entry.start_reconfigure_flow(hass)
+    assert r["step_id"] == "discover"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"saltwater": "saltdev", "sensor": "sdev"}
+    )
+    assert r["type"] == FlowResultType.ABORT
+    assert r["reason"] == "reconfigure_successful"
+    assert entry.data["salt"]["host"] == "10.0.0.42"      # stale IP healed
+    assert entry.data["salt"]["local_key"] == "freshkey"  # rotated key healed
+
+
+async def test_reconfigure_discover_manual_escape(hass, mock_tinytuya, monkeypatch):
+    """The discover step's manual checkbox routes to the manual chain, and a
+    manual reconfigure updates the entry in place (same entry, new host)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"salt": SALT_INPUT, "sensor": SENSOR_INPUT},
+        unique_id="saltdev", version=2,
+    )
+    entry.add_to_hass(hass)
+
+    async def fake_discover(hass_, creds):
+        return ([{"id": "saltdev", "name": "AGP Salt", "key": "k", "category": "rs"}], {})
+
+    async def ok(hass_, ui):
+        return None
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    monkeypatch.setattr(config_flow, "validate_local", ok)
+    r = await entry.start_reconfigure_flow(hass)
+    assert r["step_id"] == "discover"
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"manual": True})
+    assert r["step_id"] == "manual"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"has_sensor": False, "has_salt": True, "has_pump": False}
+    )
+    assert r["step_id"] == "salt"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {"device_id": "saltdev", "local_key": "k", "host": "192.168.44.67", "version": "3.5"},
+    )
+    assert r["type"] == FlowResultType.ABORT
+    assert r["reason"] == "reconfigure_successful"
+    assert entry.data["salt"]["host"] == "192.168.44.67"
+
+
+async def test_reconfigure_user_manual_escape(hass, mock_tinytuya, monkeypatch):
+    """Without stored cloud creds, the creds prompt offers the manual escape."""
+    entry = MockConfigEntry(domain=DOMAIN, data={"salt": SALT_INPUT}, unique_id="saltdev", version=2)
+    entry.add_to_hass(hass)
+
+    async def ok(hass_, ui):
+        return None
+
+    monkeypatch.setattr(config_flow, "validate_local", ok)
+    r = await entry.start_reconfigure_flow(hass)
+    assert r["step_id"] == "reconfigure_user"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"region": "eu", "access_id": "", "access_secret": "", "manual": True}
+    )
+    assert r["step_id"] == "manual"

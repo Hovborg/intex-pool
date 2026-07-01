@@ -26,13 +26,15 @@
           "pump_tuya": "Sandfilter-pumpe (Tuya-enhed)",
           "pump_switch": "Sandfilter-pumpe — eksisterende kontakt (alle mærker)",
           "pump_power": "Pumpe effekt-sensor (valgfri)",
-          "pump_energy": "Pumpe energi-sensor (valgfri)"
+          "pump_energy": "Pumpe energi-sensor (valgfri)",
+          "manual": "Indtast enhedsdetaljer manuelt i stedet"
         },
         "data_description": {
           "sensor": "AGP Smart Sensor / Water Analyzer (ren cloud-enhed).",
           "saltwater": "QS-seriens kloranlæg — styres lokalt over dit LAN.",
           "pump_tuya": "Vælg kun denne hvis din pumpe selv er en Tuya-enhed.",
-          "pump_switch": "En eksisterende Home Assistant-switch (Shelly, Zigbee-relæ, …) der forsyner pumpen."
+          "pump_switch": "En eksisterende Home Assistant-switch (Shelly, Zigbee-relæ, …) der forsyner pumpen.",
+          "manual": "Brug denne når en valgt enhed er på et andet VLAN/subnet, så LAN-scannet ikke kan finde dens IP."
         }
       },
       "manual": {
@@ -124,7 +126,11 @@
         "data": {
           "region": "Region",
           "access_id": "Access ID",
-          "access_secret": "Access secret"
+          "access_secret": "Access secret",
+          "manual": "Indtast enhedsdetaljer manuelt i stedet"
+        },
+        "data_description": {
+          "manual": "Spring gen-opdagelse over og indtast selv id'er, nøgler og IP'er — nødvendigt når en enhed er på et andet VLAN/subnet som LAN-scannet ikke kan se."
         }
       }
     },
