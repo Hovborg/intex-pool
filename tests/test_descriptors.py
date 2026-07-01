@@ -41,7 +41,7 @@ def test_device_translation_key_pairs_unique_per_platform():
 
 def test_self_clean_value_map_matches_manual():
     sc = next(d for d in const.SELECTS if d.key == "self_clean")
-    assert set(sc.value_map.values()) == {"2", "4", "6", "10"}
+    assert set(sc.value_map.values()) == {"2", "4", "6", "8", "10"}
 
 
 def test_number_targets_sources_and_scale():

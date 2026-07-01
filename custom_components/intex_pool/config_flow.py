@@ -121,7 +121,10 @@ STEP_RECONFIGURE_USER = vol.Schema(
 def _local_schema(include_on_dp: bool = False) -> vol.Schema:
     schema = {
         vol.Required(CONF_DEVICE_ID): str,
-        vol.Required(CONF_LOCAL_KEY): str,
+        # The local key is a device credential — mask it like access_secret.
+        vol.Required(CONF_LOCAL_KEY): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+        ),
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_VERSION, default="auto"): selector.SelectSelector(
             selector.SelectSelectorConfig(options=_VERSION_OPTIONS)
@@ -288,10 +291,13 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_update_reload_and_abort(entry, data=new_data)
 
         fields: dict = {}
+        _pw = selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+        )
         if salt:
-            fields[vol.Required(CONF_LOCAL_KEY)] = str
+            fields[vol.Required(CONF_LOCAL_KEY)] = _pw
         if pump_tuya:
-            fields[vol.Required(CONF_PUMP_LOCAL_KEY)] = str
+            fields[vol.Required(CONF_PUMP_LOCAL_KEY)] = _pw
         if sensor:
             fields[vol.Required(CONF_ACCESS_SECRET)] = selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
@@ -560,7 +566,11 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._reconfigure_entry is not None and (
             cur := self._reconfigure_entry.data.get(DEVICE_SENSOR)
         ):
-            schema = self.add_suggested_values_to_schema(STEP_SENSOR, cur)
+            # Never embed the stored secret in the form payload sent to the
+            # frontend — prefill only the non-secret fields.
+            schema = self.add_suggested_values_to_schema(
+                STEP_SENSOR, {k: v for k, v in cur.items() if k != CONF_ACCESS_SECRET}
+            )
         return self.async_show_form(step_id="sensor", data_schema=schema, errors=errors)
 
     async def async_step_salt(
@@ -586,8 +596,9 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._reconfigure_entry is not None and (
             cur := self._reconfigure_entry.data.get(DEVICE_SALT)
         ):
+            suggested = {k: v for k, v in cur.items() if k != CONF_LOCAL_KEY}
             schema = self.add_suggested_values_to_schema(
-                schema, {**cur, CONF_VERSION: str(cur.get(CONF_VERSION) or "auto")}
+                schema, {**suggested, CONF_VERSION: str(cur.get(CONF_VERSION) or "auto")}
             )
         return self.async_show_form(step_id="salt", data_schema=schema, errors=errors)
 
@@ -625,8 +636,9 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._reconfigure_entry is not None:
             cur = self._reconfigure_entry.data.get(DEVICE_PUMP) or {}
             if cur.get(CONF_PUMP_MODE) == PUMP_MODE_TUYA:
+                suggested = {k: v for k, v in cur.items() if k != CONF_LOCAL_KEY}
                 schema = self.add_suggested_values_to_schema(
-                    schema, {**cur, CONF_VERSION: str(cur.get(CONF_VERSION) or "auto")}
+                    schema, {**suggested, CONF_VERSION: str(cur.get(CONF_VERSION) or "auto")}
                 )
         return self.async_show_form(step_id="pump_tuya", data_schema=schema, errors=errors)
 

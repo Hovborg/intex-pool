@@ -164,6 +164,7 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._client = client
         self.device_id = device_id
         self.code = code
+        self._write_lock = asyncio.Lock()
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -182,13 +183,16 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_write_slots(self, slots: list[dict[str, Any]]) -> None:
         """Encode + write the schedule slots back, then refresh.
 
-        The Tuya cloud takes a few seconds to reflect a written schedule, so we
-        wait before refreshing — otherwise the read-back returns the old blob
-        and the entities look unchanged even though the write succeeded.
+        Writes are serialized behind a lock, and the just-written slots are
+        published optimistically right away: the Tuya cloud takes a few seconds
+        to reflect a write, and a second edit inside that settle window used to
+        read the stale blob and silently undo the first edit.
         """
-        b64 = schedule.encode_schedules(slots)
-        await self.hass.async_add_executor_job(
-            self._client.issue, self.device_id, self.code, b64
-        )
-        await asyncio.sleep(5)
+        async with self._write_lock:
+            b64 = schedule.encode_schedules(slots)
+            await self.hass.async_add_executor_job(
+                self._client.issue, self.device_id, self.code, b64
+            )
+            self.async_set_updated_data({"raw": b64, "slots": slots})
+            await asyncio.sleep(5)
         await self.async_request_refresh()

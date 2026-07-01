@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -40,7 +41,12 @@ from .models import IntexPoolConfigEntry
 _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 1
-SALT_POWER_DP = "104"
+# The pump interlock keys on DP103 (chlorine PRODUCTION), not DP104 (master
+# power): power routinely stays on 24/7 while production cycles, so keying on
+# power would run the pump constantly. The manual also requires the filter
+# pump to keep circulating a while after chlorination stops.
+SALT_PROD_DP = "103"
+PUMP_AFTERRUN_S = 3600
 
 
 async def async_setup_entry(
@@ -115,11 +121,13 @@ class IntexSwitch(IntexPoolEntity, SwitchEntity):
 
 
 class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
-    """Auto mode: run the linked pump only while the saltwater system is on.
+    """Auto mode: run the linked pump while chlorine is being produced.
 
-    Driven by the saltwater coordinator (DP104 = power). When this switch is on,
-    the configured pump switch is turned on whenever the saltwater system is on
-    and off when it is off. When off, the pump is left under manual control.
+    Driven by the saltwater coordinator (DP103 = chlorine production). While
+    this switch is on, the configured pump switch is turned on whenever
+    production runs, and turned off PUMP_AFTERRUN_S after production stops so
+    the last chlorine batch still gets circulated. When off, the pump is left
+    under manual control.
     """
 
     _attr_has_entity_name = True
@@ -132,6 +140,8 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         self._attr_is_on = False
         self._attr_device_info = pump_device_info(entry)
         self._sync_task = None
+        self._off_unsub = None          # pending after-run timer
+        self._last_prod: bool | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -163,26 +173,58 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
     async def _sync(self) -> None:
         if not self._pump_switch:
             return
-        salt_on = bool(self.coordinator.data and self.coordinator.data.get(SALT_POWER_DP))
+        prod_on = bool(self.coordinator.data and self.coordinator.data.get(SALT_PROD_DP))
+        was_on, self._last_prod = self._last_prod, prod_on
+        if prod_on:
+            self._cancel_afterrun()
+            await self._pump_call(True)
+        elif was_on:
+            # Production just stopped: keep circulating, then stop the pump.
+            if self._off_unsub is None:
+                self._off_unsub = async_call_later(
+                    self.hass, PUMP_AFTERRUN_S, self._afterrun_done
+                )
+        elif self._off_unsub is None:
+            # Steady not-producing state with no after-run owed.
+            await self._pump_call(False)
+
+    @callback
+    def _afterrun_done(self, _now) -> None:
+        self._off_unsub = None
+        if self._attr_is_on:
+            self.hass.async_create_task(self._pump_call(False))
+
+    def _cancel_afterrun(self) -> None:
+        if self._off_unsub is not None:
+            self._off_unsub()
+            self._off_unsub = None
+
+    async def _pump_call(self, on: bool) -> None:
         try:
             await self.hass.services.async_call(
-                "switch", "turn_on" if salt_on else "turn_off",
+                "switch", "turn_on" if on else "turn_off",
                 {"entity_id": self._pump_switch}, blocking=True,
             )
         except Exception as err:  # noqa: BLE001 - auto-mode must never crash the update loop
             _LOGGER.warning(
                 "Pump auto mode could not switch %s %s: %s",
-                self._pump_switch, "on" if salt_on else "off", err,
+                self._pump_switch, "on" if on else "off", err,
             )
 
     async def async_turn_on(self, **kwargs) -> None:
         self._attr_is_on = True
+        self._last_prod = None  # evaluate afresh (no stale after-run owed)
         self.async_write_ha_state()
         await self._sync()
 
     async def async_turn_off(self, **kwargs) -> None:
+        self._cancel_afterrun()
         self._attr_is_on = False
         self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._cancel_afterrun()
+        await super().async_will_remove_from_hass()
 
 
 def _slot_fields(slot: dict) -> dict:

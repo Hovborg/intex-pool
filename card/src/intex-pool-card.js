@@ -385,6 +385,10 @@ class IntexPoolCard extends LitElement {
     const st = this._st(c.salt_status);
     if (st && this._has(c.salt_status))
       return html`<span class="status ok">${this._fmt(st)}</span>`;
+    // Salt entities configured but no live data (device unreachable): never
+    // show a reassuring green OK — that hid a 4-day outage. Grey Offline pill.
+    if (c.salt_alarm || c.salt_status)
+      return html`<span class="status off">Offline</span>`;
     return html`<span class="status ok">OK</span>`;
   }
 
@@ -480,6 +484,7 @@ class IntexPoolCard extends LitElement {
     .status.ok { background: var(--success-color, #2e9e5b); }
     .status.warn { background: var(--warning-color, #f5a300); }
     .status.alarm { background: var(--error-color, #db4437); }
+    .status.off { background: var(--disabled-text-color, #757575); }
 
     .metrics {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));

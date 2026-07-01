@@ -84,7 +84,7 @@ async def test_select_self_clean(hass):
     coord, client = await _salt(hass, {"108": 4})
     sel = IntexSelect(coord, _d(const.SELECTS, "self_clean"), "saltid")
     assert sel.current_option == "4"
-    assert sel.options == ["2", "4", "6", "10"]
+    assert sel.options == ["2", "4", "6", "8", "10"]
     await sel.async_select_option("6")
     assert client.calls[0] == ("108", 6)
 
@@ -115,12 +115,19 @@ async def test_number_orp_target_raw(hass):
     assert client.issued[0] == ("orp_set", 720)
 
 
-async def test_pump_auto_mode_follows_saltwater(hass):
-    from pytest_homeassistant_custom_component.common import async_mock_service
-    from custom_components.intex_pool.switch import IntexPumpAutoSwitch
+async def test_pump_auto_mode_follows_chlorination_with_afterrun(hass):
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+    from pytest_homeassistant_custom_component.common import (
+        async_fire_time_changed,
+        async_mock_service,
+    )
+
+    from custom_components.intex_pool.switch import PUMP_AFTERRUN_S, IntexPumpAutoSwitch
     entry = MockConfigEntry(domain=const.DOMAIN, data={})
     entry.add_to_hass(hass)
-    client = RecordingLocal({"104": True})
+    client = RecordingLocal({"103": True, "104": True})
     coord = SaltCoordinator(hass, entry, client, "salt", 15, auto_version=False)
     await coord.async_refresh()
     on_calls = async_mock_service(hass, "switch", "turn_on")
@@ -128,16 +135,27 @@ async def test_pump_auto_mode_follows_saltwater(hass):
     sw = IntexPumpAutoSwitch(coord, "saltid", "switch.shelly_pump", entry)
     sw.hass = hass
     assert sw.unique_id == "saltid_pump_auto"
-    # salt power on -> pump on
+    sw._attr_is_on = True
+    # chlorine production on -> pump on
     await sw._sync()
     await hass.async_block_till_done()
     assert on_calls[-1].data == {"entity_id": "switch.shelly_pump"}
-    # salt power off -> pump off
-    client._dps = {"104": False}
+    # production stops (master power still on!) -> pump keeps running (after-run)
+    client._dps = {"103": False, "104": True}
     await coord.async_refresh()
     await sw._sync()
     await hass.async_block_till_done()
+    assert not off_calls  # not stopped immediately
+    # ...until the after-run window has elapsed
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=PUMP_AFTERRUN_S + 5))
+    await hass.async_block_till_done()
     assert off_calls[-1].data == {"entity_id": "switch.shelly_pump"}
+    # production back on cancels nothing further and restarts the pump
+    client._dps = {"103": True, "104": True}
+    await coord.async_refresh()
+    await sw._sync()
+    await hass.async_block_till_done()
+    assert on_calls[-1].data == {"entity_id": "switch.shelly_pump"}
 
 
 async def test_button_refresh(hass):

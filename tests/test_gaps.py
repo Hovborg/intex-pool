@@ -100,7 +100,8 @@ async def _setup_pump_auto(hass, restored: str, uid: str):
 
 async def test_pump_auto_restores_on_and_syncs(hass, mock_tinytuya):
     """A restored ON state survives restart, and the auto mode keeps driving
-    the linked pump (salt is on in the conftest data -> pump turned on).
+    the linked pump (conftest data has DP103 production OFF -> pump turned off;
+    the interlock keys on chlorine production, not master power).
 
     The mock service is registered AFTER setup: loading the entry sets up the
     real switch component, which would otherwise clobber a pre-registered mock.
@@ -112,10 +113,10 @@ async def test_pump_auto_restores_on_and_syncs(hass, mock_tinytuya):
     state = hass.states.get(entity_id)
     assert state is not None and state.state == "on"  # restored across restart
 
-    on_calls = async_mock_service(hass, "switch", "turn_on")
+    off_calls = async_mock_service(hass, "switch", "turn_off")
     await entry.runtime_data.salt.async_refresh()
     await hass.async_block_till_done()
-    assert on_calls and on_calls[-1].data == {"entity_id": "switch.shelly_pump"}
+    assert off_calls and off_calls[-1].data == {"entity_id": "switch.shelly_pump"}
 
 
 async def test_pump_auto_restores_off_without_sync(hass, mock_tinytuya):

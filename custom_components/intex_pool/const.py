@@ -326,6 +326,10 @@ BINARY_SENSORS: tuple[IntexBinaryDescription, ...] = (
     ),
     IntexBinaryDescription(
         key="pump_mesh", translation_key="pump_mesh", device=DEVICE_SALT, source="126",
+        # DP126 is inverted on the wire (REFERENCE.md: 1 = link DOWN, 0 = up),
+        # so flip it and expose normal connectivity semantics (on = connected).
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        value_fn=lambda raw: None if raw is None else not decode.as_bool(raw),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     # The water sensor reports its own mesh/link flag. After re-pairing one
@@ -380,7 +384,8 @@ SWITCHES: tuple[IntexSwitchDescription, ...] = (
 SELECTS: tuple[IntexSelectDescription, ...] = (
     IntexSelectDescription(
         key="self_clean", translation_key="self_clean", device=DEVICE_SALT, source="108",
-        value_map={2: "2", 4: "4", 6: "6", 10: "10"},
+        # Full DP108 range per REFERENCE.md: 2-10 h in steps of 2 (8 was missing).
+        value_map={2: "2", 4: "4", 6: "6", 8: "8", 10: "10"},
         entity_category=EntityCategory.CONFIG,
     ),
     IntexSelectDescription(

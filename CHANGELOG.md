@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.16.1] - 2026-07-02
+
+Fixes from a full adversarially-verified code review (28 findings; the
+correctness/safety ones land here).
+
+### Fixed
+- **Pump auto mode now keys on chlorine production (DP103), not master power
+  (DP104)**, and keeps the pump running for 1 hour after production stops
+  (after-run flush per the manual) instead of cutting it immediately. With
+  master power deliberately left on 24/7, the old logic would have run the
+  pump constantly.
+- **Schedule edits no longer overwrite each other**: writes are serialized and
+  the just-written slots are published optimistically, so a second edit inside
+  the cloud's settle window no longer builds on the stale blob and silently
+  undoes the first edit.
+- **Pump mesh status (DP126) polarity**: the wire value is inverted
+  (1 = link down); the binary sensor now reports proper connectivity
+  semantics (on = connected) with the connectivity device class.
+- **Self-clean cycle select** now offers the full documented range: the legal
+  8 h setting was missing, and a device set to 8 h showed an empty select.
+- **Card: no more false green "OK"** — when the chlorinator's entities are
+  unavailable (device offline) the status pill now shows a grey "Offline"
+  instead of a reassuring OK (this hid a real 4-day outage).
+- **Stale card bundle**: the built frontend JS is regenerated as part of the
+  release again (0.16.0 shipped a 0.15.0 bundle).
+
+### Security
+- The Tuya **local key is now masked** (password field) in the manual
+  salt/pump setup, reconfigure and reauth forms, and stored secrets
+  (local_key / access_secret) are **no longer embedded as suggested values**
+  in reconfigure forms sent to the frontend.
+
 ## [0.16.0] - 2026-07-01
 
 Reconfigure can now heal a moved device and reach devices on other VLANs.
