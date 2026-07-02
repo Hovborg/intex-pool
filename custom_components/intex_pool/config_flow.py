@@ -51,6 +51,7 @@ from .const import (
     DEFAULT_REGION,
     DEFAULT_SALT_TARGET,
     DEVICE_PUMP,
+    DEVICE_META,
     DEVICE_SALT,
     DEVICE_SENSOR,
     DOMAIN,
@@ -66,6 +67,10 @@ from .const import (
 _VERSION_OPTIONS = ["auto", "3.1", "3.3", "3.4", "3.5"]
 _REGION_OPTIONS = ["eu", "us", "cn", "in"]
 CONF_MANUAL = "manual"
+# Explicit device-removal flags for the manual reconfigure step: unticked boxes
+# KEEP a device (merge), so manual-only setups (no cloud creds -> no discover
+# picker) still need a way to delete one.
+REMOVE_FLAGS = {"remove_sensor": DEVICE_SENSOR, "remove_salt": DEVICE_SALT, "remove_pump": DEVICE_PUMP}
 CONF_PUMP_LOCAL_KEY = "pump_local_key"  # reauth: the Tuya pump's own key field
 
 STEP_USER = vol.Schema(
@@ -356,8 +361,18 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                         errors["base"] = "no_devices"
                     else:
                         return await self.async_step_discover()
+        schema = STEP_RECONFIGURE_USER
+        if self._reconfigure_entry is not None and (
+            sensor := self._reconfigure_entry.data.get(DEVICE_SENSOR)
+        ):
+            # Prefill the stored non-secret cloud fields — this step is reached
+            # exactly when re-discovery failed, so don't force retyping them.
+            schema = self.add_suggested_values_to_schema(
+                STEP_RECONFIGURE_USER,
+                {k: sensor[k] for k in (CONF_REGION, CONF_ACCESS_ID) if sensor.get(k)},
+            )
         return self.async_show_form(
-            step_id="reconfigure_user", data_schema=STEP_RECONFIGURE_USER, errors=errors
+            step_id="reconfigure_user", data_schema=schema, errors=errors
         )
 
     # ---- cloud auto-discovery ----
@@ -494,11 +509,17 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         schema = STEP_MANUAL
         if self._reconfigure_entry is not None:
-            # Pre-tick the devices the entry already has (manual reconfigure
-            # replaces the whole selection, so everything kept must be re-entered).
+            # Pre-tick the devices the entry already has. Ticked devices get
+            # re-entered in the following steps; unticked ones are kept as-is
+            # (merged back in _async_finish), never silently dropped. Existing
+            # devices additionally get an explicit remove-checkbox.
             d = self._reconfigure_entry.data
+            fields = dict(STEP_MANUAL.schema)
+            for flag, dev in REMOVE_FLAGS.items():
+                if dev in d:
+                    fields[vol.Optional(flag, default=False)] = bool
             schema = self.add_suggested_values_to_schema(
-                STEP_MANUAL,
+                vol.Schema(fields),
                 {
                     CONF_HAS_SENSOR: DEVICE_SENSOR in d,
                     CONF_HAS_SALT: DEVICE_SALT in d,
@@ -527,9 +548,21 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _async_finish(self) -> ConfigFlowResult:
         if self._reconfigure_entry is not None:
             # Reconfigure: update the existing entry + reload (keep entity ids).
-            return self.async_update_reload_and_abort(
-                self._reconfigure_entry, data=self._data
-            )
+            data = self._data
+            if self._flags:
+                # Manual reconfigure edits only the ticked devices: an unticked
+                # box means "leave that device as it is" — merge the untouched
+                # devices back in instead of silently dropping them. Removal is
+                # explicit via the remove_* checkboxes (manual-only setups
+                # cannot reach the discover picker).
+                removed = {dev for flag, dev in REMOVE_FLAGS.items() if self._flags.get(flag)}
+                kept = {
+                    k: v
+                    for k, v in self._reconfigure_entry.data.items()
+                    if k in DEVICE_META and k not in removed
+                }
+                data = {**kept, **data}
+            return self.async_update_reload_and_abort(self._reconfigure_entry, data=data)
         await self.async_set_unique_id(self._compute_uid())
         self._abort_if_unique_id_configured()
         return self.async_create_entry(title="Intex Pool", data=self._data)

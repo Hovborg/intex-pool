@@ -12,8 +12,14 @@ distilled live from the Tuya thing-model on 2026-06-07.
 """
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
+
+_LOGGER = logging.getLogger(__name__)
+# Unknown DP127 codes we've already warned about (once per code per runtime) —
+# an unrecognized code silently normalizing to None hid real fault combos.
+_UNKNOWN_ALARMS_WARNED: set[str] = set()
 
 # --- DP114 (saltwater) / sensor "error_code": integer code -> token (REF §2/§5) ---
 SALT_ERROR_CODES: dict[int, str] = {
@@ -75,8 +81,23 @@ def normalize_status(raw: Any) -> str | None:
 
 
 def normalize_alarm(raw: Any) -> str | None:
-    """DP127 warntype_indicator -> token."""
-    return _enum_token(raw, ALARM_OPTIONS)
+    """DP127 warntype_indicator -> token.
+
+    Unrecognized codes (e.g. a fault combination missing from ALARM_OPTIONS)
+    are logged once per code: the enum sensor can only show known options, so
+    without the log a real fault would disappear without a trace.
+    """
+    token = _enum_token(raw, ALARM_OPTIONS)
+    if token is None and raw is not None:
+        key = str(raw).strip().lower()
+        if key and key not in _UNKNOWN_ALARMS_WARNED:
+            _UNKNOWN_ALARMS_WARNED.add(key)
+            _LOGGER.warning(
+                "Unrecognized saltwater alarm code %r — the alarm sensor will "
+                "show unknown; please report this code so it can be added",
+                raw,
+            )
+    return token
 
 
 def normalize_indicator(raw: Any, options: list[str]) -> str | None:

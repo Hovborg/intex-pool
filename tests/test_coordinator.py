@@ -163,9 +163,47 @@ async def test_salt_bad_key_auto_version_retries_versions_first(hass):
     assert client.version == VERSION_CANDIDATES[1]  # rotated, not reauth
 
 
-async def test_sensor_bad_secret_raises_auth(hass):
+async def test_sensor_bad_secret_raises_auth_after_threshold(hass):
+    """One auth-coded cloud reply is tolerated (transient token-refresh race);
+    only consecutive rejects escalate to reauth — mirrors the local coordinator."""
+    from custom_components.intex_pool.coordinator import AUTH_FAILURES_BEFORE_REAUTH
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
     cloud = FakeCloud()
     cloud.auth_fail = True
     coord = SensorCoordinator(hass, _entry(hass), cloud, "devid", 120)
+    for _ in range(AUTH_FAILURES_BEFORE_REAUTH - 1):
+        with pytest.raises(UpdateFailed):
+            await coord._async_update_data()
     with pytest.raises(ConfigEntryAuthFailed):
+        await coord._async_update_data()
+
+
+async def test_auth_failures_survive_coordinator_rebuild(hass):
+    """ConfigEntryNotReady-retries genopbygger koordinatorerne — tælleren skal
+    overleve rebuilds, ellers når permanent dårlige creds aldrig reauth."""
+    entry = _entry(hass)
+    cloud = FakeCloud()
+    cloud.auth_fail = True
+    for _ in range(AUTH_FAILURES_BEFORE_REAUTH - 1):
+        coord = SensorCoordinator(hass, entry, cloud, "devid", 120)  # frisk instans
+        with pytest.raises(UpdateFailed):
+            await coord._async_update_data()
+    coord = SensorCoordinator(hass, entry, cloud, "devid", 120)
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coord._async_update_data()
+
+
+async def test_auth_failures_cleared_on_unload(hass):
+    from custom_components.intex_pool.coordinator import clear_auth_failures
+
+    entry = _entry(hass)
+    cloud = FakeCloud()
+    cloud.auth_fail = True
+    coord = SensorCoordinator(hass, entry, cloud, "devid", 120)
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+    clear_auth_failures(hass, entry.entry_id)
+    coord = SensorCoordinator(hass, entry, cloud, "devid", 120)
+    with pytest.raises(UpdateFailed):  # talt forfra efter clear
         await coord._async_update_data()

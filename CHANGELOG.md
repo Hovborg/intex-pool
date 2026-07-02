@@ -4,6 +4,45 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.17.0] - 2026-07-02
+
+Robustness round: the remaining review-backlog plus regressions caught by a
+fresh /code-review of the fixes themselves.
+
+### Fixed
+- **Reauth now actually triggers for permanently bad credentials**: the
+  transient-tolerance counters persist across setup retries (HA rebuilds the
+  coordinators on every ConfigEntryNotReady), so bad creds escalate to a
+  reauth prompt instead of looping "not ready" forever. Counters are cleared
+  on unload.
+- **CloudClient detects rejected credentials**: tinytuya's Cloud never raises
+  on bad creds (it just leaves token unset) — the client now raises an auth
+  error at construction, so setup and the config flow can distinguish bad
+  credentials (reauth) from a dead link (retry).
+- **Version auto-detect vs. reauth ordering**: a locked-in protocol version
+  re-enters auto-detection after 5 consecutive failures, and the reauth
+  threshold now leaves room for a full candidate cycle after that unlock — a
+  device firmware protocol change no longer escalates into a reauth prompt
+  for a key that was never wrong.
+- **Local poll and manual writes are serialized** per device (one TCP session
+  at a time), so a switch write can no longer race the 15s poll.
+- **Setup survives a dead Tuya cloud at boot**: CloudClient construction
+  failures become ConfigEntryNotReady (retry with backoff) instead of an
+  unhandled setup error requiring a manual reload.
+- **intex_pool.set_schedule picks a writable entry** in multi-entry setups
+  instead of erroring on an entry that only has the read-only analyzer
+  schedule.
+- **Unknown DP127 alarm codes are logged** (once per code) instead of
+  silently normalizing to "unknown" — a fault combination missing from the
+  enum no longer disappears without a trace.
+
+### Added
+- **Manual reconfigure preserves unticked devices** (merge) instead of
+  silently dropping them, with explicit "Remove …" checkboxes for actual
+  removal — the only removal path for setups without cloud credentials.
+- **Reconfigure credentials prompt prefills** the stored region/Access ID
+  (never the secret).
+
 ## [0.16.1] - 2026-07-02
 
 Fixes from a full adversarially-verified code review (28 findings; the

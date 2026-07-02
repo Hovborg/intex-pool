@@ -43,7 +43,15 @@
         "data": {
           "has_sensor": "Water quality sensor",
           "has_salt": "Saltwater system",
-          "has_pump": "Sand filter pump"
+          "has_pump": "Sand filter pump",
+          "remove_sensor": "Remove the water sensor from this entry",
+          "remove_salt": "Remove the saltwater system from this entry",
+          "remove_pump": "Remove the pump from this entry"
+        },
+        "data_description": {
+          "remove_sensor": "Removes the device and its entities. Unticked devices are kept unchanged.",
+          "remove_salt": "Removes the device and its entities. Unticked devices are kept unchanged.",
+          "remove_pump": "Removes the device and its entities. Unticked devices are kept unchanged."
         }
       },
       "sensor": {

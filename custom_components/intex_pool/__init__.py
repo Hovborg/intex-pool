@@ -21,7 +21,11 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
-from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryNotReady,
+    ServiceValidationError,
+)
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
@@ -47,6 +51,7 @@ from .const import (
     VERSION_CANDIDATES,
 )
 from .coordinator import (
+    clear_auth_failures,
     PumpCoordinator,
     SaltCoordinator,
     ScheduleCoordinator,
@@ -170,9 +175,19 @@ async def _build_data(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> Intex
 
     cloud = None
     if (sensor := entry.data.get(DEVICE_SENSOR)):
-        cloud = await hass.async_add_executor_job(
-            tuya.CloudClient, sensor["region"], sensor["access_id"], sensor["access_secret"]
-        )
+        # The CloudClient constructor performs a blocking token fetch: a raw
+        # network exception here must become not-ready (retry with backoff),
+        # not an unhandled setup error that stays dead until a manual reload.
+        try:
+            cloud = await hass.async_add_executor_job(
+                tuya.CloudClient, sensor["region"], sensor["access_id"], sensor["access_secret"]
+            )
+        except tuya.TuyaAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
+        except Exception as err:  # noqa: BLE001
+            raise ConfigEntryNotReady(
+                f"Tuya cloud unreachable: {type(err).__name__}: {err}"
+            ) from err
         data.sensor = SensorCoordinator(
             hass, entry, cloud, sensor["device_id"], cloud_interval
         )
@@ -254,13 +269,22 @@ def _entry_for_call(
     raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error_key)
 
 
-def _data_for_call(hass: HomeAssistant, call: ServiceCall) -> IntexPoolData:
-    """Resolve the target entry's runtime data for a schedule service call."""
-    entry = _entry_for_call(
-        hass, call,
-        lambda d: d.schedule is not None or d.analyzer_schedule is not None,
-        "no_schedule",
-    )
+def _data_for_call(
+    hass: HomeAssistant, call: ServiceCall, *, writable: bool = False
+) -> IntexPoolData:
+    """Resolve the target entry's runtime data for a schedule service call.
+
+    ``writable=True`` (set_schedule) requires the saltwater schedule — an entry
+    with only the read-only analyzer schedule must not be selected, or a
+    multi-entry setup gets a bogus "no_schedule" error while a writable entry
+    exists further down the list.
+    """
+    def predicate(d: IntexPoolData) -> bool:
+        if writable:
+            return d.schedule is not None
+        return d.schedule is not None or d.analyzer_schedule is not None
+
+    entry = _entry_for_call(hass, call, predicate, "no_schedule")
     return entry.runtime_data
 
 
@@ -290,7 +314,7 @@ def _register_services(hass: HomeAssistant) -> None:
         return
 
     async def _set_schedule(call: ServiceCall) -> ServiceResponse:
-        data = _data_for_call(hass, call)
+        data = _data_for_call(hass, call, writable=True)
         coordinator = data.schedule
         if coordinator is None:
             raise ServiceValidationError(
@@ -401,6 +425,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> bool:
     """Unload a config entry. The service stays registered (it validates entries)."""
+    clear_auth_failures(hass, entry.entry_id)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 

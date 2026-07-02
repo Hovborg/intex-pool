@@ -371,6 +371,9 @@ async def test_reconfigure_discover_manual_escape(hass, mock_tinytuya, monkeypat
     assert r["type"] == FlowResultType.ABORT
     assert r["reason"] == "reconfigure_successful"
     assert entry.data["salt"]["host"] == "192.168.44.67"
+    # The unticked sensor was NOT re-entered — it must be preserved (merge),
+    # never silently dropped by the wholesale data replacement.
+    assert entry.data["sensor"] == SENSOR_INPUT
 
 
 async def test_reconfigure_user_manual_escape(hass, mock_tinytuya, monkeypatch):
@@ -388,3 +391,38 @@ async def test_reconfigure_user_manual_escape(hass, mock_tinytuya, monkeypatch):
         r["flow_id"], {"region": "eu", "access_id": "", "access_secret": "", "manual": True}
     )
     assert r["step_id"] == "manual"
+
+
+async def test_reconfigure_manual_remove_flag_drops_device(hass, mock_tinytuya, monkeypatch):
+    """Manual reconfigure keeps unticked devices, but an explicit remove flag
+    deletes one — the only removal path for cloud-credential-less setups."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"salt": SALT_INPUT, "sensor": SENSOR_INPUT},
+        unique_id="saltdev", version=2,
+    )
+    entry.add_to_hass(hass)
+
+    async def fake_discover(hass_, creds):
+        return ([{"id": "saltdev", "name": "AGP Salt", "key": "k", "category": "rs"}], {})
+
+    async def ok(hass_, ui):
+        return None
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    monkeypatch.setattr(config_flow, "validate_local", ok)
+    r = await entry.start_reconfigure_flow(hass)
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"manual": True})
+    assert r["step_id"] == "manual"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {"has_sensor": False, "has_salt": True, "has_pump": False, "remove_sensor": True},
+    )
+    assert r["step_id"] == "salt"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {"device_id": "saltdev", "local_key": "k", "host": "10.0.0.9", "version": "3.5"},
+    )
+    assert r["type"] == FlowResultType.ABORT
+    assert r["reason"] == "reconfigure_successful"
+    assert entry.data["salt"]["host"] == "10.0.0.9"
+    assert "sensor" not in entry.data  # eksplicit fjernet

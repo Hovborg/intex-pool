@@ -42,7 +42,7 @@ def mock_tinytuya(monkeypatch):
 
     class FakeCloud:
         def __init__(self, *a, **k):
-            pass
+            self.token = "fake-token"  # CloudClient afviser token=None (bad creds)
 
         def cloudrequest(self, path, post=None):
             if path.endswith("/shadow/properties"):

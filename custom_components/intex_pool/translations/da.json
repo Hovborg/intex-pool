@@ -43,7 +43,15 @@
         "data": {
           "has_sensor": "Vandkvalitets-sensor",
           "has_salt": "Saltvandssystem",
-          "has_pump": "Sandfilter-pumpe"
+          "has_pump": "Sandfilter-pumpe",
+          "remove_sensor": "Fjern vandsensoren fra denne opsætning",
+          "remove_salt": "Fjern saltvandssystemet fra denne opsætning",
+          "remove_pump": "Fjern pumpen fra denne opsætning"
+        },
+        "data_description": {
+          "remove_sensor": "Fjerner enheden og dens entiteter. Ikke-markerede enheder bevares uændret.",
+          "remove_salt": "Fjerner enheden og dens entiteter. Ikke-markerede enheder bevares uændret.",
+          "remove_pump": "Fjerner enheden og dens entiteter. Ikke-markerede enheder bevares uændret."
         }
       },
       "sensor": {

@@ -17,7 +17,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from . import schedule
-from .const import VERSION_CANDIDATES
+from .const import DOMAIN, VERSION_CANDIDATES
 from .tuya import CloudClient, LocalClient, TuyaAuthError, TuyaError
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,6 +26,48 @@ _LOGGER = logging.getLogger(__name__)
 # considered rotated and a reauth flow is started. >1 so a single corrupted
 # reply on a marginal Wi-Fi link cannot kick the entry into reauth.
 AUTH_FAILURES_BEFORE_REAUTH = 3
+# Once a protocol version has polled successfully it is locked in — a transient
+# Wi-Fi blip must not cycle a proven version away (that self-inflicts extra
+# failed polls). Only an unbroken failure streak (device reflashed to a new
+# protocol?) re-opens auto-detection — and the reauth threshold below leaves
+# room for a full candidate cycle AFTER this unlock, so a version change never
+# escalates into a reauth prompt for a key that was never wrong.
+VERSION_UNLOCK_FAILURES = 5
+
+_AUTH_STORE_KEY = f"{DOMAIN}_auth_failures"
+
+
+class _AuthFailures:
+    """Consecutive auth-failure counter that SURVIVES coordinator rebuilds.
+
+    Every ConfigEntryNotReady retry rebuilds the coordinators from scratch; an
+    instance attribute would restart at zero on each attempt, so permanently
+    bad credentials could never accumulate enough consecutive rejects to reach
+    the reauth threshold — the entry would loop "not ready" forever instead of
+    surfacing a reauth prompt.
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, key: str) -> None:
+        self._store: dict[str, int] = hass.data.setdefault(_AUTH_STORE_KEY, {})
+        self._key = f"{entry.entry_id}:{key}"
+
+    @property
+    def count(self) -> int:
+        return self._store.get(self._key, 0)
+
+    def bump(self) -> int:
+        self._store[self._key] = self.count + 1
+        return self._store[self._key]
+
+    def reset(self) -> None:
+        self._store.pop(self._key, None)
+
+
+def clear_auth_failures(hass: HomeAssistant, entry_id: str) -> None:
+    """Drop an entry's persisted auth counters (called on unload/removal)."""
+    store: dict[str, int] = hass.data.setdefault(_AUTH_STORE_KEY, {})
+    for key in [k for k in store if k.startswith(f"{entry_id}:")]:
+        store.pop(key, None)
 
 
 class _LocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -47,11 +89,18 @@ class _LocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._client = client
         self._auto_version = auto_version
         self._ver_idx = 0
-        self._auth_failures = 0
+        self._auth_failures = _AuthFailures(hass, entry, name)
+        self._fail_streak = 0
+        self._ver_locked = False
+        # Serialize LAN I/O: the periodic poll and a manual DP write each open
+        # their own TCP session, and the device firmware only reliably serves
+        # one at a time — an unserialized write racing a poll can be dropped.
+        self._io_lock = asyncio.Lock()
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
-            data = await self.hass.async_add_executor_job(self._client.status)
+            async with self._io_lock:
+                data = await self.hass.async_add_executor_job(self._client.status)
         except TuyaAuthError as err:
             # Bad key (or version). While auto-detecting the protocol version,
             # keep cycling versions first. A single auth reject is NOT proof
@@ -60,33 +109,53 @@ class _LocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # "reauth required" while the key was still valid). Only escalate
             # to reauth after several consecutive rejects with no success in
             # between.
-            self._auth_failures += 1
-            threshold = AUTH_FAILURES_BEFORE_REAUTH + (
-                len(VERSION_CANDIDATES) if self._auto_version else 0
-            )
-            if self._auth_failures < threshold:
+            failures = self._auth_failures.bump()
+            self._fail_streak += 1
+            extra = 0
+            if self._auto_version:
+                extra = len(VERSION_CANDIDATES)
+                if self._ver_locked:
+                    # A locked version only re-enters rotation after
+                    # VERSION_UNLOCK_FAILURES — leave room for the full
+                    # candidate cycle AFTER the unlock, so a firmware protocol
+                    # change (decodes as auth errors) gets re-detected instead
+                    # of escalating into reauth for a key that was never wrong.
+                    extra += VERSION_UNLOCK_FAILURES
+            if failures < AUTH_FAILURES_BEFORE_REAUTH + extra:
                 self._rotate_version()
                 raise UpdateFailed(str(err)) from err
             raise ConfigEntryAuthFailed(str(err)) from err
         except TuyaError as err:
+            self._fail_streak += 1
             self._rotate_version()
             raise UpdateFailed(str(err)) from err
         except Exception as err:  # noqa: BLE001 - surface any transport failure
+            self._fail_streak += 1
             self._rotate_version()
             raise UpdateFailed(f"{type(err).__name__}: {err}") from err
-        self._auth_failures = 0
+        self._auth_failures.reset()
+        self._fail_streak = 0
+        self._ver_locked = True  # proven good — stop cycling on transient blips
         return data
 
     def _rotate_version(self) -> None:
-        """Advance to the next protocol-version candidate (auto-detect mode)."""
+        """Advance to the next protocol-version candidate (auto-detect mode).
+
+        A version that has successfully polled is locked in: transient
+        transport failures must not cycle it away. Only a long unbroken
+        failure streak re-opens auto-detection.
+        """
         if not self._auto_version:
+            return
+        if self._ver_locked and self._fail_streak < VERSION_UNLOCK_FAILURES:
             return
         self._ver_idx = (self._ver_idx + 1) % len(VERSION_CANDIDATES)
         self._client.set_version(VERSION_CANDIDATES[self._ver_idx])
 
     async def async_set_dp(self, dp: str | int, value: Any) -> None:
         """Set a DP, then refresh so HA reflects the new state quickly."""
-        await self.hass.async_add_executor_job(self._client.set_value, dp, value)
+        async with self._io_lock:
+            await self.hass.async_add_executor_job(self._client.set_value, dp, value)
         await self.async_request_refresh()
 
 
@@ -115,18 +184,26 @@ class SensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self._client = client
         self._device_id = device_id
+        self._auth_failures = _AuthFailures(hass, entry, "sensor")
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
-            return await self.hass.async_add_executor_job(
+            data = await self.hass.async_add_executor_job(
                 self._client.properties, self._device_id
             )
         except TuyaAuthError as err:
+            # Same transient-tolerance as the local coordinators: one auth-coded
+            # cloud reply (token-refresh race, gateway hiccup) must not force a
+            # reauth prompt for still-valid credentials.
+            if self._auth_failures.bump() < AUTH_FAILURES_BEFORE_REAUTH:
+                raise UpdateFailed(str(err)) from err
             raise ConfigEntryAuthFailed(str(err)) from err
         except TuyaError as err:
             raise UpdateFailed(str(err)) from err
         except Exception as err:  # noqa: BLE001
             raise UpdateFailed(f"{type(err).__name__}: {err}") from err
+        self._auth_failures.reset()
+        return data
 
     async def async_issue(self, code: str, value: Any) -> None:
         """Write a cloud property, then refresh."""
@@ -165,6 +242,7 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.device_id = device_id
         self.code = code
         self._write_lock = asyncio.Lock()
+        self._auth_failures = _AuthFailures(hass, entry, f"schedule:{code}")
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -172,11 +250,15 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._client.properties, self.device_id
             )
         except TuyaAuthError as err:
+            # Tolerate transient auth-coded cloud replies (see SensorCoordinator).
+            if self._auth_failures.bump() < AUTH_FAILURES_BEFORE_REAUTH:
+                raise UpdateFailed(str(err)) from err
             raise ConfigEntryAuthFailed(str(err)) from err
         except TuyaError as err:
             raise UpdateFailed(str(err)) from err
         except Exception as err:  # noqa: BLE001
             raise UpdateFailed(f"{type(err).__name__}: {err}") from err
+        self._auth_failures.reset()
         raw = props.get(self.code)
         return {"raw": raw, "slots": schedule.decode_schedules(raw)}
 

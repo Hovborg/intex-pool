@@ -34,6 +34,7 @@ class FakeCloud:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         self.requests = []
+        self.token = "fake-token"  # CloudClient afviser token=None (bad creds)
 
     def cloudrequest(self, path, post=None):
         self.requests.append((path, post))

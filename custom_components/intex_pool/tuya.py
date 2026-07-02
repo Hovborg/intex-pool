@@ -138,6 +138,13 @@ class CloudClient:
         self._cloud = tinytuya.Cloud(
             apiRegion=region, apiKey=access_id, apiSecret=access_secret
         )
+        # tinytuya.Cloud does NOT raise on rejected credentials — it leaves
+        # token=None and stashes the API reply in .error. Surface that here so
+        # setup/config-flow can tell bad creds (reauth) from a dead link
+        # (retry); otherwise the auth branch downstream is unreachable.
+        if getattr(self._cloud, "token", None) is None:
+            err = getattr(self._cloud, "error", None)
+            raise TuyaAuthError(f"cloud auth failed: {str(err)[:160]}")
 
     def list_devices(self) -> list[dict[str, Any]]:
         """List the project's devices with their local keys (for auto-discovery).
