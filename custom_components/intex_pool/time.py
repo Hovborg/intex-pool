@@ -34,11 +34,13 @@ async def async_setup_entry(
             for i in range(1, schedule.SLOT_COUNT)
         )
     # Same start-time editors for the Tuya pump's internal timer (skdl_filter).
+    # No boost cycle here: ALL 7 slots are regular timed slots, so slot 1
+    # (index 0) gets a start-time editor too.
     pump_id = device_id_for(entry, DEVICE_PUMP)
     if data.pump_schedule is not None and pump_id is not None:
         async_add_entities(
             IntexScheduleStartTime(data.pump_schedule, pump_id, i, device=DEVICE_PUMP)
-            for i in range(1, schedule.SLOT_COUNT)
+            for i in range(schedule.SLOT_COUNT)
         )
 
 

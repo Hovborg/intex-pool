@@ -290,8 +290,9 @@ class IntexScheduleDuration(CoordinatorEntity, NumberEntity):
     def __init__(self, coordinator, device_id: str, index: int, device: str = DEVICE_SALT) -> None:
         super().__init__(coordinator)
         self._index = index
-        # Slot 0 is the Boost cycle: only a duration, labelled "Boost duration".
-        if index == 0:
+        # Slot 0 is the Boost cycle ON THE CHLORINATOR only — the pump's slot 0
+        # is a regular timed slot (its app writes one-shots into any slot).
+        if index == 0 and device == DEVICE_SALT:
             self._attr_translation_key = "boost_duration"
         else:
             self._attr_translation_key = "schedule_duration"

@@ -244,7 +244,9 @@
           "e95": "E95",
           "e96": "E96",
           "e97": "Intern PCB-fejl (E97)",
-          "e99": "Salt-/temp-sensor defekt (E99)"
+          "e99": "Salt-/temp-sensor defekt (E99)",
+          "dirty": "Rens filteret",
+          "unnormal": "Fejl"
         }
       },
       "error_code": {
@@ -401,7 +403,7 @@
         "name": "Stabilisator-flag (CYA)"
       },
       "filter_switch": {
-        "name": "Filterkontakt"
+        "name": "Filtrering"
       }
     },
     "select": {

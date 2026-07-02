@@ -269,7 +269,10 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
     def __init__(self, coordinator, device_id: str, index: int, device: str = DEVICE_SALT) -> None:
         super().__init__(coordinator)
         self._index = index
-        self._is_boost = index == 0
+        # Boost is a CHLORINATOR hardware concept (slot 0 = the boost cycle).
+        # The pump's app writes plain one-shot runs into any slot (observed
+        # live: one-shots in slots 0 AND 1), so its slot 0 is just a slot.
+        self._is_boost = index == 0 and device == DEVICE_SALT
         self._remembered: dict | None = None
         # Timed schedules suspended while Boost is on: {slot_index_str: fields}.
         self._suspended: dict[str, dict] = {}

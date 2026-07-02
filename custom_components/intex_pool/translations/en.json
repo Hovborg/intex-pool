@@ -244,7 +244,9 @@
           "e95": "E95",
           "e96": "E96",
           "e97": "Internal PCB fault (E97)",
-          "e99": "Salt/temp sensor fault (E99)"
+          "e99": "Salt/temp sensor fault (E99)",
+          "dirty": "Clean the filter",
+          "unnormal": "Fault"
         }
       },
       "error_code": {
@@ -401,7 +403,7 @@
         "name": "Boost"
       },
       "filter_switch": {
-        "name": "Filter switch"
+        "name": "Filtration"
       }
     },
     "select": {

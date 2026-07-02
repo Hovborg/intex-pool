@@ -249,8 +249,8 @@ SENSORS: tuple[IntexSensorDescription, ...] = (
     ),
     IntexSensorDescription(
         key="pump_alarm", translation_key="alarm", device=DEVICE_PUMP, source="127",
-        device_class=SensorDeviceClass.ENUM, options=decode.ALARM_OPTIONS,
-        value_fn=decode.normalize_alarm,
+        device_class=SensorDeviceClass.ENUM, options=decode.PUMP_ALARM_OPTIONS,
+        value_fn=decode.normalize_pump_alarm,
     ),
     IntexSensorDescription(
         key="pump_error", translation_key="error_code", device=DEVICE_PUMP, source="114",
@@ -413,12 +413,10 @@ SWITCHES: tuple[IntexSwitchDescription, ...] = (
     IntexSwitchDescription(
         key="pump", translation_key="pump", device=DEVICE_PUMP, source=DEFAULT_PUMP_ON_DP,
     ),
-    # DP106 "filter_switch" — the pump's second toggle in the thing model. It
-    # mirrors DP104 in all observed data and its standalone effect on the
-    # SX2100 is unverified, so it ships disabled by default (cf. chlorination_2).
+    # DP106 "filter_switch" — start/stop of filtration, distinct from master
+    # power (thing model: rw bool; cf. the chlorinator's power/production pair).
     IntexSwitchDescription(
         key="pump_filter", translation_key="filter_switch", device=DEVICE_PUMP, source="106",
-        entity_registry_enabled_default=False,
     ),
 )
 

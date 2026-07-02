@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.20.0] - 2026-07-02
+
+Pump corrections from the live thing model (fetched from the cloud).
+
+### Added
+- **Filtration switch (DP106)** is now enabled by default and properly named —
+  the thing model confirms it is a writable start/stop control distinct from
+  master power (like the chlorinator's power/production pair).
+- **Pump-specific alarm codes**: the pump's DP127 enum differs from the
+  chlorinator's (normal / E93 / **dirty** / unnormal) — "dirty" = clean the
+  filter. The alarm sensor now uses the correct option set with translations.
+
+### Fixed
+- **The pump has no Boost cycle**: slot 1 is a regular timed slot (the pump
+  app writes one-shot runs into any slot), so it now gets a normal name, a
+  start-time editor, and no boost-suspend behavior. Boost stays
+  chlorinator-only.
+- **Stale-device deletion**: the leftover virtual "Linked pump" device from
+  entity mode could never be deleted after switching to a real Tuya pump —
+  the removal guard now only protects it while the pump is entity-linked.
+
 ## [0.19.2] - 2026-07-02
 
 ### Fixed

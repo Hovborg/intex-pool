@@ -40,6 +40,10 @@ ALARM_OPTIONS: list[str] = [
     "e91e92", "e05", "e94", "e95", "e96", "e97", "e99",
 ]
 
+# --- pump DP127 warntype (thing model, live-fetched 2026-07-02) — a DIFFERENT
+# enum than the chlorinator's: "dirty" = clean the filter, "unnormal" = fault.
+PUMP_ALARM_OPTIONS: list[str] = ["normal", "e93", "dirty", "unnormal"]
+
 # --- sensor indicators (REF §3) ---
 PH_INDICATOR_OPTIONS: list[str] = ["off", "red", "green"]
 ORP_INDICATOR_OPTIONS: list[str] = ["off", "red", "green", "saltwater_abnormal"]
@@ -96,6 +100,19 @@ def normalize_alarm(raw: Any) -> str | None:
                 "Unrecognized saltwater alarm code %r — the alarm sensor will "
                 "show unknown; please report this code so it can be added",
                 raw,
+            )
+    return token
+
+
+def normalize_pump_alarm(raw: Any) -> str | None:
+    """Pump DP127 warntype_indicator -> token (pump-specific enum)."""
+    token = _enum_token(raw, PUMP_ALARM_OPTIONS)
+    if token is None and raw is not None:
+        key = f"pump:{str(raw).strip().lower()}"
+        if key not in _UNKNOWN_ALARMS_WARNED:
+            _UNKNOWN_ALARMS_WARNED.add(key)
+            _LOGGER.warning(
+                "Unrecognized pump alarm code %r — please report this code", raw
             )
     return token
 

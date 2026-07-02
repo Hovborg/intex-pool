@@ -478,7 +478,12 @@ async def async_remove_config_entry_device(
     After a reconfigure repoints the entry to a replaced device (new Tuya id),
     the old device-registry entry would otherwise linger forever.
     """
-    current: set[str] = {f"{entry.entry_id}_pump"}
+    current: set[str] = set()
+    pump_cfg = entry.data.get(DEVICE_PUMP) or {}
+    if pump_cfg and pump_cfg.get(CONF_PUMP_MODE) != PUMP_MODE_TUYA:
+        # The virtual "Linked pump" device only exists for entity-linked pumps;
+        # after a switch to a real Tuya pump the leftover must be deletable.
+        current.add(f"{entry.entry_id}_pump")
     for device in (DEVICE_SALT, DEVICE_SENSOR, DEVICE_PUMP):
         if device_id := (entry.data.get(device) or {}).get("device_id"):
             current.add(device_id)
