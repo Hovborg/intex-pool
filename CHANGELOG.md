@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.19.2] - 2026-07-02
+
+### Fixed
+- The sensor step rejected the new optional model field during reconfigure
+  (the prefill branch fell back to the base schema). Regression-tested.
+
 ## [0.19.1] - 2026-07-02
 
 ### Fixed

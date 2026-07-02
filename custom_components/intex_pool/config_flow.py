@@ -614,9 +614,10 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             cur := self._reconfigure_entry.data.get(DEVICE_SENSOR)
         ):
             # Never embed the stored secret in the form payload sent to the
-            # frontend — prefill only the non-secret fields.
+            # frontend — prefill only the non-secret fields. NB: extend `schema`
+            # (which includes the model field), not the base STEP_SENSOR.
             schema = self.add_suggested_values_to_schema(
-                STEP_SENSOR, {k: v for k, v in cur.items() if k != CONF_ACCESS_SECRET}
+                schema, {k: v for k, v in cur.items() if k != CONF_ACCESS_SECRET}
             )
         return self.async_show_form(step_id="sensor", data_schema=schema, errors=errors)
 

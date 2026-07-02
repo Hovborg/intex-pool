@@ -426,3 +426,29 @@ async def test_reconfigure_manual_remove_flag_drops_device(hass, mock_tinytuya, 
     assert r["reason"] == "reconfigure_successful"
     assert entry.data["salt"]["host"] == "10.0.0.9"
     assert "sensor" not in entry.data  # eksplicit fjernet
+
+
+async def test_reconfigure_sensor_step_accepts_model(hass, mock_tinytuya, monkeypatch):
+    """Regression: the sensor step's reconfigure prefill must keep the extended
+    schema (incl. the optional model field), not fall back to the base schema."""
+    entry = MockConfigEntry(domain=DOMAIN, data={"sensor": SENSOR_INPUT}, unique_id="sdev", version=2)
+    entry.add_to_hass(hass)
+
+    async def fake_discover(hass_, creds):
+        return ([{"id": "sdev", "name": "Sensor", "key": "k", "category": "rs"}], {})
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    r = await entry.start_reconfigure_flow(hass)
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"manual": True})
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"has_sensor": True, "has_salt": False, "has_pump": False}
+    )
+    assert r["step_id"] == "sensor"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {"region": "eu", "access_id": "a", "access_secret": "s",
+         "device_id": "sdev", "model": "WA510 Water Analyzer"},
+    )
+    assert r["type"] == FlowResultType.ABORT
+    assert r["reason"] == "reconfigure_successful"
+    assert entry.data["sensor"]["model"] == "WA510 Water Analyzer"
