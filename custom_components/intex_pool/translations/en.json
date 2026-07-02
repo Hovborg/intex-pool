@@ -393,6 +393,9 @@
       },
       "boost_slot": {
         "name": "Boost"
+      },
+      "filter_switch": {
+        "name": "Filter switch"
       }
     },
     "select": {

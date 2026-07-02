@@ -23,6 +23,7 @@ from .const import (
     CONF_TDS,
     CONF_TOTAL_ALKALINITY,
     DEFAULT_SALT_TARGET,
+    DEVICE_PUMP,
     DEVICE_SALT,
     DEVICE_SENSOR,
     SALT_MAX_PPM,
@@ -70,6 +71,12 @@ async def async_setup_entry(
             IntexScheduleSensor(
                 data.analyzer_schedule, DEVICE_SENSOR, sensor_id, "analyzer_schedules"
             )
+        )
+
+    pump_id = device_id_for(entry, DEVICE_PUMP)
+    if data.pump_schedule is not None and pump_id is not None:
+        entities.append(
+            IntexScheduleSensor(data.pump_schedule, DEVICE_PUMP, pump_id, "schedules")
         )
 
     # Salt dose advisor — always created with the salt device; it reads the

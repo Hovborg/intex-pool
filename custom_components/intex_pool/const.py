@@ -226,6 +226,29 @@ SENSORS: tuple[IntexSensorDescription, ...] = (
         device_class=SensorDeviceClass.ENUM, options=decode.ERROR_OPTIONS,
         value_fn=decode.normalize_error, entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # Sand-filter pump (same DP family as the chlorinator; live-verified via
+    # the cloud shadow API 2026-07-02: 104/106/110/114/115/119/125/127).
+    IntexSensorDescription(
+        key="pump_time_remaining", translation_key="time_remaining", device=DEVICE_PUMP,
+        source="110",
+        native_unit_of_measurement=UnitOfTime.HOURS, device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0,
+    ),
+    IntexSensorDescription(
+        key="pump_status", translation_key="status", device=DEVICE_PUMP, source="125",
+        device_class=SensorDeviceClass.ENUM, options=decode.STATUS_OPTIONS,
+        value_fn=decode.normalize_status,
+    ),
+    IntexSensorDescription(
+        key="pump_alarm", translation_key="alarm", device=DEVICE_PUMP, source="127",
+        device_class=SensorDeviceClass.ENUM, options=decode.ALARM_OPTIONS,
+        value_fn=decode.normalize_alarm,
+    ),
+    IntexSensorDescription(
+        key="pump_error", translation_key="error_code", device=DEVICE_PUMP, source="114",
+        device_class=SensorDeviceClass.ENUM, options=decode.ERROR_OPTIONS,
+        value_fn=decode.normalize_error, entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # Water sensor (cloud properties)
     IntexSensorDescription(
         key="ph", translation_key="ph", device=DEVICE_SENSOR, source="PH_Number",
@@ -324,6 +347,12 @@ BINARY_SENSORS: tuple[IntexBinaryDescription, ...] = (
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # The pump's own mesh/link flag (DP119 on the pump device).
+    IntexBinaryDescription(
+        key="pump_own_mesh", translation_key="mesh", device=DEVICE_PUMP, source="119",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     IntexBinaryDescription(
         key="pump_mesh", translation_key="pump_mesh", device=DEVICE_SALT, source="126",
         # DP126 is inverted on the wire (REFERENCE.md: 1 = link DOWN, 0 = up),
@@ -375,6 +404,13 @@ SWITCHES: tuple[IntexSwitchDescription, ...] = (
     # it with the configured CONF_PUMP_ON_DP value for Tuya pumps.
     IntexSwitchDescription(
         key="pump", translation_key="pump", device=DEVICE_PUMP, source=DEFAULT_PUMP_ON_DP,
+    ),
+    # DP106 "filter_switch" — the pump's second toggle in the thing model. It
+    # mirrors DP104 in all observed data and its standalone effect on the
+    # SX2100 is unverified, so it ships disabled by default (cf. chlorination_2).
+    IntexSwitchDescription(
+        key="pump_filter", translation_key="filter_switch", device=DEVICE_PUMP, source="106",
+        entity_registry_enabled_default=False,
     ),
 )
 

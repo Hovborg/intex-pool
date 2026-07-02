@@ -393,6 +393,9 @@
       },
       "stabilizer": {
         "name": "Stabilisator-flag (CYA)"
+      },
+      "filter_switch": {
+        "name": "Filterkontakt"
       }
     },
     "select": {

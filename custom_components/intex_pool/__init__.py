@@ -213,6 +213,14 @@ async def _build_data(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> Intex
             code="skdl_orpph",
         )
 
+    # The Tuya pump's internal timer program (skdl_filter) — same blob format
+    # (live-verified via the shadow API 2026-07-02), exposed read-only for now.
+    if data.pump is not None and cloud is not None and pump:
+        data.pump_schedule = ScheduleCoordinator(
+            hass, entry, cloud, pump["device_id"], DEFAULT_SCHEDULE_INTERVAL,
+            code="skdl_filter",
+        )
+
     return data
 
 
@@ -228,7 +236,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) ->
     # auto-starts a reauth flow.
     coordinators = [
         c
-        for c in (data.salt, data.sensor, data.pump, data.schedule, data.analyzer_schedule)
+        for c in (data.salt, data.sensor, data.pump, data.schedule,
+                  data.analyzer_schedule, data.pump_schedule)
         if c is not None
     ]
     for coordinator in coordinators:
@@ -282,7 +291,8 @@ def _data_for_call(
     def predicate(d: IntexPoolData) -> bool:
         if writable:
             return d.schedule is not None
-        return d.schedule is not None or d.analyzer_schedule is not None
+        return (d.schedule is not None or d.analyzer_schedule is not None
+                or d.pump_schedule is not None)
 
     entry = _entry_for_call(hass, call, predicate, "no_schedule")
     return entry.runtime_data
@@ -338,6 +348,7 @@ def _register_services(hass: HomeAssistant) -> None:
         return {
             "saltwater": _serialize_slots(data.schedule),
             "analyzer": _serialize_slots(data.analyzer_schedule),
+            "pump": _serialize_slots(data.pump_schedule),
         }
 
     async def _calibrate(call: ServiceCall) -> ServiceResponse:

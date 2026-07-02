@@ -25,6 +25,7 @@ class IntexPoolData:
     schedule: "ScheduleCoordinator | None" = None
     # The analyzer's own measurement-window schedule (skdl_orpph, read-only).
     analyzer_schedule: "ScheduleCoordinator | None" = None
+    pump_schedule: "ScheduleCoordinator | None" = None
 
 
 type IntexPoolConfigEntry = ConfigEntry[IntexPoolData]

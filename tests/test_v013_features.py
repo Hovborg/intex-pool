@@ -187,7 +187,7 @@ async def test_get_schedule_returns_decoded_slots(hass, mock_tinytuya):
     response = await hass.services.async_call(
         DOMAIN, "get_schedule", {}, blocking=True, return_response=True
     )
-    assert set(response) == {"saltwater", "analyzer"}
+    assert set(response) == {"saltwater", "analyzer", "pump"}
     assert len(response["saltwater"]["slots"]) == 7
     assert len(response["analyzer"]["slots"]) == 7
     assert all("active" in s for s in response["saltwater"]["slots"])

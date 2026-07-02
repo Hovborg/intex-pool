@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.18.0] - 2026-07-02
+
+The Tuya sand-filter pump is now a first-class device.
+
+### Added
+- **Pump entities** (live-verified against the SX2100 via the cloud shadow
+  API): status (DP125), alarm code (DP127), error code (DP114), time
+  remaining (DP110), mesh/link diagnostic (DP119), and the thing-model's
+  second toggle DP106 ("Filter switch", disabled by default — its standalone
+  effect is unverified).
+- **Pump schedule (read-only)**: the pump's internal timer program
+  (``skdl_filter``, same 7-slot blob as the chlorinator's) is polled from the
+  cloud and exposed as a "Schedules" sensor with full slot details, and
+  included in the ``intex_pool.get_schedule`` service response (``pump`` key).
+  Write support can follow once slot semantics are verified on the hardware.
+
 ## [0.17.0] - 2026-07-02
 
 Robustness round: the remaining review-backlog plus regressions caught by a
