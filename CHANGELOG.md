@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.19.1] - 2026-07-02
+
+### Fixed
+- 0.19.0 shipped the pump-schedule slot switches and durations but not the
+  start-time editors (a patch-tooling miss) — the pump now gets its start
+  times (slots 2-7) as intended.
+
 ## [0.19.0] - 2026-07-02
 
 Full pump-timer editing + choose your device models.

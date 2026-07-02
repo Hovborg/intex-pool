@@ -11,7 +11,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import schedule
-from .const import DEVICE_META, DEVICE_SALT, DOMAIN, MANUFACTURER
+from .const import DEVICE_META, DEVICE_PUMP, DEVICE_SALT, DOMAIN, MANUFACTURER
 from .entity import device_id_for, write_slots_guarded
 from .models import IntexPoolConfigEntry
 
@@ -33,6 +33,13 @@ async def async_setup_entry(
             IntexScheduleStartTime(data.schedule, salt_id, i)
             for i in range(1, schedule.SLOT_COUNT)
         )
+    # Same start-time editors for the Tuya pump's internal timer (skdl_filter).
+    pump_id = device_id_for(entry, DEVICE_PUMP)
+    if data.pump_schedule is not None and pump_id is not None:
+        async_add_entities(
+            IntexScheduleStartTime(data.pump_schedule, pump_id, i, device=DEVICE_PUMP)
+            for i in range(1, schedule.SLOT_COUNT)
+        )
 
 
 class IntexScheduleStartTime(CoordinatorEntity, TimeEntity):
@@ -42,12 +49,12 @@ class IntexScheduleStartTime(CoordinatorEntity, TimeEntity):
     _attr_translation_key = "schedule_start"
     _attr_entity_category = EntityCategory.CONFIG
 
-    def __init__(self, coordinator, device_id: str, index: int) -> None:
+    def __init__(self, coordinator, device_id: str, index: int, device: str = DEVICE_SALT) -> None:
         super().__init__(coordinator)
         self._index = index
         self._attr_translation_placeholders = {"index": str(index + 1)}
         self._attr_unique_id = f"{device_id}_schedule_{index + 1}_start"
-        meta = DEVICE_META[DEVICE_SALT]
+        meta = DEVICE_META[device]
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device_id)},
             name=meta["name"],
