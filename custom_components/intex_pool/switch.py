@@ -92,6 +92,15 @@ async def async_setup_entry(
                 IntexScheduleSlotSwitch(data.schedule, sched_salt_id, i)
                 for i in range(schedule.SLOT_COUNT)
             )
+    # Same editors for the Tuya pump's internal timer program (skdl_filter —
+    # identical blob; write path live-verified on the SX2100 2026-07-02).
+    if data.pump_schedule is not None:
+        pump_sched_id = device_id_for(entry, DEVICE_PUMP)
+        if pump_sched_id is not None:
+            entities.extend(
+                IntexScheduleSlotSwitch(data.pump_schedule, pump_sched_id, i, device=DEVICE_PUMP)
+                for i in range(schedule.SLOT_COUNT)
+            )
 
     async_add_entities(entities)
 
@@ -257,7 +266,7 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, device_id: str, index: int) -> None:
+    def __init__(self, coordinator, device_id: str, index: int, device: str = DEVICE_SALT) -> None:
         super().__init__(coordinator)
         self._index = index
         self._is_boost = index == 0
@@ -270,7 +279,7 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
             self._attr_translation_key = "schedule_slot"
             self._attr_translation_placeholders = {"index": str(index + 1)}
         self._attr_unique_id = f"{device_id}_schedule_{index + 1}"
-        meta = DEVICE_META[DEVICE_SALT]
+        meta = DEVICE_META[device]
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device_id)},
             name=meta["name"],

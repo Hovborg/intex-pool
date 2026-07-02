@@ -61,10 +61,12 @@
           "region": "Region",
           "access_id": "Access ID",
           "access_secret": "Access secret",
-          "device_id": "Device ID"
+          "device_id": "Device ID",
+          "model": "Model (valgfri)"
         },
         "data_description": {
-          "device_id": "Analysatorens Tuya enheds-id (enhedslisten på iot.tuya.com)."
+          "device_id": "Analysatorens Tuya enheds-id (enhedslisten på iot.tuya.com).",
+          "model": "Vises på enhedssiden — vælg din model eller skriv din egen."
         }
       },
       "salt": {
@@ -73,13 +75,15 @@
           "device_id": "Device ID",
           "local_key": "Local key",
           "host": "IP-adresse",
-          "version": "Protokol-version"
+          "version": "Protokol-version",
+          "model": "Model (valgfri)"
         },
         "data_description": {
           "device_id": "Kloranlæggets Tuya enheds-id.",
           "local_key": "Enhedens lokale nøgle — den roterer når enheden re-parres i appen.",
           "host": "Enhedens LAN-IP (DHCP-reservation anbefales).",
-          "version": "Tuya-protokolversion — lad den stå på auto medmindre du kender den."
+          "version": "Tuya-protokolversion — lad den stå på auto medmindre du kender den.",
+          "model": "Vises på enhedssiden — vælg din model eller skriv din egen."
         }
       },
       "pump": {
@@ -96,10 +100,12 @@
           "local_key": "Local key",
           "host": "IP-adresse",
           "version": "Protokol-version",
-          "pump_on_dp": "Tænd/sluk datapunkt"
+          "pump_on_dp": "Tænd/sluk datapunkt",
+          "model": "Model (valgfri)"
         },
         "data_description": {
-          "pump_on_dp": "Datapunktet der tænder/slukker pumpen (1 på de fleste enheder)."
+          "pump_on_dp": "Datapunktet der tænder/slukker pumpen (1 på de fleste enheder).",
+          "model": "Vises på enhedssiden — vælg din model eller skriv din egen."
         }
       },
       "pump_entity": {

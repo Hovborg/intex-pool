@@ -37,6 +37,7 @@ from . import schedule as schedule_mod
 from . import tuya
 from .const import (
     CONF_CLOUD_INTERVAL,
+    CONF_MODEL,
     CONF_LOCAL_INTERVAL,
     CONF_PUMP_MODE,
     DEFAULT_CLOUD_INTERVAL,
@@ -248,8 +249,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) ->
         raise ConfigEntryNotReady("No Intex Pool device could be reached")
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    _apply_device_models(hass, entry)
     async_setup_issue_listeners(hass, entry)
     return True
+
+
+def _apply_device_models(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> None:
+    """Show the user's chosen model on the device page.
+
+    Runs after the platforms have registered their devices, so the override
+    wins over the generic DeviceInfo fallback on every (re)load.
+    """
+    registry = dr.async_get(hass)
+    for key in (DEVICE_SALT, DEVICE_SENSOR, DEVICE_PUMP):
+        cfg = entry.data.get(key) or {}
+        model, dev_id = cfg.get(CONF_MODEL), cfg.get("device_id")
+        if not model or not dev_id:
+            continue
+        device = registry.async_get_device(identifiers={(DOMAIN, dev_id)})
+        if device is not None and device.model != model:
+            registry.async_update_device(device.id, model=model)
 
 
 def _entry_for_call(

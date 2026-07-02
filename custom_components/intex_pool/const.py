@@ -71,6 +71,7 @@ CONF_PUMP_SWITCH = "pump_switch"      # entity_id (entity mode)
 CONF_PUMP_POWER = "pump_power"        # entity_id or DP (optional)
 CONF_PUMP_ENERGY = "pump_energy"
 CONF_PUMP_ON_DP = "pump_on_dp"        # DP string for tuya pump on/off
+CONF_MODEL = "model"                  # user-chosen device model (device page)
 CONF_LOCAL_INTERVAL = "local_interval"
 CONF_CLOUD_INTERVAL = "cloud_interval"
 CONF_POOL_VOLUME = "pool_volume"      # in CONF_VOLUME_UNIT; 0/unset disables the advisor
@@ -123,6 +124,13 @@ STALE_AFTER_HOURS = 3
 VERSION_CANDIDATES = [3.4, 3.5, 3.3, 3.1]
 
 MANUFACTURER = "Intex / AGP"
+# Suggested models per device for the config flow (free text is allowed too) —
+# purely cosmetic: shown on the device page instead of the generic fallback.
+MODEL_SUGGESTIONS: dict[str, list[str]] = {
+    DEVICE_SALT: ["QS200", "QS500", "QS1200", "QS1600 Plus", "ECO5220G", "ECO6220G"],
+    DEVICE_PUMP: ["SX925", "SX1500", "SX2100", "SX2800", "SX3000"],
+    DEVICE_SENSOR: ["WA510 Water Analyzer"],
+}
 DEVICE_META: dict[str, dict[str, str]] = {
     DEVICE_SALT: {"name": "Saltwater system", "model": "QS-series chlorinator"},
     DEVICE_SENSOR: {"name": "Water sensor", "model": "Water analyzer (WA510)"},

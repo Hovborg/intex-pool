@@ -61,10 +61,12 @@
           "region": "Region",
           "access_id": "Access ID",
           "access_secret": "Access secret",
-          "device_id": "Device ID"
+          "device_id": "Device ID",
+          "model": "Model (optional)"
         },
         "data_description": {
-          "device_id": "The analyzer's Tuya device id (Devices list on iot.tuya.com)."
+          "device_id": "The analyzer's Tuya device id (Devices list on iot.tuya.com).",
+          "model": "Shown on the device page — pick your model or type your own."
         }
       },
       "salt": {
@@ -73,13 +75,15 @@
           "device_id": "Device ID",
           "local_key": "Local key",
           "host": "IP address",
-          "version": "Protocol version"
+          "version": "Protocol version",
+          "model": "Model (optional)"
         },
         "data_description": {
           "device_id": "The chlorinator's Tuya device id.",
           "local_key": "The device's local key — it rotates when the device is re-paired in the app.",
           "host": "The device's LAN IP (a DHCP reservation is recommended).",
-          "version": "Tuya protocol version — leave on auto unless you know it."
+          "version": "Tuya protocol version — leave on auto unless you know it.",
+          "model": "Shown on the device page — pick your model or type your own."
         }
       },
       "pump": {
@@ -96,10 +100,12 @@
           "local_key": "Local key",
           "host": "IP address",
           "version": "Protocol version",
-          "pump_on_dp": "On/off data point"
+          "pump_on_dp": "On/off data point",
+          "model": "Model (optional)"
         },
         "data_description": {
-          "pump_on_dp": "The data point that switches the pump on/off (1 on most devices)."
+          "pump_on_dp": "The data point that switches the pump on/off (1 on most devices).",
+          "model": "Shown on the device page — pick your model or type your own."
         }
       },
       "pump_entity": {

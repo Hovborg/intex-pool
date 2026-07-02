@@ -35,6 +35,7 @@ from .const import (
     CONF_HOST,
     CONF_LOCAL_INTERVAL,
     CONF_LOCAL_KEY,
+    CONF_MODEL,
     CONF_POOL_VOLUME,
     CONF_PUMP_ENERGY,
     CONF_PUMP_MODE,
@@ -55,6 +56,7 @@ from .const import (
     DEVICE_SALT,
     DEVICE_SENSOR,
     DOMAIN,
+    MODEL_SUGGESTIONS,
     PUMP_MODE_ENTITY,
     PUMP_MODE_TUYA,
     SALT_MAX_PPM,
@@ -163,6 +165,17 @@ STEP_PUMP_ENTITY = vol.Schema(
         ),
     }
 )
+
+
+def _model_selector(device: str) -> selector.SelectSelector:
+    """Model picker (suggestions + free text) — cosmetic, for the device page."""
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=MODEL_SUGGESTIONS.get(device, []),
+            mode=selector.SelectSelectorMode.DROPDOWN,
+            custom_value=True,
+        )
+    )
 
 
 def _version_value(raw: str | None) -> float | None:
@@ -593,9 +606,10 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_ACCESS_ID: user_input[CONF_ACCESS_ID],
                     CONF_ACCESS_SECRET: user_input[CONF_ACCESS_SECRET],
                     CONF_DEVICE_ID: user_input[CONF_DEVICE_ID],
+                    **({CONF_MODEL: user_input[CONF_MODEL]} if user_input.get(CONF_MODEL) else {}),
                 }
                 return await self._async_next()
-        schema = STEP_SENSOR
+        schema = STEP_SENSOR.extend({vol.Optional(CONF_MODEL): _model_selector(DEVICE_SENSOR)})
         if self._reconfigure_entry is not None and (
             cur := self._reconfigure_entry.data.get(DEVICE_SENSOR)
         ):
@@ -623,9 +637,10 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_LOCAL_KEY: user_input[CONF_LOCAL_KEY],
                     CONF_HOST: user_input[CONF_HOST],
                     CONF_VERSION: _version_value(user_input.get(CONF_VERSION)),
+                    **({CONF_MODEL: user_input[CONF_MODEL]} if user_input.get(CONF_MODEL) else {}),
                 }
                 return await self._async_next()
-        schema = _local_schema()
+        schema = _local_schema().extend({vol.Optional(CONF_MODEL): _model_selector(DEVICE_SALT)})
         if self._reconfigure_entry is not None and (
             cur := self._reconfigure_entry.data.get(DEVICE_SALT)
         ):
@@ -663,9 +678,12 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_HOST: user_input[CONF_HOST],
                     CONF_VERSION: _version_value(user_input.get(CONF_VERSION)),
                     CONF_PUMP_ON_DP: user_input.get(CONF_PUMP_ON_DP, DEFAULT_PUMP_ON_DP),
+                    **({CONF_MODEL: user_input[CONF_MODEL]} if user_input.get(CONF_MODEL) else {}),
                 }
                 return await self._async_next()
-        schema = _local_schema(include_on_dp=True)
+        schema = _local_schema(include_on_dp=True).extend(
+            {vol.Optional(CONF_MODEL): _model_selector(DEVICE_PUMP)}
+        )
         if self._reconfigure_entry is not None:
             cur = self._reconfigure_entry.data.get(DEVICE_PUMP) or {}
             if cur.get(CONF_PUMP_MODE) == PUMP_MODE_TUYA:

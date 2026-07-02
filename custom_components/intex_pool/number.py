@@ -25,6 +25,7 @@ from .const import (
     CONF_TOTAL_ALKALINITY,
     CONF_VOLUME_UNIT,
     DEVICE_META,
+    DEVICE_PUMP,
     DEVICE_SALT,
     DEVICE_SENSOR,
     DOMAIN,
@@ -65,6 +66,12 @@ async def async_setup_entry(
     if data.schedule is not None and salt_id is not None:
         entities.extend(
             IntexScheduleDuration(data.schedule, salt_id, i)
+            for i in range(schedule.SLOT_COUNT)
+        )
+    pump_id = device_id_for(entry, DEVICE_PUMP)
+    if data.pump_schedule is not None and pump_id is not None:
+        entities.extend(
+            IntexScheduleDuration(data.pump_schedule, pump_id, i, device=DEVICE_PUMP)
             for i in range(schedule.SLOT_COUNT)
         )
 
@@ -280,7 +287,7 @@ class IntexScheduleDuration(CoordinatorEntity, NumberEntity):
     _attr_native_unit_of_measurement = UnitOfTime.HOURS
     _attr_mode = NumberMode.BOX
 
-    def __init__(self, coordinator, device_id: str, index: int) -> None:
+    def __init__(self, coordinator, device_id: str, index: int, device: str = DEVICE_SALT) -> None:
         super().__init__(coordinator)
         self._index = index
         # Slot 0 is the Boost cycle: only a duration, labelled "Boost duration".
@@ -290,7 +297,7 @@ class IntexScheduleDuration(CoordinatorEntity, NumberEntity):
             self._attr_translation_key = "schedule_duration"
             self._attr_translation_placeholders = {"index": str(index + 1)}
         self._attr_unique_id = f"{device_id}_schedule_{index + 1}_duration"
-        meta = DEVICE_META[DEVICE_SALT]
+        meta = DEVICE_META[device]
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device_id)},
             name=meta["name"],

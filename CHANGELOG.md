@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.19.0] - 2026-07-02
+
+Full pump-timer editing + choose your device models.
+
+### Added
+- **Editable pump schedule**: the Tuya pump's internal timer program now gets
+  the same editors as the chlorinator — one on/off switch per slot, start
+  times (slots 2-7) and durations, all writing ``skdl_filter`` through the
+  cloud. The write path was live-verified on an SX2100 (round-trip, no-op
+  write, field change + readback, restore) before shipping.
+- **Model selection**: the sensor/salt/pump setup and reconfigure steps offer
+  an optional model picker (suggestions + free text). The chosen model is
+  shown on the device page instead of the generic fallback.
+
 ## [0.18.0] - 2026-07-02
 
 The Tuya sand-filter pump is now a first-class device.
