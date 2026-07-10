@@ -54,6 +54,7 @@ from .const import (
     VERSION_CANDIDATES,
 )
 from .coordinator import (
+    CloudClientProvider,
     clear_auth_failures,
     PumpCoordinator,
     SaltCoordinator,
@@ -177,6 +178,7 @@ async def _build_data(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> Intex
         data.salt = SaltCoordinator(hass, entry, client, "salt", local_interval, auto)
 
     cloud = None
+    cloud_provider = None
     if (sensor := entry.data.get(DEVICE_SENSOR)):
         # The CloudClient constructor performs a blocking token fetch: a raw
         # network exception here must become not-ready (retry with backoff),
@@ -196,37 +198,30 @@ async def _build_data(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> Intex
         )
     elif cloud_cfg := entry.data.get(CONF_CLOUD):
         # Pump-only and salt-only cloud discovery still needs the shared Tuya
-        # client for their cloud-only schedule blobs.
-        try:
-            cloud = await hass.async_add_executor_job(
-                tuya.CloudClient,
-                cloud_cfg["region"],
-                cloud_cfg["access_id"],
-                cloud_cfg["access_secret"],
-            )
-        except tuya.TuyaAuthError as err:
-            # Schedules are optional: keep local pump/salt controls available
-            # and ask for new cloud auth without failing the whole entry.
-            _LOGGER.warning("Tuya cloud schedules need reauthentication: %s", err)
-            entry.async_start_reauth(hass)
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.warning(
-                "Tuya cloud schedules unavailable; local controls remain active: %s: %s",
-                type(err).__name__,
-                err,
-            )
+        # client for their cloud-only schedule blobs. Keep a lazy shared
+        # provider even when startup is offline, so schedule entities exist and
+        # normal coordinator polling recovers them without an entry reload.
+        cloud_provider = CloudClientProvider(hass, entry, cloud_cfg)
 
     pump = entry.data.get(DEVICE_PUMP)
     if pump and pump.get(CONF_PUMP_MODE) == PUMP_MODE_TUYA:
         client, auto = _local_client(pump)
         data.pump = PumpCoordinator(hass, entry, client, "pump", local_interval, auto)
 
+    schedule_cloud_available = cloud is not None or cloud_provider is not None
+
     # Saltwater schedule lives only in the cloud (skdl_salt). Needs the cloud
     # client (from the water sensor's creds) + a saltwater device.
     salt_cfg = entry.data.get(DEVICE_SALT)
-    if data.salt is not None and cloud is not None and salt_cfg:
+    if data.salt is not None and schedule_cloud_available and salt_cfg:
         data.schedule = ScheduleCoordinator(
-            hass, entry, cloud, salt_cfg["device_id"], DEFAULT_SCHEDULE_INTERVAL
+            hass,
+            entry,
+            cloud,
+            salt_cfg["device_id"],
+            DEFAULT_SCHEDULE_INTERVAL,
+            provider=cloud_provider,
+            optional_cloud=cloud_provider is not None,
         )
 
     # The analyzer's own measurement-window schedule (skdl_orpph) — same
@@ -239,10 +234,12 @@ async def _build_data(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> Intex
 
     # The Tuya pump's internal timer program (skdl_filter) — same blob format
     # (live-verified via the shadow API 2026-07-02), exposed read-only for now.
-    if data.pump is not None and cloud is not None and pump:
+    if data.pump is not None and schedule_cloud_available and pump:
         data.pump_schedule = ScheduleCoordinator(
             hass, entry, cloud, pump["device_id"], DEFAULT_SCHEDULE_INTERVAL,
             code="skdl_filter",
+            provider=cloud_provider,
+            optional_cloud=cloud_provider is not None,
         )
 
     return data

@@ -147,4 +147,126 @@ async def test_pump_only_stays_loaded_when_standalone_cloud_is_down(hass, mock_t
 
     assert entry.state is ConfigEntryState.LOADED
     assert entry.runtime_data.pump is not None
-    assert entry.runtime_data.pump_schedule is None
+    assert entry.runtime_data.pump_schedule is not None
+    assert entry.runtime_data.pump_schedule.last_update_success is False
+    schedule_state = hass.states.get("sensor.sand_filter_pump_schedules")
+    assert schedule_state is not None
+    assert schedule_state.state == "unavailable"
+
+
+async def test_standalone_cloud_schedule_recovers_without_entry_reload(
+    hass, mock_tinytuya
+):
+    """A later coordinator poll must recover schedules after startup outage."""
+    working_cloud = mock_tinytuya.tinytuya.Cloud
+
+    class FlakyCloud:
+        attempts = 0
+
+        def __new__(cls, *args, **kwargs):
+            cls.attempts += 1
+            if cls.attempts == 1:
+                raise RuntimeError("Tuya cloud temporarily offline")
+            return working_cloud(*args, **kwargs)
+
+    mock_tinytuya.tinytuya.Cloud = FlakyCloud
+    entry = await _setup(
+        hass,
+        {
+            "cloud": {"region": "eu", "access_id": "a", "access_secret": "s"},
+            "pump": {
+                "pump_mode": "tuya",
+                "device_id": "pumpdev",
+                "local_key": "k",
+                "host": "1.2.3.5",
+                "version": 3.5,
+                "pump_on_dp": "104",
+            },
+        },
+    )
+
+    coordinator = entry.runtime_data.pump_schedule
+    assert coordinator is not None
+    assert coordinator.last_update_success is False
+    await coordinator.async_refresh()
+    assert coordinator.last_update_success is True
+    assert FlakyCloud.attempts == 2
+    assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_standalone_schedules_share_one_recovered_cloud_client(
+    hass, mock_tinytuya
+):
+    """Salt and pump schedules must not perform duplicate token fetches."""
+    working_cloud = mock_tinytuya.tinytuya.Cloud
+
+    class CountingCloud:
+        attempts = 0
+
+        def __new__(cls, *args, **kwargs):
+            cls.attempts += 1
+            return working_cloud(*args, **kwargs)
+
+    mock_tinytuya.tinytuya.Cloud = CountingCloud
+    entry = await _setup(
+        hass,
+        {
+            "cloud": {"region": "eu", "access_id": "a", "access_secret": "s"},
+            "salt": SALT,
+            "pump": {
+                "pump_mode": "tuya",
+                "device_id": "pumpdev",
+                "local_key": "k",
+                "host": "1.2.3.5",
+                "version": 3.5,
+                "pump_on_dp": "104",
+            },
+        },
+    )
+
+    assert entry.runtime_data.schedule is not None
+    assert entry.runtime_data.pump_schedule is not None
+    assert entry.runtime_data.schedule.last_update_success is True
+    assert entry.runtime_data.pump_schedule.last_update_success is True
+    assert CountingCloud.attempts == 1
+
+
+async def test_standalone_cloud_auth_starts_reauth_but_keeps_local_pump(
+    hass, mock_tinytuya, monkeypatch
+):
+    """Bad optional cloud auth cannot fail the local pump config entry."""
+    reauth_entries: list[str] = []
+
+    class RejectedCloud:
+        token = None
+        error = {"code": 1004, "msg": "bad sign"}
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+    monkeypatch.setattr(
+        MockConfigEntry,
+        "async_start_reauth",
+        lambda self, _hass: reauth_entries.append(self.entry_id),
+    )
+    mock_tinytuya.tinytuya.Cloud = RejectedCloud
+    entry = await _setup(
+        hass,
+        {
+            "cloud": {"region": "eu", "access_id": "a", "access_secret": "bad"},
+            "pump": {
+                "pump_mode": "tuya",
+                "device_id": "pumpdev",
+                "local_key": "k",
+                "host": "1.2.3.5",
+                "version": 3.5,
+                "pump_on_dp": "104",
+            },
+        },
+    )
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.pump is not None
+    assert entry.runtime_data.pump_schedule is not None
+    assert entry.runtime_data.pump_schedule.last_update_success is False
+    assert reauth_entries == [entry.entry_id]

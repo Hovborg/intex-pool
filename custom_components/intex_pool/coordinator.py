@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import timedelta
-from typing import Any
+from typing import Any, Mapping
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -68,6 +68,58 @@ def clear_auth_failures(hass: HomeAssistant, entry_id: str) -> None:
     store: dict[str, int] = hass.data.setdefault(_AUTH_STORE_KEY, {})
     for key in [k for k in store if k.startswith(f"{entry_id}:")]:
         store.pop(key, None)
+
+
+class CloudClientProvider:
+    """Lazily construct and share an optional standalone cloud client.
+
+    The sensor's cloud connection is required during config-entry setup. Pump-
+    and salt-only cloud credentials are different: they provide optional
+    schedules and must recover through normal coordinator polling without
+    reloading otherwise healthy LAN coordinators.
+    """
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        config: Mapping[str, str],
+    ) -> None:
+        self._hass = hass
+        self._entry = entry
+        self._region = config["region"]
+        self._access_id = config["access_id"]
+        self._access_secret = config["access_secret"]
+        self._client: CloudClient | None = None
+        self._lock = asyncio.Lock()
+        self._reauth_started = False
+
+    async def async_get(self) -> CloudClient:
+        """Return the cached client, retrying construction when unavailable."""
+        if self._client is not None:
+            return self._client
+        async with self._lock:
+            if self._client is not None:
+                return self._client
+            try:
+                client = await self._hass.async_add_executor_job(
+                    CloudClient,
+                    self._region,
+                    self._access_id,
+                    self._access_secret,
+                )
+            except TuyaAuthError:
+                self.mark_auth_failed()
+                raise
+            self._client = client
+            return client
+
+    def mark_auth_failed(self) -> None:
+        """Drop a rejected client and start at most one reauth flow."""
+        self._client = None
+        if not self._reauth_started:
+            self._reauth_started = True
+            self._entry.async_start_reauth(self._hass)
 
 
 class _LocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -229,16 +281,23 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self,
         hass: HomeAssistant,
         entry: ConfigEntry,
-        client: CloudClient,
+        client: CloudClient | None,
         device_id: str,
         interval: int,
         code: str = "skdl_salt",
+        *,
+        provider: CloudClientProvider | None = None,
+        optional_cloud: bool = False,
     ) -> None:
         super().__init__(
             hass, _LOGGER, name=f"Intex schedule {code}", config_entry=entry,
             update_interval=timedelta(seconds=interval),
         )
         self._client = client
+        self._provider = provider
+        self._optional_cloud = optional_cloud
+        if client is None and provider is None:
+            raise ValueError("ScheduleCoordinator needs a client or provider")
         self.device_id = device_id
         self.code = code
         self._write_lock = asyncio.Lock()
@@ -246,10 +305,15 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
+            client = await self._async_client()
             props = await self.hass.async_add_executor_job(
-                self._client.properties, self.device_id
+                client.properties, self.device_id
             )
         except TuyaAuthError as err:
+            if self._optional_cloud:
+                if self._provider is not None:
+                    self._provider.mark_auth_failed()
+                raise UpdateFailed(str(err)) from err
             # Tolerate transient auth-coded cloud replies (see SensorCoordinator).
             if self._auth_failures.bump() < AUTH_FAILURES_BEFORE_REAUTH:
                 raise UpdateFailed(str(err)) from err
@@ -262,6 +326,14 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         raw = props.get(self.code)
         return {"raw": raw, "slots": schedule.decode_schedules(raw)}
 
+    async def _async_client(self) -> CloudClient:
+        """Get the eager client or a lazily recovered standalone client."""
+        if self._provider is not None:
+            self._client = await self._provider.async_get()
+        if self._client is None:  # constructor invariant; keeps type narrowing explicit
+            raise TuyaError("cloud client unavailable")
+        return self._client
+
     async def async_write_slots(self, slots: list[dict[str, Any]]) -> None:
         """Encode + write the schedule slots back, then refresh.
 
@@ -272,8 +344,9 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         async with self._write_lock:
             b64 = schedule.encode_schedules(slots)
+            client = await self._async_client()
             await self.hass.async_add_executor_job(
-                self._client.issue, self.device_id, self.code, b64
+                client.issue, self.device_id, self.code, b64
             )
             self.async_set_updated_data({"raw": b64, "slots": slots})
             await asyncio.sleep(5)
