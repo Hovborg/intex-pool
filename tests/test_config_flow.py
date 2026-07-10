@@ -1,4 +1,5 @@
 """Config + options flow tests (cloud auto-discovery + manual fallback)."""
+import pytest
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -134,6 +135,49 @@ async def test_cloud_discovery_bad_creds(hass, monkeypatch):
     assert r["errors"] == {"base": "cannot_connect"}
 
 
+async def test_validate_local_retries_transport_but_not_auth(hass, monkeypatch):
+    """Contention is retried; a rejected key fails immediately."""
+
+    class TransientClient:
+        calls = 0
+
+        def __init__(self, *args):
+            pass
+
+        def status(self):
+            self.calls += 1
+            if self.calls < 3:
+                raise TuyaError("device busy")
+            return {"104": True}
+
+    sleeps: list[int] = []
+
+    async def no_wait(seconds):
+        sleeps.append(seconds)
+
+    client = TransientClient()
+    monkeypatch.setattr(config_flow.tuya, "LocalClient", lambda *args: client)
+    monkeypatch.setattr(config_flow.asyncio, "sleep", no_wait)
+    await config_flow.validate_local(hass, SALT_INPUT)
+    assert client.calls == 3
+    assert sleeps == [2, 2]
+
+    class RejectedClient:
+        calls = 0
+
+        def status(self):
+            self.calls += 1
+            raise config_flow.tuya.TuyaAuthError("bad key")
+
+    rejected = RejectedClient()
+    sleeps.clear()
+    monkeypatch.setattr(config_flow.tuya, "LocalClient", lambda *args: rejected)
+    with pytest.raises(config_flow.tuya.TuyaAuthError):
+        await config_flow.validate_local(hass, SALT_INPUT)
+    assert rejected.calls == 1
+    assert sleeps == []
+
+
 # --- manual fallback ---
 
 async def test_manual_requires_at_least_one_device(hass):
@@ -183,6 +227,56 @@ async def test_manual_cannot_connect(hass, monkeypatch):
     r = await hass.config_entries.flow.async_configure(r["flow_id"], SENSOR_INPUT)
     assert r["type"] == FlowResultType.FORM
     assert r["errors"] == {"base": "cannot_connect"}
+
+
+async def test_manual_sensor_rejected_credentials_show_invalid_auth(hass, monkeypatch):
+    async def rejected(hass_, ui):
+        raise config_flow.tuya.TuyaAuthError("bad cloud secret")
+
+    monkeypatch.setattr(config_flow, "validate_sensor", rejected)
+    r = await _to_manual(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"has_sensor": True, "has_salt": False, "has_pump": False}
+    )
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], SENSOR_INPUT)
+
+    assert r["step_id"] == "sensor"
+    assert r["errors"] == {"base": "invalid_auth"}
+
+
+async def test_manual_tuya_pump_success_keeps_control_metadata(hass, monkeypatch):
+    async def ok(hass_, ui):
+        return None
+
+    monkeypatch.setattr(config_flow, "validate_local", ok)
+    r = await _to_manual(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"has_sensor": False, "has_salt": False, "has_pump": True}
+    )
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"pump_mode": "tuya"}
+    )
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {
+            **SALT_INPUT,
+            "device_id": "pumpdev",
+            "host": "1.2.3.5",
+            "pump_on_dp": "104",
+            "model": "SX2100",
+        },
+    )
+
+    assert r["type"] == FlowResultType.CREATE_ENTRY
+    assert r["data"]["pump"] == {
+        "pump_mode": "tuya",
+        "device_id": "pumpdev",
+        "local_key": "k",
+        "host": "1.2.3.5",
+        "version": 3.5,
+        "pump_on_dp": "104",
+        "model": "SX2100",
+    }
 
 
 async def test_duplicate_aborts(hass, mock_tinytuya):
@@ -277,6 +371,26 @@ async def test_reauth_invalid_auth_shows_error(hass, monkeypatch):
     r = await hass.config_entries.flow.async_configure(r["flow_id"], {"local_key": "WRONG"})
     assert r["type"] == FlowResultType.FORM
     assert r["errors"] == {"base": "invalid_auth"}
+
+
+async def test_reauth_transport_failure_shows_cannot_connect(hass, monkeypatch):
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"salt": SALT_INPUT}, unique_id="saltdev", version=2
+    )
+    entry.add_to_hass(hass)
+
+    async def offline(hass_, ui):
+        raise TuyaError("device offline")
+
+    monkeypatch.setattr(config_flow, "validate_local", offline)
+    r = await entry.start_reauth_flow(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"local_key": "NEWKEY"}
+    )
+
+    assert r["step_id"] == "reauth_confirm"
+    assert r["errors"] == {"base": "cannot_connect"}
+    assert entry.data["salt"]["local_key"] == "k"
 
 
 async def test_reauth_salt_and_pump_tuya_use_separate_keys(hass, monkeypatch):
@@ -492,6 +606,51 @@ async def test_reconfigure_empty_discovery_reprompts_creds(hass, mock_tinytuya, 
     monkeypatch.setattr(config_flow, "discover", empty_discover)
     r = await entry.start_reconfigure_flow(hass)
     assert r["step_id"] == "reconfigure_user"
+    assert r["errors"] == {"base": "no_devices"}
+
+
+async def test_reconfigure_stored_cloud_failure_explains_cannot_connect(
+    hass, monkeypatch
+):
+    """A failed stored-credential rediscovery must not return a blank form."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"sensor": SENSOR_INPUT}, unique_id="sdev", version=2
+    )
+    entry.add_to_hass(hass)
+
+    async def offline(hass_, creds):
+        raise TuyaError("cloud offline")
+
+    monkeypatch.setattr(config_flow, "discover", offline)
+    r = await entry.start_reconfigure_flow(hass)
+
+    assert r["step_id"] == "reconfigure_user"
+    assert r["errors"] == {"base": "cannot_connect"}
+
+
+async def test_reconfigure_user_validates_credentials_and_empty_projects(
+    hass, monkeypatch
+):
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"salt": SALT_INPUT}, unique_id="saltdev", version=2
+    )
+    entry.add_to_hass(hass)
+    r = await entry.start_reconfigure_flow(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {"region": "eu", "access_id": "", "access_secret": "", "manual": False},
+    )
+    assert r["errors"] == {"base": "need_creds"}
+
+    async def empty(hass_, creds):
+        return [], {}
+
+    monkeypatch.setattr(config_flow, "discover", empty)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {"region": "eu", "access_id": "a", "access_secret": "s", "manual": False},
+    )
+    assert r["errors"] == {"base": "no_devices"}
 
 
 async def test_options_flow(hass, mock_tinytuya):
@@ -506,6 +665,41 @@ async def test_options_flow(hass, mock_tinytuya):
     )
     assert r["type"] == FlowResultType.CREATE_ENTRY
     assert entry.options["local_interval"] == 30
+
+
+async def test_options_flow_updates_linked_pump_entities(hass, mock_tinytuya):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "pump": {
+                "pump_mode": "entity",
+                "pump_switch": "switch.old_pump",
+                "pump_power": "sensor.old_power",
+                "pump_energy": "sensor.old_energy",
+            }
+        },
+        unique_id="linked-pump",
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(
+        r["flow_id"],
+        {
+            "local_interval": 30,
+            "cloud_interval": 300,
+            "pump_switch": "switch.new_pump",
+            "pump_power": "sensor.new_power",
+        },
+    )
+
+    assert r["type"] == FlowResultType.CREATE_ENTRY
+    assert entry.data["pump"] == {
+        "pump_mode": "entity",
+        "pump_switch": "switch.new_pump",
+        "pump_power": "sensor.new_power",
+    }
 
 
 # --- reconfigure: stale-IP healing + manual escape (v0.16.0) ---

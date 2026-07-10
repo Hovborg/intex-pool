@@ -70,7 +70,8 @@ per-slot toggle/duration/start-time entities (slot 0 = **Boost**) · **Salt to a
 (enable by setting your pool volume under ⋮ → Configure).
 
 **Pump:** on/off switch (Tuya mode) or your own linked switch + **Pump auto mode** and a
-**Pump switch** selector (entity mode), connectivity (Tuya mode).
+**Pump switch** selector (entity mode), connectivity and **Schedules** sensor + per-slot
+editors (Tuya mode).
 </details>
 
 > 🧂 **Salt dose advisor.** Set your pool volume (the **Pool volume** entity on the device
@@ -98,7 +99,8 @@ per-slot toggle/duration/start-time entities (slot 0 = **Boost**) · **Salt to a
 
 ## 📸 The card adapts to what you have
 
-It shows only the sections for the equipment you own — chemistry-only, full, or pump-only:
+It shows only the sections for the equipment you own — chemistry-only, full, or pump-only.
+Saltwater and pump schedules are detected and labelled independently:
 
 <div align="center">
 <img src="docs/images/card-variants.png" width="820" alt="The card adapts: sensor only, all three, pump only" />
@@ -159,8 +161,10 @@ data:
 
 > Schedules are cloud-only. Cloud discovery keeps the credentials for a pump-only or
 > saltwater-only setup; manual local setup still controls the device but has no schedules.
-> Use **Reconfigure** and enter Tuya cloud credentials to enable them. The byte format
-> round-trips exactly; the exact units of duration/days are best-effort.
+> Use **Reconfigure** and enter Tuya cloud credentials to enable them. If Tuya is offline
+> while Home Assistant starts, local controls stay available and the schedule entities
+> recover automatically on a later poll. The byte format round-trips exactly; the exact
+> units of duration/days are best-effort.
 
 ## 🚀 Installation
 
@@ -249,7 +253,8 @@ Built and **live-verified** against the **AGP / Intex QS-series saltwater chlori
 same way, but their data-point numbering may differ — some entities could be missing or
 wrong. Have a different model? [Open an issue](https://github.com/Hovborg/intex-pool/issues)
 with your device's data points and it can be added. The sand-filter pump works with **any**
-brand via the “existing switch” link.
+brand via the “existing switch” link. See the evidence levels and known caveats in the
+[compatibility matrix](docs/compatibility.md).
 
 ## 🛠️ Development
 
@@ -259,7 +264,10 @@ pip install pytest-homeassistant-custom-component tinytuya
 pytest -q
 
 # Dashboard card (Lit + esbuild)
-cd card && npm install && npm run build   # -> custom_components/intex_pool/frontend/intex-pool-card.js
+cd card && npm ci && npm test && npm run build
+
+# Release metadata + generated bundle
+python scripts/verify_release.py
 ```
 
 ## 📄 License

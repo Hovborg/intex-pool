@@ -257,6 +257,7 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         self._devices: list[dict] = []
         self._scan: dict = {}
         self._reconfigure_entry = None
+        self._reconfigure_error: str | None = None
 
     # ---- entry point ----
     async def async_step_user(
@@ -364,10 +365,12 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 self._devices, self._scan = await discover(self.hass, self._creds)
             except Exception:  # noqa: BLE001
+                self._reconfigure_error = "cannot_connect"
                 return await self.async_step_reconfigure_user()
             if not self._devices:
                 # Stored creds reached the cloud but found nothing — re-prompt
                 # (lets the user fix the region/creds) instead of an empty picker.
+                self._reconfigure_error = "no_devices"
                 return await self.async_step_reconfigure_user()
             return await self.async_step_discover()
         return await self.async_step_reconfigure_user()
@@ -376,6 +379,9 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
+        if user_input is None and self._reconfigure_error is not None:
+            errors["base"] = self._reconfigure_error
+            self._reconfigure_error = None
         if user_input is not None:
             if user_input.get(CONF_MANUAL):
                 return await self.async_step_manual()
@@ -806,10 +812,22 @@ class IntexPoolOptionsFlow(OptionsFlowWithReload):
             sw = selector.EntitySelector(selector.EntitySelectorConfig(domain="switch"))
             sen = selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor"))
             fields[vol.Required(CONF_PUMP_SWITCH, default=pump.get(CONF_PUMP_SWITCH))] = sw
-            power_key = (vol.Optional(CONF_PUMP_POWER, default=pump[CONF_PUMP_POWER])
-                         if pump.get(CONF_PUMP_POWER) else vol.Optional(CONF_PUMP_POWER))
-            energy_key = (vol.Optional(CONF_PUMP_ENERGY, default=pump[CONF_PUMP_ENERGY])
-                          if pump.get(CONF_PUMP_ENERGY) else vol.Optional(CONF_PUMP_ENERGY))
+            # Suggested values prefill the editor without becoming schema
+            # defaults. A default is reinserted when the user clears an
+            # optional selector, making an old power/energy entity impossible
+            # to remove.
+            power_key = vol.Optional(
+                CONF_PUMP_POWER,
+                description={"suggested_value": pump[CONF_PUMP_POWER]}
+                if pump.get(CONF_PUMP_POWER)
+                else None,
+            )
+            energy_key = vol.Optional(
+                CONF_PUMP_ENERGY,
+                description={"suggested_value": pump[CONF_PUMP_ENERGY]}
+                if pump.get(CONF_PUMP_ENERGY)
+                else None,
+            )
             fields[power_key] = sen
             fields[energy_key] = sen
         return self.async_show_form(

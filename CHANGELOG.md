@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.21.0] - 2026-07-10
+
+### Added
+- Pump schedules are now auto-detected and displayed separately from saltwater
+  schedules in the bundled dashboard card.
+- Home Assistant 2026.6+ can suggest the Intex Pool card when an Intex entity is
+  selected in the card picker.
+- Added a release-consistency verifier for manifest, Python, npm, lockfile and
+  generated-card versions, plus Node tests for card entity detection.
+- Added an evidence-level compatibility matrix for verified and inferred device
+  behaviour.
+
+### Changed
+- Updated TinyTuya to 1.20.0, esbuild to 0.28.1, supported GitHub Actions majors,
+  and the card build job to Node.js 24.
+- Push CI now runs for branches rather than release tags, avoiding duplicate
+  main-and-tag workflow runs.
+
+### Fixed
+- Optional standalone Tuya schedule clients now retry through coordinator polls.
+  A startup cloud outage leaves schedule entities unavailable temporarily while
+  local pump/salt controls stay loaded; schedules recover without an entry reload.
+- Stored-credential reconfigure failures now show `cannot_connect` or `no_devices`
+  instead of returning a blank credential form.
+- Clearing a linked pump's optional power or energy sensor now removes it instead
+  of the schema silently restoring the old default.
+- esbuild 0.28 output lowers template literals so generated Lit whitespace remains
+  escaped and the committed bundle passes `git diff --check`.
+
+### Security
+- Removed the moderate development-server vulnerability in esbuild 0.24.2; npm
+  audit reports no known vulnerabilities for the card build dependencies.
+
 ## [0.20.1] - 2026-07-10
 
 ### Fixed
