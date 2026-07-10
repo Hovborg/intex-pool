@@ -13,6 +13,10 @@ await build({
   minify: true,
   format: "esm",
   target: "es2021",
+  // esbuild 0.28 preserves literal newlines/tabs inside Lit's whitespace
+  // template strings. Lowering template literals keeps those bytes escaped,
+  // so the generated bundle remains clean under `git diff --check`.
+  supported: { "template-literal": false },
   define: { __CARD_VERSION__: JSON.stringify(pkg.version) },
   banner: { js: `// intex-pool-card v${pkg.version}` },
   sourcemap: "linked",

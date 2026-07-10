@@ -4,7 +4,8 @@
   "version": "0.21.0",
   "type": "module",
   "scripts": {
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "lit": "^3.2.1"

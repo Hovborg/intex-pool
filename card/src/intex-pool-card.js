@@ -9,6 +9,11 @@
  * Ships with and is served by the intex_pool integration.
  */
 import { LitElement, html, css, nothing } from "lit";
+import {
+  detectEntities,
+  entitySuggestion,
+  scheduleGroups,
+} from "./entity-detection.js";
 
 // Injected at build time from package.json via esbuild --define (see build.mjs).
 // Falls back to "dev" for an un-defined source build.
@@ -51,80 +56,6 @@ const VARIANTS = {
     "--success-color": "#56d99a", "--warning-color": "#f3b94f", "--error-color": "#f0736a", "--text-primary-color": "#0a0d13",
   },
 };
-
-// Fix 1/4 — ROLE_MAP pruned:
-//   • Removed never-rendered: chlorine_indicator, maintenance, ph_target, orp_target,
-//     self_clean, time_remaining, salt_error from sensor map.
-//   • ph_indicator / orp_indicator kept (wired in Fix 3).
-//   • Removed pump_power / pump_energy from pump map (Fix 4).
-//   • salt_error removed from salt map as it is never rendered.
-//   • orp_trend / last_measurement added to sensor map (Feature 1 & 2).
-const ROLE_MAP = {
-  sensor: {
-    ph: "ph_sensor", orp: "orp_sensor", free_chlorine: "fc_sensor",
-    water_temp: "sensor_temp", battery: "battery",
-    ph_indicator: "ph_indicator", orp_indicator: "orp_indicator",
-    refresh: "refresh_button",
-    orp_trend: "orp_trend", last_measurement: "last_measurement",
-  },
-  salt: {
-    power: "power_switch", chlorination: "chlorination_switch", salinity: "salinity",
-    status: "salt_status", alarm: "salt_alarm",
-    water_temp: "salt_temp", schedules: "schedules_sensor",
-  },
-  pump: { pump: "pump_switch" },
-};
-
-// Fix 1 — Compute discriminating keys per role (keys unique to that role only).
-// This means a device that has only `water_temp` is NOT classified as salt or
-// sensor; it falls through to pump. Salt is identified by salt-exclusive keys;
-// sensor is identified by sensor-exclusive keys. Computed once at module load so
-// future ROLE_MAP edits automatically stay safe.
-function _makeDiscriminators() {
-  const allRoles = Object.keys(ROLE_MAP);
-  const result = {};
-  for (const role of allRoles) {
-    const ownKeys = new Set(Object.keys(ROLE_MAP[role]));
-    // Remove keys that also appear in any other role.
-    for (const other of allRoles) {
-      if (other === role) continue;
-      for (const k of Object.keys(ROLE_MAP[other])) ownKeys.delete(k);
-    }
-    result[role] = ownKeys;
-  }
-  return result;
-}
-const DISCRIMINATORS = _makeDiscriminators();
-
-// Cache detectEntities results keyed on the hass.entities object identity
-// (Fix 10). Each call that produces a new entities reference gets recomputed;
-// otherwise the memoised result is returned.
-let _detectCache = null; // { ref: Object, result: Object }
-
-function detectEntities(hass) {
-  const ents = hass?.entities || {};
-  if (_detectCache && _detectCache.ref === ents) return _detectCache.result;
-
-  const out = {};
-  const byDevice = {};
-  for (const [eid, ent] of Object.entries(ents)) {
-    if (ent.platform !== "intex_pool") continue;
-    (byDevice[ent.device_id || "_"] ??= []).push({ eid, tk: ent.translation_key });
-  }
-  for (const list of Object.values(byDevice)) {
-    // Fix 1 — classify on discriminating keys only.
-    let kind = "pump";
-    if (list.some((x) => DISCRIMINATORS.salt.has(x.tk))) kind = "salt";
-    else if (list.some((x) => DISCRIMINATORS.sensor.has(x.tk))) kind = "sensor";
-    for (const { eid, tk } of list) {
-      const role = ROLE_MAP[kind]?.[tk];
-      if (role && !out[role]) out[role] = eid;
-    }
-  }
-
-  _detectCache = { ref: ents, result: out };
-  return out;
-}
 
 class IntexPoolCard extends LitElement {
   static properties = { _config: { state: true } };
@@ -179,6 +110,7 @@ class IntexPoolCard extends LitElement {
         ] },
         { type: "expandable", name: "pump", title: "Sand filter pump (any brand)", schema: [
           { name: "pump_switch", ...any("switch") },
+          { name: "pump_schedules_sensor", ...ent("sensor") },
         ] },
       ],
     };
@@ -420,7 +352,8 @@ class IntexPoolCard extends LitElement {
 
     const hasBattery = this._has(c.battery);
     const hasRefresh = this._has(c.refresh_button);
-    const empty = tiles.length === 0 && ctrls.length === 0;
+    const schedules = scheduleGroups(this._hass, c);
+    const empty = tiles.length === 0 && ctrls.length === 0 && schedules.length === 0;
 
     return html`
       <ha-card style=${this._paletteStyle()}>
@@ -449,22 +382,24 @@ class IntexPoolCard extends LitElement {
                     : nothing}
                 </div>`
               : nothing}
-            ${this._scheduleSection(c)}`}
+            ${this._scheduleSection(schedules)}`}
       </ha-card>`;
   }
 
-  _scheduleSection(c) {
-    const s = this._st(c.schedules_sensor);
-    const list = s?.attributes?.schedules || [];
-    if (!list.length) return nothing;
+  _scheduleSection(groups) {
+    if (!groups.length) return nothing;
     return html`
-      <div class="sched" @click=${() => this._moreInfo(c.schedules_sensor)}>
-        <div class="sched-head">
-          <ha-icon icon="mdi:calendar-clock"></ha-icon><span>Schedules</span>
-          <span class="sched-count">${list.length}</span>
+      ${groups.map((group) => html`
+        <div class="sched" @click=${() => this._moreInfo(group.entityId)}>
+          <div class="sched-head">
+            <ha-icon icon="mdi:calendar-clock"></ha-icon><span>${group.label}</span>
+            <span class="sched-count">${group.schedules.length}</span>
+          </div>
+          ${group.schedules.map((schedule) => html`
+            <div class="sched-row">${schedule}</div>
+          `)}
         </div>
-        ${list.map((x) => html`<div class="sched-row">${x}</div>`)}
-      </div>`;
+      `)}`;
   }
 
   static styles = css`
@@ -570,9 +505,10 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "intex-pool-card",
   name: "Intex Pool",
-  description: "Kompakt pool-kort — kemi, klorinator og pumpe.",
+  description: "Compact pool card for chemistry, chlorinator, pump, and schedules.",
   preview: true,
   documentationURL: "https://github.com/Hovborg/intex-pool",
+  getEntitySuggestion: entitySuggestion,
 });
 
 console.info(`%c INTEX-POOL-CARD %c v${CARD_VERSION} `,

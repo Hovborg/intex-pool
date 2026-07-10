@@ -33,6 +33,7 @@ jobs:
         working-directory: card
         run: |
           npm ci
+          npm test
           npm run build
       - name: Ensure committed card bundle is up to date
         run: |
