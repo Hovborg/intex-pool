@@ -16,11 +16,18 @@ from pytest_homeassistant_custom_component.common import (
     mock_restore_cache,
 )
 
+import custom_components.intex_pool as integration
 from custom_components.intex_pool import config_flow
 from custom_components.intex_pool.const import DOMAIN
 
 SALT = {"device_id": "saltdev", "local_key": "k", "host": "1.2.3.4", "version": 3.5}
 SENSOR = {"region": "eu", "access_id": "a", "access_secret": "s", "device_id": "sdev"}
+
+
+def test_integration_declares_config_entry_only_schema() -> None:
+    """Hassfest requires async_setup integrations to declare YAML semantics."""
+    assert hasattr(integration, "CONFIG_SCHEMA")
+    assert integration.CONFIG_SCHEMA({}) == {}
 
 
 # ------------------------------------------------ F40: card registration ---

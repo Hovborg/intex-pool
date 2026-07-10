@@ -32,6 +32,8 @@ All notable changes to this project are documented here. The format is based on
   of the schema silently restoring the old default.
 - esbuild 0.28 output lowers template literals so generated Lit whitespace remains
   escaped and the committed bundle passes `git diff --check`.
+- Declared the integration as config-entry-only so hassfest no longer emits a
+  `CONFIG_SCHEMA` quality annotation for the card-registration `async_setup` hook.
 
 ### Security
 - Removed the moderate development-server vulnerability in esbuild 0.24.2; npm
