@@ -62,6 +62,7 @@ CONF_HAS_PUMP = "has_pump"
 CONF_REGION = "region"
 CONF_ACCESS_ID = "access_id"
 CONF_ACCESS_SECRET = "access_secret"
+CONF_CLOUD = "cloud"
 CONF_DEVICE_ID = "device_id"
 CONF_LOCAL_KEY = "local_key"
 CONF_HOST = "host"
@@ -99,7 +100,9 @@ DEFAULT_REGION = "eu"
 DEFAULT_LOCAL_INTERVAL = 15
 DEFAULT_CLOUD_INTERVAL = 120
 DEFAULT_SCHEDULE_INTERVAL = 600  # schedules change rarely; poll the cloud blob slowly
-DEFAULT_PUMP_ON_DP = "1"
+# Intex SX-series pumps use DP104 for master power. DP1 was the old generic
+# Tuya assumption and is auto-healed from live data for existing entries.
+DEFAULT_PUMP_ON_DP = "104"
 
 # --- water-quality guidance (QS-series manual §6/§9 + industry ORP floor) ---
 # Salinity: QS-series operating range 800-1800 ppm, optimum 950 ppm.

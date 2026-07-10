@@ -5,6 +5,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.intex_pool import async_migrate_entry
 from custom_components.intex_pool.const import DOMAIN
+from custom_components.intex_pool.diagnostics import async_get_config_entry_diagnostics
 
 SALT = {"device_id": "saltdev", "local_key": "k", "host": "1.2.3.4", "version": 3.5}
 SENSOR = {"region": "eu", "access_id": "a", "access_secret": "s", "device_id": "sdev"}
@@ -95,3 +96,55 @@ async def test_setup_pump_entity_mode_creates_no_coordinator(hass, mock_tinytuya
     # entity-mode pump => no Tuya coordinator, no integration-created pump entity
     assert entry.runtime_data.pump is None
     assert not any(i.startswith("switch.") for i in hass.states.async_entity_ids())
+
+
+async def test_setup_pump_only_cloud_creates_schedule_coordinator(hass, mock_tinytuya):
+    """Stored pump-only cloud auth must make the pump timer available."""
+    entry = await _setup(
+        hass,
+        {
+            "cloud": {"region": "eu", "access_id": "a", "access_secret": "s"},
+            "pump": {
+                "pump_mode": "tuya",
+                "device_id": "pumpdev",
+                "local_key": "k",
+                "host": "1.2.3.5",
+                "version": 3.5,
+                "pump_on_dp": "104",
+            },
+        },
+    )
+
+    assert entry.runtime_data.pump_schedule is not None
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+    assert diagnostics["coordinators"]["pump_schedule"]["last_update_success"] is True
+    assert diagnostics["entry"]["data"]["cloud"]["access_id"] == "**REDACTED**"
+    assert diagnostics["entry"]["data"]["cloud"]["access_secret"] == "**REDACTED**"
+
+
+async def test_pump_only_stays_loaded_when_standalone_cloud_is_down(hass, mock_tinytuya):
+    """Cloud-only schedules must not take the local pump controls down with them."""
+
+    class OfflineCloud:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("Tuya cloud offline")
+
+    mock_tinytuya.tinytuya.Cloud = OfflineCloud
+    entry = await _setup(
+        hass,
+        {
+            "cloud": {"region": "eu", "access_id": "a", "access_secret": "s"},
+            "pump": {
+                "pump_mode": "tuya",
+                "device_id": "pumpdev",
+                "local_key": "k",
+                "host": "1.2.3.5",
+                "version": 3.5,
+                "pump_on_dp": "104",
+            },
+        },
+    )
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.pump is not None
+    assert entry.runtime_data.pump_schedule is None

@@ -42,7 +42,7 @@ Pick **any combination** — one, two, or all three:
 |---|---|---|---|
 | 💧 | **Water quality sensor** (AGP Smart Sensor / Water Analyzer) | Tuya cloud | pH, ORP, free chlorine, temp, battery · writable pH/ORP targets · refresh button |
 | 🧂 | **Saltwater system** (Intex/AGP QS-series) | Local LAN | Power & chlorine switches, salinity, water temp, self-clean & temp-unit selects, decoded status/alarm/error |
-| 🌀 | **Sand-filter pump** | Local Tuya **or any HA switch** | On/off + (when linked) power / energy |
+| 🌀 | **Sand-filter pump** | Local Tuya **or any HA switch** | On/off + Tuya timer schedules, or linked power / energy |
 
 > 🔌 **Any brand of pump works.** Not a Tuya device? Link any existing HA switch (Shelly,
 > Zigbee relay, …) and it joins the pool card alongside the Intex gear.
@@ -104,8 +104,15 @@ It shows only the sections for the equipment you own — chemistry-only, full, o
 <img src="docs/images/card-variants.png" width="820" alt="The card adapts: sensor only, all three, pump only" />
 </div>
 
-The card is served **by the integration itself** — no separate HACS plugin to install. Add it
-from the card picker as **“Intex Pool”** and it auto-detects your entities.
+The card is served **by the integration itself** — no separate HACS plugin to install. After
+installing or updating through HACS, **restart Home Assistant and fully reload the browser tab
+or companion app** so its frontend module is loaded. Then add **“Intex Pool”** from the card
+picker; it auto-detects your entities.
+
+If it still does not appear in the picker, first verify that
+`/intex_pool/intex-pool-card.js` opens on your Home Assistant host. As a fallback, add that URL
+as a **JavaScript module** under **Settings → Dashboards → Resources**, reload the frontend,
+and use the YAML card type shown below.
 
 ## 🎨 Choose your look
 
@@ -150,8 +157,10 @@ data:
   days: 255        # 255 = every day, 0 = one-time (then set month/date)
 ```
 
-> Schedules need a configured water sensor (for the Tuya cloud credentials) + a saltwater system.
-> The byte format round-trips exactly; the exact units of duration/days are best-effort.
+> Schedules are cloud-only. Cloud discovery keeps the credentials for a pump-only or
+> saltwater-only setup; manual local setup still controls the device but has no schedules.
+> Use **Reconfigure** and enter Tuya cloud credentials to enable them. The byte format
+> round-trips exactly; the exact units of duration/days are best-effort.
 
 ## 🚀 Installation
 
@@ -171,8 +180,8 @@ Life / Tuya app account linked. Enter those and the integration will:
 - 🔑 **fetch your devices and their local keys automatically** (no `tinytuya wizard`), and
 - 📡 **scan your network for their IPs + protocol version automatically** (no IP typing).
 
-Then just pick which discovered devices are your **saltwater system** and **water sensor**,
-and (optionally) link any switch as your **sand-filter pump**. Done.
+Then pick the discovered **saltwater system**, **water sensor** and/or **Tuya pump** you own.
+Alternatively, link any existing Home Assistant switch as your sand-filter pump.
 
 > 🔁 The water sensor sleeps and reports about once an hour — tap **Refresh measurement** to
 > force a fresh reading.

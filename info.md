@@ -10,6 +10,7 @@ Works with any combination of:
 - 🌀 **Sand filter pump** — a Tuya pump **or any existing HA switch** (any brand: Shelly, Zigbee, …)
 
 Includes a self-loading `custom:intex-pool-card` that shows only the sections for the gear
-you actually have.
+you actually have. After installing or updating through HACS, restart Home Assistant and
+fully reload the browser tab or companion app before opening the card picker.
 
 See the [README](https://github.com/Hovborg/intex-pool) for setup details.

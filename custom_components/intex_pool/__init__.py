@@ -36,10 +36,12 @@ from . import calibration, decode
 from . import schedule as schedule_mod
 from . import tuya
 from .const import (
+    CONF_CLOUD,
     CONF_CLOUD_INTERVAL,
-    CONF_MODEL,
     CONF_LOCAL_INTERVAL,
+    CONF_MODEL,
     CONF_PUMP_MODE,
+    CONF_PUMP_ON_DP,
     DEFAULT_CLOUD_INTERVAL,
     DEFAULT_LOCAL_INTERVAL,
     DEFAULT_SCHEDULE_INTERVAL,
@@ -192,6 +194,27 @@ async def _build_data(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> Intex
         data.sensor = SensorCoordinator(
             hass, entry, cloud, sensor["device_id"], cloud_interval
         )
+    elif cloud_cfg := entry.data.get(CONF_CLOUD):
+        # Pump-only and salt-only cloud discovery still needs the shared Tuya
+        # client for their cloud-only schedule blobs.
+        try:
+            cloud = await hass.async_add_executor_job(
+                tuya.CloudClient,
+                cloud_cfg["region"],
+                cloud_cfg["access_id"],
+                cloud_cfg["access_secret"],
+            )
+        except tuya.TuyaAuthError as err:
+            # Schedules are optional: keep local pump/salt controls available
+            # and ask for new cloud auth without failing the whole entry.
+            _LOGGER.warning("Tuya cloud schedules need reauthentication: %s", err)
+            entry.async_start_reauth(hass)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "Tuya cloud schedules unavailable; local controls remain active: %s: %s",
+                type(err).__name__,
+                err,
+            )
 
     pump = entry.data.get(DEVICE_PUMP)
     if pump and pump.get(CONF_PUMP_MODE) == PUMP_MODE_TUYA:
@@ -243,6 +266,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) ->
     ]
     for coordinator in coordinators:
         await coordinator.async_refresh()
+    _heal_legacy_pump_dp(hass, entry, data)
     # If every configured device failed its first poll, report not-ready so HA
     # retries setup with backoff (instead of loading with all entities dead).
     if coordinators and not any(c.last_update_success for c in coordinators):
@@ -252,6 +276,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) ->
     _apply_device_models(hass, entry)
     async_setup_issue_listeners(hass, entry)
     return True
+
+
+def _heal_legacy_pump_dp(
+    hass: HomeAssistant, entry: IntexPoolConfigEntry, data: IntexPoolData
+) -> None:
+    """Replace the obsolete DP1 default when live data proves DP104 is used."""
+    pump = entry.data.get(DEVICE_PUMP) or {}
+    dps = data.pump.data if data.pump is not None else None
+    if (
+        pump.get(CONF_PUMP_MODE) != PUMP_MODE_TUYA
+        or str(pump.get(CONF_PUMP_ON_DP, "")) != "1"
+        or not dps
+        or "1" in dps
+        or "104" not in dps
+    ):
+        return
+    updated_pump = {**pump, CONF_PUMP_ON_DP: "104"}
+    hass.config_entries.async_update_entry(
+        entry, data={**entry.data, DEVICE_PUMP: updated_pump}
+    )
+    _LOGGER.info("Updated legacy pump power DP from 1 to live SX-series DP104")
 
 
 def _apply_device_models(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> None:

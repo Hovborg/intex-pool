@@ -94,6 +94,29 @@ async def test_tuya_pump_switch_uses_configured_dp(hass, mock_tinytuya):
     assert pump_switch.entity_description.source == "20"
 
 
+async def test_tuya_pump_legacy_dp_is_healed_from_live_data(hass, mock_tinytuya):
+    """An old DP1 default auto-heals when the live SX2100 exposes only DP104."""
+    mock_tinytuya.tinytuya.Device.status = lambda self: {
+        "dps": {"104": True, "106": False, "125": "working", "127": "normal"}
+    }
+    entry = await _setup(
+        hass,
+        {
+            "pump": {
+                "pump_mode": "tuya",
+                "device_id": "pumpdev",
+                "local_key": "k",
+                "host": "1.2.3.5",
+                "version": 3.5,
+                "pump_on_dp": "1",
+            }
+        },
+    )
+
+    assert entry.data["pump"]["pump_on_dp"] == "104"
+    assert _entities(hass)["pumpdev_pump"].entity_description.source == "104"
+
+
 # ------------------------------------------------- new switch descriptors ---
 
 async def test_stabilizer_switch_writes_via_cloud(hass, mock_tinytuya):

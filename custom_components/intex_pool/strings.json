@@ -104,7 +104,7 @@
           "model": "Model (optional)"
         },
         "data_description": {
-          "pump_on_dp": "The data point that switches the pump on/off (1 on most devices).",
+          "pump_on_dp": "The data point that switches the pump on/off (104 on Intex SX-series pumps).",
           "model": "Shown on the device page — pick your model or type your own."
         }
       },
@@ -151,6 +151,7 @@
     "error": {
       "cannot_connect": "Failed to connect — check the details and that the device is reachable.",
       "invalid_auth": "Credentials rejected — the local key or cloud secret is wrong (the local key changes when the device is re-paired).",
+      "need_reauth_value": "Enter at least one new local key or cloud secret.",
       "need_creds": "Enter your Tuya cloud Access ID and secret, or tick “set up manually”.",
       "device_offline": "That device wasn't found on your network — make sure it's powered on and on the same LAN as Home Assistant.",
       "no_device": "Select at least one device.",

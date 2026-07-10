@@ -27,6 +27,7 @@ from . import tuya
 from .const import (
     CONF_ACCESS_ID,
     CONF_ACCESS_SECRET,
+    CONF_CLOUD,
     CONF_CLOUD_INTERVAL,
     CONF_DEVICE_ID,
     CONF_HAS_PUMP,
@@ -184,6 +185,16 @@ def _version_value(raw: str | None) -> float | None:
     return float(raw)
 
 
+def _cloud_credentials(data: dict[str, Any]) -> dict[str, str]:
+    """Return stored Tuya cloud credentials, regardless of entry shape."""
+    owner = data.get(DEVICE_SENSOR) or data.get(CONF_CLOUD) or {}
+    return {
+        key: owner[key]
+        for key in (CONF_REGION, CONF_ACCESS_ID, CONF_ACCESS_SECRET)
+        if owner.get(key)
+    }
+
+
 async def validate_local(hass: HomeAssistant, ui: dict) -> None:
     """Open a local Tuya connection, retrying past transient contention.
 
@@ -214,6 +225,14 @@ async def validate_sensor(hass: HomeAssistant, ui: dict) -> None:
         tuya.CloudClient, ui[CONF_REGION], ui[CONF_ACCESS_ID], ui[CONF_ACCESS_SECRET]
     )
     await hass.async_add_executor_job(cloud.properties, ui[CONF_DEVICE_ID])
+
+
+async def validate_cloud(hass: HomeAssistant, ui: dict) -> None:
+    """Validate entry-level cloud credentials used by local-device schedules."""
+    cloud = await hass.async_add_executor_job(
+        tuya.CloudClient, ui[CONF_REGION], ui[CONF_ACCESS_ID], ui[CONF_ACCESS_SECRET]
+    )
+    await hass.async_add_executor_job(cloud.list_devices)
 
 
 async def discover(hass: HomeAssistant, creds: dict) -> tuple[list[dict], dict]:
@@ -281,43 +300,51 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         entry = self._get_reauth_entry()
         salt = entry.data.get(DEVICE_SALT)
         sensor = entry.data.get(DEVICE_SENSOR)
+        cloud = entry.data.get(CONF_CLOUD)
         pump = entry.data.get(DEVICE_PUMP) or {}
         pump_tuya = pump if pump.get(CONF_PUMP_MODE) == PUMP_MODE_TUYA else None
         errors: dict[str, str] = {}
         # Each local device gets its OWN key field (salt and a Tuya pump have
         # separate keys), so reauth works for any combination of devices.
         if user_input is not None:
-            new_data = {**entry.data}
-            try:
-                if salt and CONF_LOCAL_KEY in user_input:
-                    cand = {**salt, CONF_LOCAL_KEY: user_input[CONF_LOCAL_KEY]}
-                    await validate_local(self.hass, cand)
-                    new_data[DEVICE_SALT] = cand
-                if pump_tuya and CONF_PUMP_LOCAL_KEY in user_input:
-                    cand = {**pump_tuya, CONF_LOCAL_KEY: user_input[CONF_PUMP_LOCAL_KEY]}
-                    await validate_local(self.hass, cand)
-                    new_data[DEVICE_PUMP] = cand
-                if sensor and CONF_ACCESS_SECRET in user_input:
-                    cand = {**sensor, CONF_ACCESS_SECRET: user_input[CONF_ACCESS_SECRET]}
-                    await validate_sensor(self.hass, cand)
-                    new_data[DEVICE_SENSOR] = cand
-            except tuya.TuyaAuthError:
-                errors["base"] = "invalid_auth"
-            except Exception:  # noqa: BLE001
-                errors["base"] = "cannot_connect"
+            if not any(user_input.values()):
+                errors["base"] = "need_reauth_value"
             else:
-                return self.async_update_reload_and_abort(entry, data=new_data)
+                new_data = {**entry.data}
+                try:
+                    if salt and (local_key := user_input.get(CONF_LOCAL_KEY)):
+                        cand = {**salt, CONF_LOCAL_KEY: local_key}
+                        await validate_local(self.hass, cand)
+                        new_data[DEVICE_SALT] = cand
+                    if pump_tuya and (pump_key := user_input.get(CONF_PUMP_LOCAL_KEY)):
+                        cand = {**pump_tuya, CONF_LOCAL_KEY: pump_key}
+                        await validate_local(self.hass, cand)
+                        new_data[DEVICE_PUMP] = cand
+                    if sensor and (secret := user_input.get(CONF_ACCESS_SECRET)):
+                        cand = {**sensor, CONF_ACCESS_SECRET: secret}
+                        await validate_sensor(self.hass, cand)
+                        new_data[DEVICE_SENSOR] = cand
+                    elif cloud and (secret := user_input.get(CONF_ACCESS_SECRET)):
+                        cand = {**cloud, CONF_ACCESS_SECRET: secret}
+                        await validate_cloud(self.hass, cand)
+                        new_data[CONF_CLOUD] = cand
+                except tuya.TuyaAuthError:
+                    errors["base"] = "invalid_auth"
+                except Exception:  # noqa: BLE001
+                    errors["base"] = "cannot_connect"
+                else:
+                    return self.async_update_reload_and_abort(entry, data=new_data)
 
         fields: dict = {}
         _pw = selector.TextSelector(
             selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
         )
         if salt:
-            fields[vol.Required(CONF_LOCAL_KEY)] = _pw
+            fields[vol.Optional(CONF_LOCAL_KEY)] = _pw
         if pump_tuya:
-            fields[vol.Required(CONF_PUMP_LOCAL_KEY)] = _pw
-        if sensor:
-            fields[vol.Required(CONF_ACCESS_SECRET)] = selector.TextSelector(
+            fields[vol.Optional(CONF_PUMP_LOCAL_KEY)] = _pw
+        if sensor or cloud:
+            fields[vol.Optional(CONF_ACCESS_SECRET)] = selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
             )
         return self.async_show_form(
@@ -331,12 +358,7 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         self._reconfigure_entry = self._get_reconfigure_entry()
         # Re-run discovery with the stored cloud creds so the user can re-pick
         # devices (unchanged devices keep their existing IP/key, no scan needed).
-        sensor = self._reconfigure_entry.data.get(DEVICE_SENSOR) or {}
-        creds = {
-            k: sensor[k]
-            for k in (CONF_REGION, CONF_ACCESS_ID, CONF_ACCESS_SECRET)
-            if sensor.get(k)
-        }
+        creds = _cloud_credentials(self._reconfigure_entry.data)
         if len(creds) == 3:
             self._creds = creds
             try:
@@ -376,13 +398,13 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                         return await self.async_step_discover()
         schema = STEP_RECONFIGURE_USER
         if self._reconfigure_entry is not None and (
-            sensor := self._reconfigure_entry.data.get(DEVICE_SENSOR)
+            cloud := _cloud_credentials(self._reconfigure_entry.data)
         ):
             # Prefill the stored non-secret cloud fields — this step is reached
             # exactly when re-discovery failed, so don't force retyping them.
             schema = self.add_suggested_values_to_schema(
                 STEP_RECONFIGURE_USER,
-                {k: sensor[k] for k in (CONF_REGION, CONF_ACCESS_ID) if sensor.get(k)},
+                {k: cloud[k] for k in (CONF_REGION, CONF_ACCESS_ID) if cloud.get(k)},
             )
         return self.async_show_form(
             step_id="reconfigure_user", data_schema=schema, errors=errors
@@ -438,6 +460,14 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 if not any(k in data for k in (DEVICE_SALT, DEVICE_SENSOR, DEVICE_PUMP)):
                     errors["base"] = "no_device"
                 else:
+                    pump_cfg = data.get(DEVICE_PUMP) or {}
+                    if DEVICE_SENSOR not in data and (
+                        DEVICE_SALT in data
+                        or pump_cfg.get(CONF_PUMP_MODE) == PUMP_MODE_TUYA
+                    ):
+                        # Pump/salt schedules are cloud-only. Do not discard the
+                        # credentials just because no analyzer was selected.
+                        data[CONF_CLOUD] = dict(self._creds)
                     self._data = data
                     return await self._async_finish()
         options = [
@@ -572,9 +602,23 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 kept = {
                     k: v
                     for k, v in self._reconfigure_entry.data.items()
-                    if k in DEVICE_META and k not in removed
+                    if (k in DEVICE_META and k not in removed) or k == CONF_CLOUD
                 }
                 data = {**kept, **data}
+            pump_cfg = data.get(DEVICE_PUMP) or {}
+            needs_standalone_cloud = DEVICE_SALT in data or (
+                pump_cfg.get(CONF_PUMP_MODE) == PUMP_MODE_TUYA
+            )
+            if DEVICE_SENSOR in data or not needs_standalone_cloud:
+                # The analyzer already owns the credentials, or no remaining
+                # local Tuya device needs them. Avoid drift and stale secrets.
+                data.pop(CONF_CLOUD, None)
+            elif CONF_CLOUD not in data:
+                # Manual reconfigure may remove the sensor that used to own
+                # the shared credentials while retaining a Tuya pump/salt unit.
+                previous_cloud = _cloud_credentials(self._reconfigure_entry.data)
+                if len(previous_cloud) == 3:
+                    data[CONF_CLOUD] = previous_cloud
             return self.async_update_reload_and_abort(self._reconfigure_entry, data=data)
         await self.async_set_unique_id(self._compute_uid())
         self._abort_if_unique_id_configured()

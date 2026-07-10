@@ -43,5 +43,7 @@ async def async_get_config_entry_diagnostics(
             "sensor": _coordinator_snapshot(data.sensor),
             "pump": _coordinator_snapshot(data.pump),
             "schedule": _coordinator_snapshot(data.schedule),
+            "analyzer_schedule": _coordinator_snapshot(data.analyzer_schedule),
+            "pump_schedule": _coordinator_snapshot(data.pump_schedule),
         },
     }

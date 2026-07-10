@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.20.1] - 2026-07-10
+
+### Fixed
+- **SX2100 pump control** now defaults to the verified master-power DP104 instead
+  of the generic Tuya DP1. Existing DP1 entries auto-heal only when live device
+  data contains DP104 and no DP1, preserving genuinely custom DP1 devices.
+- **Pump-only schedules** now keep the Tuya cloud credentials entered during
+  discovery. The `skdl_filter` coordinator and its schedule entities therefore
+  load without requiring a water analyzer in the same config entry.
+- Pump-only cloud credentials are reused by reconfigure, can be updated through
+  reauth, and the pump/analyzer schedule coordinators are included in diagnostics.
+- Dashboard-card setup now documents the required browser reload and a manual
+  resource fallback when Home Assistant's card picker has not loaded the module.
+
 ## [0.20.0] - 2026-07-02
 
 Pump corrections from the live thing model (fetched from the cloud).

@@ -104,7 +104,7 @@
           "model": "Model (valgfri)"
         },
         "data_description": {
-          "pump_on_dp": "Datapunktet der tænder/slukker pumpen (1 på de fleste enheder).",
+          "pump_on_dp": "Datapunktet der tænder/slukker pumpen (104 på Intex SX-serie-pumper).",
           "model": "Vises på enhedssiden — vælg din model eller skriv din egen."
         }
       },
@@ -151,6 +151,7 @@
     "error": {
       "cannot_connect": "Kunne ikke forbinde — tjek oplysningerne og at enheden er tilgængelig.",
       "invalid_auth": "Oplysninger afvist — local key eller cloud secret er forkert (local key skifter når enheden re-pares).",
+      "need_reauth_value": "Indtast mindst én ny local key eller cloud secret.",
       "need_creds": "Indtast din Tuya cloud Access ID og secret, eller sæt flueben i “opsæt manuelt”.",
       "device_offline": "Enheden blev ikke fundet på dit netværk — sørg for at den er tændt og på samme LAN som Home Assistant.",
       "no_device": "Vælg mindst én enhed.",

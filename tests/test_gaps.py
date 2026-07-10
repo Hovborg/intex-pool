@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 from homeassistant.core import State
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL, UrlManager
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -50,6 +51,22 @@ async def test_async_setup_registers_card_and_services(hass, monkeypatch):
     # services are registered at component setup (action-setup rule)
     for service in ("set_schedule", "get_schedule", "calibrate", "clear_calibration"):
         assert hass.services.has_service(DOMAIN, service)
+
+
+async def test_async_setup_registers_card_with_real_frontend_loader(hass):
+    """The bundled module is visible through HA's real frontend URL manager."""
+    from custom_components.intex_pool import async_setup
+
+    async def fake_register(paths):
+        return None
+
+    hass.http = SimpleNamespace(async_register_static_paths=fake_register)
+    hass.data[DATA_EXTRA_MODULE_URL] = UrlManager(lambda *args: None, [])
+    hass.config.components.add("frontend")
+    assert await async_setup(hass, {})
+
+    urls = hass.data[DATA_EXTRA_MODULE_URL].urls
+    assert any(url.startswith("/intex_pool/intex-pool-card.js?v=") for url in urls)
 
 
 # ----------------------------------------- F41: cloud-secret reauth branch ---

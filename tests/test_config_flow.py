@@ -77,6 +77,36 @@ async def test_cloud_discovery_flow(hass, mock_tinytuya, monkeypatch):
     assert r["data"]["sensor"]["access_id"] == "aid"
 
 
+async def test_cloud_discovery_pump_only_keeps_credentials(hass, mock_tinytuya, monkeypatch):
+    """Pump-only discovery must retain cloud auth for ``skdl_filter`` schedules."""
+    devices = [
+        {"id": "pumpid", "name": "Intex SX2100", "key": "pumpkey", "category": "sp"}
+    ]
+
+    async def fake_discover(hass_, creds):
+        assert creds["access_id"] == "aid"
+        return devices, {"pumpid": ("1.2.3.5", 3.5)}
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    r = await _start(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {"region": "eu", "access_id": "aid", "access_secret": "sec", "manual": False},
+    )
+    assert r["step_id"] == "discover"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"pump_tuya": "pumpid"}
+    )
+
+    assert r["type"] == FlowResultType.CREATE_ENTRY
+    assert r["data"]["cloud"] == {
+        "region": "eu",
+        "access_id": "aid",
+        "access_secret": "sec",
+    }
+    assert r["data"]["pump"]["pump_on_dp"] == "104"
+
+
 async def test_cloud_discovery_device_offline(hass, monkeypatch):
     async def fake_discover(hass_, creds):
         return [{"id": "saltid", "name": "AGP Salt", "key": "k", "category": "rs"}], {}  # empty scan
@@ -184,6 +214,55 @@ async def test_reauth_updates_local_key(hass, monkeypatch):
     assert entry.data["salt"]["local_key"] == "NEWKEY"
 
 
+async def test_reauth_updates_standalone_cloud_secret(hass, monkeypatch):
+    """Pump/salt-only schedule credentials can be repaired without a sensor."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "cloud": {"region": "eu", "access_id": "a", "access_secret": "old"},
+            "pump": {
+                "pump_mode": "tuya",
+                "device_id": "pumpdev",
+                "local_key": "k",
+                "host": "1.2.3.5",
+                "version": 3.5,
+                "pump_on_dp": "104",
+            },
+        },
+        unique_id="cloud-only",
+        version=2,
+    )
+    entry.add_to_hass(hass)
+    validated = []
+
+    async def ok(hass_, creds):
+        validated.append(creds)
+
+    monkeypatch.setattr(config_flow, "validate_cloud", ok, raising=False)
+    r = await entry.start_reauth_flow(hass)
+    assert r["step_id"] == "reauth_confirm"
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"access_secret": "new"}
+    )
+
+    assert r["type"] == FlowResultType.ABORT
+    assert r["reason"] == "reauth_successful"
+    assert entry.data["cloud"]["access_secret"] == "new"
+    assert validated[-1]["access_secret"] == "new"
+
+
+async def test_reauth_requires_at_least_one_new_credential(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"salt": SALT_INPUT}, unique_id="saltdev", version=2
+    )
+    entry.add_to_hass(hass)
+    r = await entry.start_reauth_flow(hass)
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {})
+
+    assert r["type"] == FlowResultType.FORM
+    assert r["errors"] == {"base": "need_reauth_value"}
+
+
 async def test_reauth_invalid_auth_shows_error(hass, monkeypatch):
     from custom_components.intex_pool.tuya import TuyaAuthError
 
@@ -280,6 +359,125 @@ async def test_reconfigure_without_stored_creds_prompts(hass):
     entry.add_to_hass(hass)
     r = await entry.start_reconfigure_flow(hass)
     assert r["step_id"] == "reconfigure_user"
+
+
+async def test_reconfigure_pump_only_reuses_stored_cloud_creds(hass, monkeypatch):
+    """Pump-only cloud auth must reopen discovery without asking for creds again."""
+    pump = {
+        "pump_mode": "tuya",
+        "device_id": "pumpdev",
+        "local_key": "k",
+        "host": "1.2.3.5",
+        "version": 3.5,
+        "pump_on_dp": "104",
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "cloud": {"region": "eu", "access_id": "a", "access_secret": "s"},
+            "pump": pump,
+        },
+        unique_id="pumpdev",
+        version=2,
+    )
+    entry.add_to_hass(hass)
+
+    async def fake_discover(hass_, creds):
+        assert creds == {"region": "eu", "access_id": "a", "access_secret": "s"}
+        return ([{"id": "pumpdev", "name": "SX2100", "key": "k"}], {})
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    r = await entry.start_reconfigure_flow(hass)
+
+    assert r["step_id"] == "discover"
+
+
+async def test_reconfigure_linked_pump_drops_unused_cloud_secret(
+    hass, mock_tinytuya, monkeypatch
+):
+    """Replacing the last Tuya device with an HA switch must remove cloud auth."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "cloud": {"region": "eu", "access_id": "a", "access_secret": "s"},
+            "pump": {
+                "pump_mode": "tuya",
+                "device_id": "pumpdev",
+                "local_key": "k",
+                "host": "1.2.3.5",
+                "version": 3.5,
+                "pump_on_dp": "104",
+            },
+        },
+        unique_id="pumpdev",
+        version=2,
+    )
+    entry.add_to_hass(hass)
+
+    async def fake_discover(hass_, creds):
+        return ([{"id": "pumpdev", "name": "SX2100", "key": "k"}], {})
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    r = await entry.start_reconfigure_flow(hass)
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"manual": True})
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"has_sensor": False, "has_salt": False, "has_pump": True}
+    )
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"pump_mode": "entity"}
+    )
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"pump_switch": "switch.pool_pump"}
+    )
+
+    assert r["reason"] == "reconfigure_successful"
+    assert "cloud" not in entry.data
+
+
+async def test_removing_sensor_moves_cloud_creds_to_retained_tuya_pump(
+    hass, mock_tinytuya, monkeypatch
+):
+    """Removing the credential-owning sensor must not disable pump schedules."""
+    pump = {
+        "pump_mode": "tuya",
+        "device_id": "pumpdev",
+        "local_key": "k",
+        "host": "1.2.3.5",
+        "version": 3.5,
+        "pump_on_dp": "104",
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"sensor": SENSOR_INPUT, "pump": pump},
+        unique_id="sensor-pump",
+        version=2,
+    )
+    entry.add_to_hass(hass)
+
+    async def fake_discover(hass_, creds):
+        return ([{"id": "pumpdev", "name": "SX2100", "key": "k"}], {})
+
+    monkeypatch.setattr(config_flow, "discover", fake_discover)
+    r = await entry.start_reconfigure_flow(hass)
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"manual": True})
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {
+            "has_sensor": False,
+            "has_salt": False,
+            "has_pump": False,
+            "remove_sensor": True,
+        },
+    )
+    await hass.async_block_till_done()
+
+    assert r["reason"] == "reconfigure_successful"
+    assert entry.data["cloud"] == {
+        "region": "eu",
+        "access_id": "a",
+        "access_secret": "s",
+    }
+    assert entry.data["pump"] == pump
 
 
 async def test_reconfigure_empty_discovery_reprompts_creds(hass, mock_tinytuya, monkeypatch):
