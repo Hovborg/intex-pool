@@ -2,6 +2,7 @@ name: Tests
 
 on:
   push:
+    branches: ["**"]
   pull_request:
   workflow_dispatch:
 
@@ -12,26 +13,29 @@ jobs:
   pytest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: Install dependencies
-        run: pip install "pytest-homeassistant-custom-component==0.13.316" "tinytuya==1.18.1"
+        run: pip install "pytest-homeassistant-custom-component==0.13.316" "tinytuya==1.20.0"
       - name: Run tests
         run: pytest -q
 
   build-card:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
       - name: Build card
         working-directory: card
         run: |
           npm ci
           npm run build
       - name: Ensure committed card bundle is up to date
-        run: git diff --exit-code custom_components/intex_pool/frontend/intex-pool-card.js
+        run: |
+          git diff --exit-code -- \
+            custom_components/intex_pool/frontend/intex-pool-card.js \
+            custom_components/intex_pool/frontend/intex-pool-card.js.map

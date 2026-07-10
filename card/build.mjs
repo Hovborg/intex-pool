@@ -14,6 +14,7 @@ await build({
   format: "esm",
   target: "es2021",
   define: { __CARD_VERSION__: JSON.stringify(pkg.version) },
+  banner: { js: `// intex-pool-card v${pkg.version}` },
   sourcemap: "linked",
   outfile: "../custom_components/intex_pool/frontend/intex-pool-card.js",
 });
