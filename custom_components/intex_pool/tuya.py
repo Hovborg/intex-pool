@@ -14,6 +14,7 @@ Design notes ported from the proven 01-drift/13-pool-kontrol bridge:
 from __future__ import annotations
 
 import json
+from threading import Lock
 from typing import Any
 
 import tinytuya
@@ -145,6 +146,15 @@ class CloudClient:
         if getattr(self._cloud, "token", None) is None:
             err = getattr(self._cloud, "error", None)
             raise TuyaAuthError(f"cloud auth failed: {str(err)[:160]}")
+        # Sensor and schedule coordinators share this client but run their
+        # blocking work in separate executor threads. tinytuya.Cloud mutates
+        # request/signature state, so overlapping calls can return ``None``.
+        self._request_lock = Lock()
+
+    def _request(self, path: str, post: dict[str, Any] | None = None) -> Any:
+        """Serialize access to the shared, stateful tinytuya cloud client."""
+        with self._request_lock:
+            return self._cloud.cloudrequest(path, post=post)
 
     def list_devices(self) -> list[dict[str, Any]]:
         """List the project's devices with their local keys (for auto-discovery).
@@ -177,7 +187,7 @@ class CloudClient:
         property code (Tuya codes never start with an underscore).
         """
         path = f"/v2.0/cloud/thing/{device_id}/shadow/properties"
-        resp = self._cloud.cloudrequest(path)
+        resp = self._request(path)
         _check_cloud(resp, "cloud properties")
         props = (resp.get("result") or {}).get("properties", []) or []
         out: dict[str, Any] = {p["code"]: p.get("value") for p in props if p.get("code")}
@@ -190,5 +200,5 @@ class CloudClient:
         """Write a single property via the property-issue API."""
         path = f"/v2.0/cloud/thing/{device_id}/shadow/properties/issue"
         body = {"properties": json.dumps({code: value})}
-        resp = self._cloud.cloudrequest(path, post=body)
+        resp = self._request(path, post=body)
         _check_cloud(resp, f"cloud issue {code}")

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Serialize requests made through the shared TinyTuya cloud client. The water
+  sensor and its schedule coordinators previously polled in parallel, which
+  could corrupt TinyTuya's stateful request/signature handling and leave the
+  WA510 values stale with an `unexpected response (NoneType)` error.
+
 ## [0.21.0] - 2026-07-10
 
 ### Added

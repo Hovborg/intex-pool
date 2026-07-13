@@ -1,5 +1,8 @@
 """Tests for the thin tinytuya wrappers (fake tinytuya, no network)."""
 import types
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
+from time import sleep
 
 import pytest
 
@@ -114,6 +117,39 @@ def test_cloud_properties_parses_codes(fake_tinytuya):
     times = props.pop("_times")
     assert props == {"PH_Number": 740, "battery_capacity": 97}
     assert times == {"PH_Number": 1765000000000, "battery_capacity": 1765000300000}
+
+
+def test_cloud_requests_are_serialized(fake_tinytuya):
+    """Shared sensor/schedule coordinators must not race one Cloud instance."""
+
+    class OverlapProbeCloud:
+        token = "fake-token"
+
+        def __init__(self):
+            self.active = 0
+            self.max_active = 0
+            self.guard = Lock()
+
+        def cloudrequest(self, path, post=None):
+            with self.guard:
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+            sleep(0.05)
+            with self.guard:
+                self.active -= 1
+            return {"success": True, "result": {"properties": []}}
+
+    client = tuya.CloudClient("eu", "id", "secret")
+    probe = OverlapProbeCloud()
+    client._cloud = probe
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(client.properties, "sensor")
+        second = executor.submit(client.properties, "schedule")
+        first.result()
+        second.result()
+
+    assert probe.max_active == 1
 
 
 def test_local_set_value_error_response_raises(fake_tinytuya, monkeypatch):
