@@ -1,6 +1,7 @@
 """Pump Quick Run button + duration number (fake cloud, no network)."""
 from datetime import UTC, datetime
 
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.intex_pool import schedule
@@ -13,6 +14,10 @@ from custom_components.intex_pool.const import (
 )
 from custom_components.intex_pool.coordinator import ScheduleCoordinator
 from custom_components.intex_pool.number import IntexPumpQuickRunHoursNumber
+
+SENSOR = {"region": "eu", "access_id": "a", "access_secret": "s", "device_id": "sdev"}
+PUMP_TUYA = {"pump_mode": "tuya", "device_id": "pumpdev", "local_key": "k",
+             "host": "1.2.3.5", "version": 3.5, "pump_on_dp": "1"}
 
 
 class FakeCloudSched:
@@ -97,3 +102,41 @@ async def test_quick_run_hours_number_defaults_and_persists(hass, monkeypatch):
 
     assert entry.options[CONF_QUICK_RUN_HOURS] == 5
     assert num.native_value == 5.0
+
+
+async def test_quick_run_slot_excluded_from_generic_pump_editors(hass, mock_tinytuya):
+    """Slot 0 must not be double-exposed: a user's own recurring program in
+    that slot (set via the generic "Schedule 1" switch/number/time entities,
+    or the Tuya app) must not be silently overwritten the next time Quick Run
+    fires. The fix is that the generic pump schedule editors skip index 0
+    entirely — only the dedicated Quick Run button/number own that slot."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"has_sensor": True, "has_pump": True, "sensor": SENSOR, "pump": PUMP_TUYA},
+        unique_id="uid-quick-run-reservation",
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.runtime_data.pump_schedule is not None
+
+    registry = er.async_get(hass)
+    unique_ids = {
+        reg.unique_id
+        for reg in er.async_entries_for_config_entry(registry, entry.entry_id)
+    }
+
+    # Slot 0 ("schedule_1") must NOT get generic editors for the pump.
+    assert "pumpdev_schedule_1" not in unique_ids
+    assert "pumpdev_schedule_1_duration" not in unique_ids
+    assert "pumpdev_schedule_1_start" not in unique_ids
+    # Slots 1-6 ("schedule_2".."schedule_7") still do.
+    for n in range(2, 8):
+        assert f"pumpdev_schedule_{n}" in unique_ids
+        assert f"pumpdev_schedule_{n}_duration" in unique_ids
+        assert f"pumpdev_schedule_{n}_start" in unique_ids
+    # Only the dedicated Quick Run entities own slot 0.
+    assert "pumpdev_quick_run" in unique_ids
+    assert "pumpdev_quick_run_hours" in unique_ids
+
+    assert await hass.config_entries.async_unload(entry.entry_id)

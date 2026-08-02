@@ -94,12 +94,16 @@ async def async_setup_entry(
             )
     # Same editors for the Tuya pump's internal timer program (skdl_filter —
     # identical blob; write path live-verified on the SX2100 2026-07-02).
+    # Slot 0 is EXCLUDED here (unlike salt) — it's reserved for the pump's
+    # Quick Run button (button.py). Exposing it as a generic "Schedule 1"
+    # switch too would let a user's own recurring program in that slot get
+    # silently overwritten the next time Quick Run is pressed.
     if data.pump_schedule is not None:
         pump_sched_id = device_id_for(entry, DEVICE_PUMP)
         if pump_sched_id is not None:
             entities.extend(
                 IntexScheduleSlotSwitch(data.pump_schedule, pump_sched_id, i, device=DEVICE_PUMP)
-                for i in range(schedule.SLOT_COUNT)
+                for i in range(1, schedule.SLOT_COUNT)
             )
 
     async_add_entities(entities)

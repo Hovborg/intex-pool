@@ -15,7 +15,13 @@ All notable changes to this project are documented here. The format is based on
   — no recurring program left behind. Uses the pump's own one-shot encoding
   (`on=1` + a specific date), distinct from the saltwater chlorinator's
   `on=0`/Boost encoding, which is chlorinator-hardware-specific and doesn't
-  apply to the pump.
+  apply to the pump. Slot 0 is reserved for Quick Run and excluded from the
+  generic per-slot "Schedule 1" switch/duration/start-time entities (matching
+  how the saltwater system already hides its Boost slot), so a program you
+  set up on a different slot is never at risk. **Upgrade note:** if you had
+  already programmed the pump's first schedule slot directly in the Tuya app
+  before installing this version, pressing Quick Run once will overwrite that
+  program — check the Tuya app's schedule for that slot before first use.
 
 ### Fixed
 - Serialize requests made through the shared TinyTuya cloud client. The water

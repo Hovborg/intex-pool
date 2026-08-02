@@ -34,13 +34,16 @@ async def async_setup_entry(
             for i in range(1, schedule.SLOT_COUNT)
         )
     # Same start-time editors for the Tuya pump's internal timer (skdl_filter).
-    # No boost cycle here: ALL 7 slots are regular timed slots, so slot 1
-    # (index 0) gets a start-time editor too.
+    # No boost cycle here — all 7 slots are regular timed slots — but slot 0
+    # (index 0) is still excluded: it's reserved for the Quick Run button
+    # (button.py), which sets its own start time (now) on every press. Exposing
+    # a start-time editor for that slot too would let a user's own recurring
+    # program there get silently overwritten the next time Quick Run fires.
     pump_id = device_id_for(entry, DEVICE_PUMP)
     if data.pump_schedule is not None and pump_id is not None:
         async_add_entities(
             IntexScheduleStartTime(data.pump_schedule, pump_id, i, device=DEVICE_PUMP)
-            for i in range(schedule.SLOT_COUNT)
+            for i in range(1, schedule.SLOT_COUNT)
         )
 
 

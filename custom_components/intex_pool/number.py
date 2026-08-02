@@ -72,9 +72,11 @@ async def async_setup_entry(
         )
     pump_id = device_id_for(entry, DEVICE_PUMP)
     if data.pump_schedule is not None and pump_id is not None:
+        # Slot 0 excluded (unlike salt) — reserved for the Quick Run button;
+        # see the matching note in switch.py's pump loop.
         entities.extend(
             IntexScheduleDuration(data.pump_schedule, pump_id, i, device=DEVICE_PUMP)
-            for i in range(schedule.SLOT_COUNT)
+            for i in range(1, schedule.SLOT_COUNT)
         )
         # Paired with the Quick Run button (button.py) — holds how many hours
         # the next press should request. Independent of any slot's "active"
