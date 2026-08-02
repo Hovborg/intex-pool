@@ -295,7 +295,11 @@ class IntexPumpQuickRunHoursNumber(NumberEntity):
 
     _attr_has_entity_name = True
     _attr_translation_key = "quick_run_hours"
-    _attr_entity_category = EntityCategory.CONFIG
+    # No entity_category (unlike the other Config-style numbers in this file):
+    # this is the parameter you set right before pressing Quick Run, part of
+    # the primary interaction, not a background setting — it needs to show up
+    # in the device page's main Controls section next to the button, not get
+    # split off into a separate Configuration section.
     # 1, not 0: a 0-hour run isn't a meaningful request (there's nothing for
     # Quick Run to do), so it's excluded from the range entirely rather than
     # accepted and silently coerced to the default (see native_value below —
