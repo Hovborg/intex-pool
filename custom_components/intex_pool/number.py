@@ -296,7 +296,12 @@ class IntexPumpQuickRunHoursNumber(NumberEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "quick_run_hours"
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_native_min_value = 0
+    # 1, not 0: a 0-hour run isn't a meaningful request (there's nothing for
+    # Quick Run to do), so it's excluded from the range entirely rather than
+    # accepted and silently coerced to the default (see native_value below —
+    # `stored or DEFAULT` used to turn an explicit, legal 0 into 2 the moment
+    # this min allowed it).
+    _attr_native_min_value = 1
     _attr_native_max_value = 72
     _attr_native_step = 1
     _attr_native_unit_of_measurement = UnitOfTime.HOURS
@@ -324,11 +329,17 @@ class IntexPumpQuickRunHoursNumber(NumberEntity):
 
     @property
     def native_value(self) -> float:
+        # Explicit None-check, NOT `stored or DEFAULT` — with min now 1, a
+        # stored 0 can't happen via this entity, but options are plain dict
+        # values or (rare) an old/hand-edited entry could still hold one;
+        # falling back to the default only when truly unset (None/missing)
+        # keeps any real stored value, including one a future range change
+        # might legally set to 0, from being silently overridden.
+        raw = self._entry.options.get(CONF_QUICK_RUN_HOURS)
+        if raw is None:
+            return float(DEFAULT_QUICK_RUN_HOURS)
         try:
-            return float(
-                self._entry.options.get(CONF_QUICK_RUN_HOURS, DEFAULT_QUICK_RUN_HOURS)
-                or DEFAULT_QUICK_RUN_HOURS
-            )
+            return float(raw)
         except (TypeError, ValueError):
             return float(DEFAULT_QUICK_RUN_HOURS)
 

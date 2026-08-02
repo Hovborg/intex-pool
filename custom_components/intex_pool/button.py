@@ -95,13 +95,16 @@ class IntexPumpQuickRunButton(CoordinatorEntity, ButtonEntity):
         self._attr_device_info = device_info_for(DEVICE_PUMP, device_id)
 
     async def async_press(self) -> None:
-        try:
-            hours = float(
-                self._entry.options.get(CONF_QUICK_RUN_HOURS, DEFAULT_QUICK_RUN_HOURS)
-                or DEFAULT_QUICK_RUN_HOURS
-            )
-        except (TypeError, ValueError):
+        # Explicit None-check, NOT `stored or DEFAULT` — see the matching
+        # note on IntexPumpQuickRunHoursNumber.native_value in number.py.
+        raw = self._entry.options.get(CONF_QUICK_RUN_HOURS)
+        if raw is None:
             hours = DEFAULT_QUICK_RUN_HOURS
+        else:
+            try:
+                hours = float(raw)
+            except (TypeError, ValueError):
+                hours = DEFAULT_QUICK_RUN_HOURS
         # Local wall-clock time, NOT UTC — the schedule blob stores hour/
         # minute as the device's own local time, and dt_util.now() is HA's
         # canonical timezone-aware "now" (unlike a naive datetime.utcnow()).

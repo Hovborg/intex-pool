@@ -95,6 +95,29 @@ async def test_quick_run_button_worst_case_still_leaves_a_full_minute(hass, monk
     assert (written - now).total_seconds() > 60
 
 
+async def test_quick_run_button_does_not_coerce_stored_zero_to_default(hass, monkeypatch):
+    """A stored 0 must be honored, not silently turned into the 2h default —
+    `stored or DEFAULT` treats 0 as falsy just like an unset value. The UI
+    can no longer produce a stored 0 (min bumped to 1), but the read path
+    must still not misinterpret one if it's ever present (e.g. a pre-fix
+    install, or a value set some other way)."""
+    coord, entry = await _pump_coord(hass)
+    monkeypatch.setattr(
+        "custom_components.intex_pool.coordinator.asyncio.sleep", _noop_sleep
+    )
+    monkeypatch.setattr(
+        "custom_components.intex_pool.button.dt_util.now",
+        lambda: datetime(2026, 8, 15, 14, 30, tzinfo=UTC),
+    )
+    hass.config_entries.async_update_entry(entry, options={CONF_QUICK_RUN_HOURS: 0})
+
+    button = IntexPumpQuickRunButton(coord, entry, "pumpid")
+    await button.async_press()
+
+    decoded = schedule.decode_schedules(coord._client.issued[-1][2])
+    assert decoded[QUICK_RUN_SLOT]["duration"] == 0  # not coerced to DEFAULT_QUICK_RUN_HOURS
+
+
 async def test_quick_run_button_rounds_up_across_hour_boundary(hass, monkeypatch):
     """The buffer must correctly roll over hour/date/month, not just wrap the
     minute field in isolation (a naive `minute + N` would break at :59 and
@@ -147,6 +170,17 @@ async def test_quick_run_hours_number_defaults_and_persists(hass, monkeypatch):
 
     assert entry.options[CONF_QUICK_RUN_HOURS] == 5
     assert num.native_value == 5.0
+
+
+async def test_quick_run_hours_number_does_not_coerce_stored_zero(hass):
+    """Mirrors the button-side test: a stored 0 (min is 1 in the UI, but the
+    read path is defense-in-depth for any other source of a stored 0) must
+    read back as 0, not the 2h default."""
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={CONF_QUICK_RUN_HOURS: 0})
+    entry.add_to_hass(hass)
+    num = IntexPumpQuickRunHoursNumber(entry, "pumpid")
+    num.hass = hass
+    assert num.native_value == 0.0
 
 
 async def test_quick_run_slot_excluded_from_generic_pump_editors(hass, mock_tinytuya):
