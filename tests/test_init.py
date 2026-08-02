@@ -69,7 +69,9 @@ async def test_setup_retries_when_all_devices_fail(hass, mock_tinytuya, monkeypa
 
 
 async def test_migrate_v1_removes_orphan_boost_start_time(hass):
-    """v1→v2 drops the slot-0 (Boost) start-time entity; the orphan is removed."""
+    """v1→v2 drops the slot-0 (Boost) start-time entity; the orphan is removed.
+    A v1 entry migrates straight through to the current latest version (v3)
+    in one call, not just one step — hence version==3, not 2, below."""
     entry = MockConfigEntry(domain=DOMAIN, data={"salt": SALT}, version=1)
     entry.add_to_hass(hass)
     registry = er.async_get(hass)
@@ -82,9 +84,50 @@ async def test_migrate_v1_removes_orphan_boost_start_time(hass):
 
     assert await async_migrate_entry(hass, entry)
 
-    assert entry.version == 2
+    assert entry.version == 3
     assert registry.async_get(orphan.entity_id) is None  # boost start-time gone
     assert registry.async_get(keep.entity_id) is not None  # real slot kept
+
+
+async def test_migrate_v2_removes_orphan_pump_slot0_entities(hass):
+    """v2→v3 reserves the pump's slot 0 for Quick Run and drops its generic
+    switch/duration/start-time entities. Registry orphans from anyone who
+    already had pump cloud schedules on an earlier version must be removed —
+    but the SALT device's own slot-0 (Boost) entities share the exact same
+    unique-id suffix and must be left alone."""
+    entry = MockConfigEntry(domain=DOMAIN, data={"salt": SALT, "pump": PUMP_TUYA}, version=2)
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    pump_switch = registry.async_get_or_create(
+        "switch", DOMAIN, "pumpdev_schedule_1", config_entry=entry
+    )
+    pump_duration = registry.async_get_or_create(
+        "number", DOMAIN, "pumpdev_schedule_1_duration", config_entry=entry
+    )
+    pump_start = registry.async_get_or_create(
+        "time", DOMAIN, "pumpdev_schedule_1_start", config_entry=entry
+    )
+    pump_keep = registry.async_get_or_create(
+        "switch", DOMAIN, "pumpdev_schedule_2", config_entry=entry
+    )
+    salt_boost_switch = registry.async_get_or_create(
+        "switch", DOMAIN, "saltdev_schedule_1", config_entry=entry
+    )
+    salt_boost_duration = registry.async_get_or_create(
+        "number", DOMAIN, "saltdev_schedule_1_duration", config_entry=entry
+    )
+
+    assert await async_migrate_entry(hass, entry)
+
+    assert entry.version == 3
+    assert registry.async_get(pump_switch.entity_id) is None
+    assert registry.async_get(pump_duration.entity_id) is None
+    assert registry.async_get(pump_start.entity_id) is None
+    assert registry.async_get(pump_keep.entity_id) is not None  # other pump slots kept
+    # Salt's Boost entities share the "_schedule_1"/"_schedule_1_duration"
+    # suffix by coincidence — must survive untouched.
+    assert registry.async_get(salt_boost_switch.entity_id) is not None
+    assert registry.async_get(salt_boost_duration.entity_id) is not None
 
 
 async def test_setup_pump_entity_mode_creates_no_coordinator(hass, mock_tinytuya):

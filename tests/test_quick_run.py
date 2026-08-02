@@ -47,8 +47,10 @@ async def _noop_sleep(*a, **k):
 
 
 async def test_quick_run_button_writes_one_time_slot(hass, monkeypatch):
-    """Pressing Quick Run writes today's date + now's time into the reserved
-    slot, on=1, days=0 — a genuine one-shot, not a recurring program."""
+    """Pressing Quick Run writes today's date + now+1min into the reserved
+    slot, on=1, days=0 — a genuine one-shot, not a recurring program. The
+    +1min buffer (not "now") guards against the write itself taking >0s to
+    land — see the docstring on IntexPumpQuickRunButton.async_press."""
     coord, entry = await _pump_coord(hass)
     monkeypatch.setattr(
         "custom_components.intex_pool.coordinator.asyncio.sleep", _noop_sleep
@@ -66,10 +68,32 @@ async def test_quick_run_button_writes_one_time_slot(hass, monkeypatch):
     slot = decoded[QUICK_RUN_SLOT]
     assert slot["active"] is True
     assert slot["on"] == 1
-    assert (slot["hour"], slot["minute"]) == (14, 30)
+    assert (slot["hour"], slot["minute"]) == (14, 31)
     assert (slot["month"], slot["date"]) == (8, 15)
     assert slot["duration"] == 3
     assert slot["days"] == 0  # one-time, not a recurring daily program
+
+
+async def test_quick_run_button_rounds_up_across_hour_boundary(hass, monkeypatch):
+    """The +1min buffer must correctly roll over hour/date/month, not just
+    wrap the minute field in isolation (a naive `minute + 1` would break at
+    :59 and again at midnight/month-end)."""
+    coord, entry = await _pump_coord(hass)
+    monkeypatch.setattr(
+        "custom_components.intex_pool.coordinator.asyncio.sleep", _noop_sleep
+    )
+    monkeypatch.setattr(
+        "custom_components.intex_pool.button.dt_util.now",
+        lambda: datetime(2026, 1, 31, 23, 59, tzinfo=UTC),
+    )
+
+    button = IntexPumpQuickRunButton(coord, entry, "pumpid")
+    await button.async_press()
+
+    decoded = schedule.decode_schedules(coord._client.issued[-1][2])
+    slot = decoded[QUICK_RUN_SLOT]
+    assert (slot["hour"], slot["minute"]) == (0, 0)
+    assert (slot["month"], slot["date"]) == (2, 1)
 
 
 async def test_quick_run_button_uses_default_hours_when_unset(hass, monkeypatch):

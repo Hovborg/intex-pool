@@ -147,6 +147,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) 
     so its ``time.…_schedule_1_start`` entity is no longer created. Remove any
     such orphan left behind by earlier versions so it doesn't linger forever as
     an "unavailable" entity.
+
+    v2 → v3: the pump's slot 0 is now reserved for the Quick Run button, so its
+    generic ``switch``/``number``/``time`` "Schedule 1" entities are no longer
+    created either. Anyone who set up pump cloud schedules on an earlier version
+    already has registry records for those three — remove them (pump only; the
+    saltwater chlorinator's own slot-0 Boost switch/duration share the same
+    ``_schedule_1``/``_schedule_1_duration`` unique-id suffix and must stay).
     """
     if entry.version < 2:
         registry = er.async_get(hass)
@@ -155,6 +162,23 @@ async def async_migrate_entry(hass: HomeAssistant, entry: IntexPoolConfigEntry) 
                 registry.async_remove(reg.entity_id)
                 _LOGGER.info("Removed orphaned boost start-time entity %s", reg.entity_id)
         hass.config_entries.async_update_entry(entry, version=2)
+    if entry.version < 3:
+        pump_id = (entry.data.get(DEVICE_PUMP) or {}).get("device_id")
+        if pump_id:
+            registry = er.async_get(hass)
+            stale = {
+                f"{pump_id}_schedule_1",
+                f"{pump_id}_schedule_1_duration",
+                f"{pump_id}_schedule_1_start",
+            }
+            for reg in er.async_entries_for_config_entry(registry, entry.entry_id):
+                if reg.unique_id in stale:
+                    registry.async_remove(reg.entity_id)
+                    _LOGGER.info(
+                        "Removed orphaned pump slot-0 entity %s (slot now reserved for Quick Run)",
+                        reg.entity_id,
+                    )
+        hass.config_entries.async_update_entry(entry, version=3)
     return True
 
 

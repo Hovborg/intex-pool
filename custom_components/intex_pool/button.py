@@ -1,6 +1,8 @@
 """Button platform (force a fresh sensor measurement; pump Quick Run)."""
 from __future__ import annotations
 
+from datetime import timedelta
+
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -103,12 +105,18 @@ class IntexPumpQuickRunButton(CoordinatorEntity, ButtonEntity):
         # Local wall-clock time, NOT UTC — the schedule blob stores hour/
         # minute as the device's own local time, and dt_util.now() is HA's
         # canonical timezone-aware "now" (unlike a naive datetime.utcnow()).
-        now = dt_util.now()
+        # Rounded up to the NEXT full minute (not "now") because the write
+        # itself isn't instant: ScheduleCoordinator.async_write_slots() waits
+        # 5s for the cloud write to settle before returning, on top of normal
+        # network latency. A start time still in "now"'s minute can already
+        # be in the past by the time Tuya applies it, and a slot with no
+        # future trigger simply never runs — silently.
+        target = (dt_util.now() + timedelta(minutes=1)).replace(second=0, microsecond=0)
         slots = (self.coordinator.data or {}).get("slots") or schedule.decode_schedules("")
         new = schedule.set_slot(
             slots, QUICK_RUN_SLOT,
-            on=True, hour=now.hour, minute=now.minute,
-            month=now.month, date=now.day,
+            on=True, hour=target.hour, minute=target.minute,
+            month=target.month, date=target.day,
             duration=round(hours), days=0,
         )
         await write_slots_guarded(self.coordinator, new, self.entity_id)

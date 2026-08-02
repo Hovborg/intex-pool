@@ -248,7 +248,7 @@ async def discover(hass: HomeAssistant, creds: dict) -> tuple[list[dict], dict]:
 class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle setup (cloud auto-discovery, or manual fallback)."""
 
-    VERSION = 2
+    VERSION = 3
 
     def __init__(self) -> None:
         self._flags: dict[str, bool] = {}
