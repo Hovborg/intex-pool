@@ -84,6 +84,7 @@ CONF_TOTAL_ALKALINITY = "total_alkalinity"
 CONF_CALCIUM_HARDNESS = "calcium_hardness"
 CONF_CYA = "cya"
 CONF_TDS = "tds"
+CONF_QUICK_RUN_HOURS = "quick_run_hours"  # desired duration for the next Quick Run press
 
 VOLUME_UNIT_LITER = "liter"
 VOLUME_UNIT_GALLON = "gallon"
@@ -103,6 +104,12 @@ DEFAULT_SCHEDULE_INTERVAL = 600  # schedules change rarely; poll the cloud blob 
 # Intex SX-series pumps use DP104 for master power. DP1 was the old generic
 # Tuya assumption and is auto-healed from live data for existing entries.
 DEFAULT_PUMP_ON_DP = "104"
+DEFAULT_QUICK_RUN_HOURS = 2
+# Reserved schedule slot for the pump's Quick Run button — kept out of the
+# generic per-slot switch/number entities' rotation so a Quick Run press can
+# never collide with a program the user set up by hand (via the Tuya app or
+# the other 6 slots' entities).
+QUICK_RUN_SLOT = 0
 
 # --- water-quality guidance (QS-series manual §6/§9 + industry ORP floor) ---
 # Salinity: QS-series operating range 800-1800 ppm, optimum 950 ppm.

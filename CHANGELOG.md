@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- Sand-filter pump "Quick Run" button + duration number. The pump's plain
+  on/off switch has no duration parameter and always falls back to the
+  device's own fixed default run time; Quick Run writes a genuine one-time
+  schedule entry (today's date, `days=0`) instead, so pressing it runs the
+  pump for exactly the configured number of hours (up to 72) and then stops
+  — no recurring program left behind. Uses the pump's own one-shot encoding
+  (`on=1` + a specific date), distinct from the saltwater chlorinator's
+  `on=0`/Boost encoding, which is chlorinator-hardware-specific and doesn't
+  apply to the pump.
+
 ### Fixed
 - Serialize requests made through the shared TinyTuya cloud client. The water
   sensor and its schedule coordinators previously polled in parallel, which

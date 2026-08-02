@@ -479,6 +479,9 @@
       },
       "tds": {
         "name": "TDS (test)"
+      },
+      "quick_run_hours": {
+        "name": "Quick Run duration"
       }
     },
     "time": {
@@ -492,6 +495,9 @@
       },
       "retest": {
         "name": "Re-test now"
+      },
+      "quick_run": {
+        "name": "Quick Run"
       }
     },
     "event": {

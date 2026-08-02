@@ -21,9 +21,11 @@ from .const import (
     CONF_CALCIUM_HARDNESS,
     CONF_CYA,
     CONF_POOL_VOLUME,
+    CONF_QUICK_RUN_HOURS,
     CONF_TDS,
     CONF_TOTAL_ALKALINITY,
     CONF_VOLUME_UNIT,
+    DEFAULT_QUICK_RUN_HOURS,
     DEVICE_META,
     DEVICE_PUMP,
     DEVICE_SALT,
@@ -74,6 +76,10 @@ async def async_setup_entry(
             IntexScheduleDuration(data.pump_schedule, pump_id, i, device=DEVICE_PUMP)
             for i in range(schedule.SLOT_COUNT)
         )
+        # Paired with the Quick Run button (button.py) — holds how many hours
+        # the next press should request. Independent of any slot's "active"
+        # state (unlike IntexScheduleDuration above), so it's always settable.
+        entities.append(IntexPumpQuickRunHoursNumber(entry, pump_id))
 
     # Pool volume for the salt advisor — editable right on the device page.
     if data.salt is not None and salt_id is not None:
@@ -269,6 +275,65 @@ class IntexPoolVolumeNumber(NumberEntity):
         self.hass.config_entries.async_update_entry(
             self._entry,
             options={**self._entry.options, CONF_POOL_VOLUME: int(value)},
+        )
+        async_dispatcher_send(
+            self.hass, SIGNAL_OPTIONS_UPDATED.format(self._entry.entry_id)
+        )
+        self.async_write_ha_state()
+
+
+class IntexPumpQuickRunHoursNumber(NumberEntity):
+    """Desired duration (hours) for the pump's next Quick Run.
+
+    Read by ``IntexPumpQuickRunButton`` (button.py) when pressed. Stored in
+    entry options (same pattern as ``IntexPoolVolumeNumber`` above) rather
+    than slot-bound like ``IntexScheduleDuration``, so it's settable at any
+    time — not only while a run happens to be active.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "quick_run_hours"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_native_min_value = 0
+    _attr_native_max_value = 72
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = UnitOfTime.HOURS
+    _attr_mode = NumberMode.BOX
+    _attr_should_poll = False
+
+    def __init__(self, entry: IntexPoolConfigEntry, device_id: str) -> None:
+        self._entry = entry
+        self._attr_unique_id = f"{device_id}_quick_run_hours"
+        self._attr_device_info = device_info_for(DEVICE_PUMP, device_id)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                SIGNAL_OPTIONS_UPDATED.format(self._entry.entry_id),
+                self._refresh,
+            )
+        )
+
+    @callback
+    def _refresh(self) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> float:
+        try:
+            return float(
+                self._entry.options.get(CONF_QUICK_RUN_HOURS, DEFAULT_QUICK_RUN_HOURS)
+                or DEFAULT_QUICK_RUN_HOURS
+            )
+        except (TypeError, ValueError):
+            return float(DEFAULT_QUICK_RUN_HOURS)
+
+    async def async_set_native_value(self, value: float) -> None:
+        self.hass.config_entries.async_update_entry(
+            self._entry,
+            options={**self._entry.options, CONF_QUICK_RUN_HOURS: value},
         )
         async_dispatcher_send(
             self.hass, SIGNAL_OPTIONS_UPDATED.format(self._entry.entry_id)
