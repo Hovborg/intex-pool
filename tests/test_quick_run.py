@@ -47,10 +47,10 @@ async def _noop_sleep(*a, **k):
 
 
 async def test_quick_run_button_writes_one_time_slot(hass, monkeypatch):
-    """Pressing Quick Run writes today's date + now+1min into the reserved
+    """Pressing Quick Run writes today's date + now+2min into the reserved
     slot, on=1, days=0 — a genuine one-shot, not a recurring program. The
-    +1min buffer (not "now") guards against the write itself taking >0s to
-    land — see the docstring on IntexPumpQuickRunButton.async_press."""
+    buffer (not "now") guards against the write itself taking >0s to land —
+    see the docstring on IntexPumpQuickRunButton.async_press."""
     coord, entry = await _pump_coord(hass)
     monkeypatch.setattr(
         "custom_components.intex_pool.coordinator.asyncio.sleep", _noop_sleep
@@ -68,16 +68,37 @@ async def test_quick_run_button_writes_one_time_slot(hass, monkeypatch):
     slot = decoded[QUICK_RUN_SLOT]
     assert slot["active"] is True
     assert slot["on"] == 1
-    assert (slot["hour"], slot["minute"]) == (14, 31)
+    assert (slot["hour"], slot["minute"]) == (14, 32)
     assert (slot["month"], slot["date"]) == (8, 15)
     assert slot["duration"] == 3
     assert slot["days"] == 0  # one-time, not a recurring daily program
 
 
+async def test_quick_run_button_worst_case_still_leaves_a_full_minute(hass, monkeypatch):
+    """Pressed in the last second of a minute (the tightest case): the
+    written start time must still be more than one full minute in the
+    future, not just "the next minute boundary" (which could be ~1s away —
+    the exact gap codex flagged as too tight for the write's real latency)."""
+    coord, entry = await _pump_coord(hass)
+    monkeypatch.setattr(
+        "custom_components.intex_pool.coordinator.asyncio.sleep", _noop_sleep
+    )
+    now = datetime(2026, 8, 15, 14, 30, 59, tzinfo=UTC)
+    monkeypatch.setattr("custom_components.intex_pool.button.dt_util.now", lambda: now)
+
+    button = IntexPumpQuickRunButton(coord, entry, "pumpid")
+    await button.async_press()
+
+    decoded = schedule.decode_schedules(coord._client.issued[-1][2])
+    slot = decoded[QUICK_RUN_SLOT]
+    written = datetime(2026, 8, 15, slot["hour"], slot["minute"], tzinfo=UTC)
+    assert (written - now).total_seconds() > 60
+
+
 async def test_quick_run_button_rounds_up_across_hour_boundary(hass, monkeypatch):
-    """The +1min buffer must correctly roll over hour/date/month, not just
-    wrap the minute field in isolation (a naive `minute + 1` would break at
-    :59 and again at midnight/month-end)."""
+    """The buffer must correctly roll over hour/date/month, not just wrap the
+    minute field in isolation (a naive `minute + N` would break at :59 and
+    again at midnight/month-end)."""
     coord, entry = await _pump_coord(hass)
     monkeypatch.setattr(
         "custom_components.intex_pool.coordinator.asyncio.sleep", _noop_sleep
@@ -92,7 +113,7 @@ async def test_quick_run_button_rounds_up_across_hour_boundary(hass, monkeypatch
 
     decoded = schedule.decode_schedules(coord._client.issued[-1][2])
     slot = decoded[QUICK_RUN_SLOT]
-    assert (slot["hour"], slot["minute"]) == (0, 0)
+    assert (slot["hour"], slot["minute"]) == (0, 1)
     assert (slot["month"], slot["date"]) == (2, 1)
 
 

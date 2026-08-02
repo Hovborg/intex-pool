@@ -105,13 +105,17 @@ class IntexPumpQuickRunButton(CoordinatorEntity, ButtonEntity):
         # Local wall-clock time, NOT UTC — the schedule blob stores hour/
         # minute as the device's own local time, and dt_util.now() is HA's
         # canonical timezone-aware "now" (unlike a naive datetime.utcnow()).
-        # Rounded up to the NEXT full minute (not "now") because the write
-        # itself isn't instant: ScheduleCoordinator.async_write_slots() waits
-        # 5s for the cloud write to settle before returning, on top of normal
-        # network latency. A start time still in "now"'s minute can already
-        # be in the past by the time Tuya applies it, and a slot with no
-        # future trigger simply never runs — silently.
-        target = (dt_util.now() + timedelta(minutes=1)).replace(second=0, microsecond=0)
+        #
+        # Rounded up (not "now") because the write itself isn't instant:
+        # ScheduleCoordinator.async_write_slots() waits 5s for the cloud write
+        # to settle before returning, on top of normal network latency. A
+        # start time already in the past by the time Tuya applies it simply
+        # never runs — silently. A naive "+1 minute, truncate to :00" is NOT
+        # enough: pressed at :59, that only buys ~1s. Add 2 minutes BEFORE
+        # truncating instead — pressed at :00 gives the full 2-minute buffer;
+        # pressed at :59 (the worst case) still gives just over 1 full
+        # minute, comfortably covering the write's real-world latency.
+        target = (dt_util.now() + timedelta(minutes=2)).replace(second=0, microsecond=0)
         slots = (self.coordinator.data or {}).get("slots") or schedule.decode_schedules("")
         new = schedule.set_slot(
             slots, QUICK_RUN_SLOT,
