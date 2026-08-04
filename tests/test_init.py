@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 """Integration setup/unload tests (offline fakes via mock_tinytuya)."""
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers import entity_registry as er
@@ -239,7 +241,7 @@ async def test_standalone_cloud_auth_starts_reauth_but_keeps_local_pump(
 
     class RejectedCloud:
         token = None
-        error = {"code": 1004, "msg": "bad sign"}
+        error: ClassVar[dict] = {"code": 1004, "msg": "bad sign"}
 
         def __init__(self, *args, **kwargs):
             pass

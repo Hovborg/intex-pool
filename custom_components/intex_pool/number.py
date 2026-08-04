@@ -345,10 +345,10 @@ class IntexNumber(IntexPoolEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         desc = self.entity_description
         if desc.scale is not None:
-            raw = int(round(value / desc.scale))
+            raw = round(value / desc.scale)
         else:
             raw = int(value) if float(value).is_integer() else value
         try:
             await self.coordinator.async_issue(desc.source, raw)
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             raise HomeAssistantError(f"Failed to set {self.entity_id}: {err}") from err

@@ -1,6 +1,8 @@
 """Select platform (self-clean cycle, temperature unit, volume unit)."""
 from __future__ import annotations
 
+from typing import ClassVar
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
@@ -70,7 +72,7 @@ class IntexVolumeUnitSelect(SelectEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "volume_unit"
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_options = [VOLUME_UNIT_LITER, VOLUME_UNIT_GALLON]
+    _attr_options: ClassVar[list[str]] = [VOLUME_UNIT_LITER, VOLUME_UNIT_GALLON]
     _attr_should_poll = False
 
     def __init__(self, entry: IntexPoolConfigEntry, device_id: str) -> None:
@@ -162,5 +164,5 @@ class IntexSelect(IntexPoolEntity, SelectEntity):
                 await self.coordinator.async_set_dp(source, raw)
             else:
                 await self.coordinator.async_issue(source, raw)
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             raise HomeAssistantError(f"Failed to set {self.entity_id}: {err}") from err
