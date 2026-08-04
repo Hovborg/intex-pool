@@ -64,7 +64,7 @@ async def write_slots_guarded(
         await coordinator.async_write_slots(slots)
     except HomeAssistantError:
         raise
-    except Exception as err:  # noqa: BLE001
+    except Exception as err:
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="schedule_write_failed",

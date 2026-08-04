@@ -125,7 +125,7 @@ class IntexSwitch(IntexPoolEntity, SwitchEntity):
                 await self.coordinator.async_set_dp(source, value)
             else:
                 await self.coordinator.async_issue(source, value)
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             raise HomeAssistantError(f"Failed to set {self.entity_id}: {err}") from err
 
 

@@ -166,8 +166,9 @@ async def test_salt_bad_key_auto_version_retries_versions_first(hass):
 async def test_sensor_bad_secret_raises_auth_after_threshold(hass):
     """One auth-coded cloud reply is tolerated (transient token-refresh race);
     only consecutive rejects escalate to reauth — mirrors the local coordinator."""
-    from custom_components.intex_pool.coordinator import AUTH_FAILURES_BEFORE_REAUTH
     from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    from custom_components.intex_pool.coordinator import AUTH_FAILURES_BEFORE_REAUTH
 
     cloud = FakeCloud()
     cloud.auth_fail = True

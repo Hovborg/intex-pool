@@ -8,7 +8,6 @@ import sys
 import tomllib
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 CARD_BANNER = re.compile(r"^// intex-pool-card v(?P<version>[^\s]+)$", re.MULTILINE)
 

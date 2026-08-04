@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from datetime import timedelta
-from typing import Any, Mapping
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -181,7 +182,7 @@ class _LocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._fail_streak += 1
             self._rotate_version()
             raise UpdateFailed(str(err)) from err
-        except Exception as err:  # noqa: BLE001 - surface any transport failure
+        except Exception as err:
             self._fail_streak += 1
             self._rotate_version()
             raise UpdateFailed(f"{type(err).__name__}: {err}") from err
@@ -252,7 +253,7 @@ class SensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise ConfigEntryAuthFailed(str(err)) from err
         except TuyaError as err:
             raise UpdateFailed(str(err)) from err
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             raise UpdateFailed(f"{type(err).__name__}: {err}") from err
         self._auth_failures.reset()
         return data
@@ -320,7 +321,7 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise ConfigEntryAuthFailed(str(err)) from err
         except TuyaError as err:
             raise UpdateFailed(str(err)) from err
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             raise UpdateFailed(f"{type(err).__name__}: {err}") from err
         self._auth_failures.reset()
         raw = props.get(self.code)

@@ -43,5 +43,5 @@ class IntexButton(IntexPoolEntity, ButtonEntity):
                 await self.coordinator.async_set_dp(source, True)
             else:
                 await self.coordinator.async_issue(source, True)
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             raise HomeAssistantError(f"Failed to press {self.entity_id}: {err}") from err

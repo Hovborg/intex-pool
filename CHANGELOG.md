@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-08-04
+
+### Documentation
+- Clarify the verified control split used by the pool safety controller:
+  SX2100 DP104 is master power and DP106 is filtration start/stop; salt DP104
+  is master power and DP103 is chlorine-production start/stop. Operational
+  stop must not be inferred solely from a master-power switch.
+- Record the 2026-07-14 physical SX2100 verification: toggling the DP106
+  filtration switch OFF→ON recovered the motor from `sleep`/E93 and raised
+  measured load from about 1.2 W to 207 W. Local entity read-back was briefly
+  unavailable during the restart and then recovered.
+
 ### Fixed
 - Serialize requests made through the shared TinyTuya cloud client. The water
   sensor and its schedule coordinators previously polled in parallel, which

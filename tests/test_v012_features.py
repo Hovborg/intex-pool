@@ -19,7 +19,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.intex_pool import const, decode
+from custom_components.intex_pool import const, decode, schedule
 from custom_components.intex_pool.const import DOMAIN, VERSION_CANDIDATES
 from custom_components.intex_pool.coordinator import (
     AUTH_FAILURES_BEFORE_REAUTH,
@@ -29,7 +29,6 @@ from custom_components.intex_pool.coordinator import (
 from custom_components.intex_pool.diagnostics import (
     async_get_config_entry_diagnostics,
 )
-from custom_components.intex_pool import schedule
 from custom_components.intex_pool.tuya import TuyaAuthError
 
 SALT = {"device_id": "saltdev", "local_key": "k", "host": "1.2.3.4", "version": 3.5}
@@ -333,7 +332,7 @@ async def test_set_schedule_service_writes(hass, mock_tinytuya, no_sleep):
         blocking=True,
     )
     assert written, f"no write happened (orig issue: {monkeypatch_issue})"
-    did, code, blob = written[-1]
+    _did, code, blob = written[-1]
     assert code == "skdl_salt"
     decoded = schedule.decode_schedules(blob)
     assert (decoded[2]["hour"], decoded[2]["minute"], decoded[2]["duration"]) == (7, 30, 2)

@@ -52,8 +52,8 @@ from .const import (
     DEFAULT_PUMP_ON_DP,
     DEFAULT_REGION,
     DEFAULT_SALT_TARGET,
-    DEVICE_PUMP,
     DEVICE_META,
+    DEVICE_PUMP,
     DEVICE_SALT,
     DEVICE_SENSOR,
     DOMAIN,
@@ -213,7 +213,7 @@ async def validate_local(hass: HomeAssistant, ui: dict) -> None:
             return
         except tuya.TuyaAuthError:
             raise
-        except Exception:  # noqa: BLE001
+        except Exception:
             if attempt == 3:
                 raise  # re-raise the last failure with its traceback intact
             await asyncio.sleep(2)
@@ -754,7 +754,7 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry) -> "IntexPoolOptionsFlow":
+    def async_get_options_flow(config_entry) -> IntexPoolOptionsFlow:
         return IntexPoolOptionsFlow()
 
 

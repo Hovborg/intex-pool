@@ -16,7 +16,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import decode
 from .const import DEVICE_SALT, DEVICE_SENSOR
-from .entity import device_info_for, device_id_for
+from .entity import device_id_for, device_info_for
 from .models import IntexPoolConfigEntry
 
 PARALLEL_UPDATES = 0

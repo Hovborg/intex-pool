@@ -6,9 +6,9 @@ F42: pump-auto restore-on-restart (RestoreEntity + initial sync).
 """
 from types import SimpleNamespace
 
+from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL, UrlManager
 from homeassistant.core import State
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL, UrlManager
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
