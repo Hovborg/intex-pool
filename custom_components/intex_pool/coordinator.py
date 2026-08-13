@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import timedelta
 from typing import Any
 
@@ -302,9 +302,20 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.device_id = device_id
         self.code = code
         self._write_lock = asyncio.Lock()
+        self._pending_raw: str | None = None
+        self._stale_raws: set[str | None] = set()
         self._auth_failures = _AuthFailures(hass, entry, f"schedule:{code}")
 
     async def _async_update_data(self) -> dict[str, Any]:
+        # A cloud refresh must not overwrite optimistic state from an in-flight
+        # mutation with the provider's briefly stale blob. Sharing the write
+        # lock also guarantees that the next mutation snapshots the latest
+        # completed read/write state.
+        async with self._write_lock:
+            return await self._async_fetch_data()
+
+    async def _async_fetch_data(self) -> dict[str, Any]:
+        """Fetch and decode the schedule while the caller holds `_write_lock`."""
         try:
             client = await self._async_client()
             props = await self.hass.async_add_executor_job(
@@ -325,6 +336,23 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise UpdateFailed(f"{type(err).__name__}: {err}") from err
         self._auth_failures.reset()
         raw = props.get(self.code)
+        if self._pending_raw is not None:
+            if raw == self._pending_raw:
+                self._pending_raw = None
+                self._stale_raws.clear()
+            elif raw in self._stale_raws:
+                # The provider still exposes a blob known to predate our most
+                # recent write. Keep the optimistic state so the next editor
+                # cannot derive a full replacement blob from stale data.
+                return self.data or {
+                    "raw": self._pending_raw,
+                    "slots": schedule.decode_schedules(self._pending_raw),
+                }
+            else:
+                # A third value is not one of our known older generations.
+                # Treat it as an external update instead of hiding it forever.
+                self._pending_raw = None
+                self._stale_raws.clear()
         return {"raw": raw, "slots": schedule.decode_schedules(raw)}
 
     async def _async_client(self) -> CloudClient:
@@ -344,11 +372,46 @@ class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         read the stale blob and silently undo the first edit.
         """
         async with self._write_lock:
-            b64 = schedule.encode_schedules(slots)
-            client = await self._async_client()
-            await self.hass.async_add_executor_job(
-                client.issue, self.device_id, self.code, b64
-            )
-            self.async_set_updated_data({"raw": b64, "slots": slots})
-            await asyncio.sleep(5)
+            await self._async_write_slots_locked(slots)
         await self.async_request_refresh()
+
+    async def async_update_slots(
+        self,
+        mutator: Callable[
+            [list[dict[str, Any]]], list[dict[str, Any]]
+        ],
+    ) -> list[dict[str, Any]]:
+        """Atomically derive and write a new blob from the latest slot state.
+
+        Schedule entities edit one field but the Tuya API accepts only the
+        complete seven-slot blob. The read and transformation therefore have
+        to happen inside the same lock as the write; serializing only the final
+        cloud request still allows two editors to overwrite each other.
+        """
+        async with self._write_lock:
+            current = (self.data or {}).get("slots") or schedule.decode_schedules("")
+            snapshot = schedule.decode_schedules(schedule.encode_schedules(current))
+            updated = mutator(snapshot)
+            committed = await self._async_write_slots_locked(updated)
+        await self.async_request_refresh()
+        return committed
+
+    async def _async_write_slots_locked(
+        self, slots: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Write normalized slots while `_write_lock` is held."""
+        normalized = schedule.decode_schedules(schedule.encode_schedules(slots))
+        b64 = schedule.encode_schedules(normalized)
+        client = await self._async_client()
+        await self.hass.async_add_executor_job(
+            client.issue, self.device_id, self.code, b64
+        )
+        previous_raw = (self.data or {}).get("raw")
+        if previous_raw != b64:
+            self._stale_raws.add(previous_raw)
+        if self._pending_raw is not None and self._pending_raw != b64:
+            self._stale_raws.add(self._pending_raw)
+        self._pending_raw = b64
+        self.async_set_updated_data({"raw": b64, "slots": normalized})
+        await asyncio.sleep(5)
+        return normalized

@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import schedule
 from .const import DEVICE_META, DEVICE_PUMP, DEVICE_SALT, DOMAIN, MANUFACTURER
-from .entity import device_id_for, write_slots_guarded
+from .entity import device_id_for, update_slots_guarded
 from .models import IntexPoolConfigEntry
 
 PARALLEL_UPDATES = 1
@@ -81,6 +81,10 @@ class IntexScheduleStartTime(CoordinatorEntity, TimeEntity):
         return dt_time(hour=int(slot.get("hour", 0)) % 24, minute=int(slot.get("minute", 0)) % 60)
 
     async def async_set_value(self, value: dt_time) -> None:
-        slots = (self.coordinator.data or {}).get("slots") or schedule.decode_schedules("")
-        new = schedule.set_slot(slots, self._index, hour=value.hour, minute=value.minute)
-        await write_slots_guarded(self.coordinator, new, self.entity_id)
+        await update_slots_guarded(
+            self.coordinator,
+            lambda slots: schedule.set_slot(
+                slots, self._index, hour=value.hour, minute=value.minute
+            ),
+            self.entity_id,
+        )

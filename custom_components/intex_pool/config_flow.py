@@ -68,7 +68,10 @@ from .const import (
 )
 
 _VERSION_OPTIONS = ["auto", "3.1", "3.3", "3.4", "3.5"]
-_REGION_OPTIONS = ["eu", "us", "cn", "in"]
+# TinyTuya 1.20 maps Central/Western Europe and Western/Eastern America to
+# different endpoints. Keeping only the broad region names makes valid
+# projects in the secondary data centers impossible to configure.
+_REGION_OPTIONS = ["eu", "eu-w", "us", "us-e", "cn", "in", "sg"]
 CONF_MANUAL = "manual"
 # Explicit device-removal flags for the manual reconfigure step: unticked boxes
 # KEEP a device (merge), so manual-only setups (no cloud creds -> no discover
@@ -195,28 +198,51 @@ def _cloud_credentials(data: dict[str, Any]) -> dict[str, str]:
     }
 
 
-async def validate_local(hass: HomeAssistant, ui: dict) -> None:
-    """Open a local Tuya connection, retrying past transient contention.
+async def validate_local(hass: HomeAssistant, ui: dict) -> float:
+    """Open a local Tuya connection and return the proven protocol version.
 
-    Only transport failures are retried — a rejected key (auth) will never
-    succeed with the same credentials, so it surfaces immediately instead of
-    making the user wait through the retry budget.
+    TinyTuya Err 914 means "device key or version". For an explicitly selected
+    protocol version it therefore remains an immediate credential rejection.
+    In auto mode it is not proof that the key is wrong: try every supported
+    protocol before surfacing authentication failure. Explicit versions retain
+    transport retries; auto gets one quick attempt per candidate so an offline
+    IP cannot multiply the socket timeout across nested retry loops.
     """
-    version = _version_value(ui.get(CONF_VERSION))
-    client = tuya.LocalClient(
-        ui[CONF_DEVICE_ID], ui[CONF_LOCAL_KEY], ui[CONF_HOST],
-        version if version else VERSION_CANDIDATES[0],
-    )
-    for attempt in range(4):
-        try:
-            await hass.async_add_executor_job(client.status)
-            return
-        except tuya.TuyaAuthError:
-            raise
-        except Exception:
-            if attempt == 3:
-                raise  # re-raise the last failure with its traceback intact
-            await asyncio.sleep(2)
+    configured_version = _version_value(ui.get(CONF_VERSION))
+    versions = [configured_version] if configured_version else VERSION_CANDIDATES
+    last_auth_error: tuya.TuyaAuthError | None = None
+    last_transport_error: Exception | None = None
+
+    attempts_per_version = 4 if configured_version else 1
+    for version in versions:
+        client = tuya.LocalClient(
+            ui[CONF_DEVICE_ID], ui[CONF_LOCAL_KEY], ui[CONF_HOST], version
+        )
+        for attempt in range(attempts_per_version):
+            try:
+                await hass.async_add_executor_job(client.status)
+                return version
+            except tuya.TuyaAuthError as err:
+                last_auth_error = err
+                if configured_version:
+                    raise
+                break
+            except Exception as err:
+                last_transport_error = err
+                if attempt == attempts_per_version - 1:
+                    if configured_version:
+                        raise
+                    break
+                await asyncio.sleep(2)
+
+    # If at least one candidate could not be reached, avoid claiming the key
+    # was rejected by every protocol. Otherwise all candidates returned the
+    # explicit key-or-version response and an auth-form error is appropriate.
+    if last_transport_error is not None:
+        raise last_transport_error
+    if last_auth_error is not None:
+        raise last_auth_error
+    raise tuya.TuyaError("local validation failed without a device response")
 
 
 async def validate_sensor(hass: HomeAssistant, ui: dict) -> None:
@@ -315,11 +341,13 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 try:
                     if salt and (local_key := user_input.get(CONF_LOCAL_KEY)):
                         cand = {**salt, CONF_LOCAL_KEY: local_key}
-                        await validate_local(self.hass, cand)
+                        if proven := await validate_local(self.hass, cand):
+                            cand[CONF_VERSION] = proven
                         new_data[DEVICE_SALT] = cand
                     if pump_tuya and (pump_key := user_input.get(CONF_PUMP_LOCAL_KEY)):
                         cand = {**pump_tuya, CONF_LOCAL_KEY: pump_key}
-                        await validate_local(self.hass, cand)
+                        if proven := await validate_local(self.hass, cand):
+                            cand[CONF_VERSION] = proven
                         new_data[DEVICE_PUMP] = cand
                     if sensor and (secret := user_input.get(CONF_ACCESS_SECRET)):
                         cand = {**sensor, CONF_ACCESS_SECRET: secret}
@@ -677,7 +705,7 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
-                await validate_local(self.hass, user_input)
+                proven_version = await validate_local(self.hass, user_input)
             except tuya.TuyaAuthError:
                 errors["base"] = "invalid_auth"
             except Exception:  # noqa: BLE001
@@ -687,7 +715,8 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_DEVICE_ID: user_input[CONF_DEVICE_ID],
                     CONF_LOCAL_KEY: user_input[CONF_LOCAL_KEY],
                     CONF_HOST: user_input[CONF_HOST],
-                    CONF_VERSION: _version_value(user_input.get(CONF_VERSION)),
+                    CONF_VERSION: proven_version
+                    or _version_value(user_input.get(CONF_VERSION)),
                     **({CONF_MODEL: user_input[CONF_MODEL]} if user_input.get(CONF_MODEL) else {}),
                 }
                 return await self._async_next()
@@ -716,7 +745,7 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
-                await validate_local(self.hass, user_input)
+                proven_version = await validate_local(self.hass, user_input)
             except tuya.TuyaAuthError:
                 errors["base"] = "invalid_auth"
             except Exception:  # noqa: BLE001
@@ -727,7 +756,8 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_DEVICE_ID: user_input[CONF_DEVICE_ID],
                     CONF_LOCAL_KEY: user_input[CONF_LOCAL_KEY],
                     CONF_HOST: user_input[CONF_HOST],
-                    CONF_VERSION: _version_value(user_input.get(CONF_VERSION)),
+                    CONF_VERSION: proven_version
+                    or _version_value(user_input.get(CONF_VERSION)),
                     CONF_PUMP_ON_DP: user_input.get(CONF_PUMP_ON_DP, DEFAULT_PUMP_ON_DP),
                     **({CONF_MODEL: user_input[CONF_MODEL]} if user_input.get(CONF_MODEL) else {}),
                 }

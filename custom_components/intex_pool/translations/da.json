@@ -11,7 +11,7 @@
           "manual": "Opsæt manuelt i stedet (uden cloud)"
         },
         "data_description": {
-          "region": "Datacentret for dit Tuya IoT-projekt (eu, us, cn eller in).",
+          "region": "Det præcise datacenter for dit Tuya IoT-projekt: eu (Centraleuropa), eu-w (Vesteuropa), us (Vestamerika), us-e (Østamerika), cn, in eller sg.",
           "access_id": "Access ID/Client ID fra projektets oversigtsside på iot.tuya.com.",
           "access_secret": "Access Secret/Client Secret fra samme side.",
           "manual": "Spring cloud-opdagelse over og indtast selv enheds-id'er, nøgler og IP'er."
@@ -82,7 +82,7 @@
           "device_id": "Kloranlæggets Tuya enheds-id.",
           "local_key": "Enhedens lokale nøgle — den roterer når enheden re-parres i appen.",
           "host": "Enhedens LAN-IP (DHCP-reservation anbefales).",
-          "version": "Tuya-protokolversion — lad den stå på auto medmindre du kender den.",
+          "version": "Tuya-protokolversion. Auto prøver 3.4, 3.5, 3.3 og 3.1 én gang hver og gemmer derefter den version, der svarer.",
           "model": "Vises på enhedssiden — vælg din model eller skriv din egen."
         }
       },
@@ -104,6 +104,10 @@
           "model": "Model (valgfri)"
         },
         "data_description": {
+          "device_id": "Pumpens Tuya enheds-id.",
+          "local_key": "Enhedens lokale nøgle; den roterer når enheden re-parres i appen.",
+          "host": "Pumpens aktuelle LAN-IP, ikke en cloud-/app-adresse. DHCP-reservation anbefales.",
+          "version": "Tuya-protokolversion. Auto prøver 3.4, 3.5, 3.3 og 3.1 én gang hver og gemmer derefter den version, der svarer.",
           "pump_on_dp": "Datapunktet der tænder/slukker pumpen (104 på Intex SX-serie-pumper).",
           "model": "Vises på enhedssiden — vælg din model eller skriv din egen."
         }
@@ -150,7 +154,7 @@
     },
     "error": {
       "cannot_connect": "Kunne ikke forbinde — tjek oplysningerne og at enheden er tilgængelig.",
-      "invalid_auth": "Oplysninger afvist — local key eller cloud secret er forkert (local key skifter når enheden re-pares).",
+      "invalid_auth": "Oplysninger eller lokal protokol afvist. For en lokal enhed skal du tjekke aktuel local key, enheds-id, LAN-IP og protokol; auto prøver alle understøttede versioner. Tjek Access Secret for cloud-adgang.",
       "need_reauth_value": "Indtast mindst én ny local key eller cloud secret.",
       "need_creds": "Indtast din Tuya cloud Access ID og secret, eller sæt flueben i “opsæt manuelt”.",
       "device_offline": "Enheden blev ikke fundet på dit netværk — sørg for at den er tændt og på samme LAN som Home Assistant.",

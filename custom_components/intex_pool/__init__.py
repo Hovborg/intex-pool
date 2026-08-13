@@ -392,15 +392,15 @@ def _register_services(hass: HomeAssistant) -> None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="no_schedule"
             )
-        slots = (coordinator.data or {}).get("slots") or schedule_mod.decode_schedules("")
-        new = schedule_mod.set_slot(
-            slots, call.data["slot"],
-            on=call.data.get("enable"), hour=call.data.get("hour"),
-            minute=call.data.get("minute"), duration=call.data.get("duration"),
-            month=call.data.get("month"), date=call.data.get("date"),
-            days=call.data.get("days"), clear=call.data.get("clear", False),
+        await coordinator.async_update_slots(
+            lambda slots: schedule_mod.set_slot(
+                slots, call.data["slot"],
+                on=call.data.get("enable"), hour=call.data.get("hour"),
+                minute=call.data.get("minute"), duration=call.data.get("duration"),
+                month=call.data.get("month"), date=call.data.get("date"),
+                days=call.data.get("days"), clear=call.data.get("clear", False),
+            )
         )
-        await coordinator.async_write_slots(new)
         if call.return_response:
             return _serialize_slots(coordinator)
         return None

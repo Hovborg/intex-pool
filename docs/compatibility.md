@@ -19,6 +19,13 @@ responses; it is not a physical-device verification. Before changing a mapping
 because of a library upgrade, confirm it against a real device and record the
 model, firmware, protocol version and observed datapoints.
 
+Cloud setup exposes TinyTuya 1.20's distinct project regions: `eu`, `eu-w`,
+`us`, `us-e`, `cn`, `in`, and `sg`. Local protocol auto-detection tries 3.4,
+3.5, 3.3, and 3.1 once each and persists the version that responds. An offline
+test proves candidate selection, persistence, entry startup and error
+classification, but it does not replace a physical LAN read from the target
+device and firmware.
+
 ## Reporting another device
 
 Attach Home Assistant diagnostics or a redacted TinyTuya status/thing-model

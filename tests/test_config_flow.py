@@ -1,5 +1,6 @@
 """Config + options flow tests (cloud auto-discovery + manual fallback)."""
 import pytest
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -33,6 +34,13 @@ async def test_user_needs_creds_or_manual(hass):
     )
     assert r["type"] == FlowResultType.FORM
     assert r["errors"] == {"base": "need_creds"}
+
+
+def test_region_options_cover_tinytuya_cloud_endpoints():
+    """The UI must expose every TinyTuya 1.20 cloud endpoint we support."""
+    assert config_flow._REGION_OPTIONS == [
+        "eu", "eu-w", "us", "us-e", "cn", "in", "sg",
+    ]
 
 
 async def test_user_no_devices_found_shows_no_devices_error(hass, monkeypatch):
@@ -178,6 +186,116 @@ async def test_validate_local_retries_transport_but_not_auth(hass, monkeypatch):
     assert sleeps == []
 
 
+async def test_validate_local_auto_protocol_falls_through_auth_mismatch(hass, monkeypatch):
+    """Err 914 can mean protocol mismatch, so auto must try the next version."""
+    attempted: list[float] = []
+
+    class VersionClient:
+        def __init__(self, version):
+            self.version = version
+
+        def status(self):
+            attempted.append(self.version)
+            if self.version == 3.4:
+                raise config_flow.tuya.TuyaAuthError("key or version")
+            return {"104": True}
+
+    monkeypatch.setattr(
+        config_flow.tuya,
+        "LocalClient",
+        lambda _device_id, _key, _host, version: VersionClient(version),
+    )
+
+    found = await config_flow.validate_local(
+        hass, {**SALT_INPUT, "version": "auto"}
+    )
+
+    assert found == 3.5
+    assert attempted == [3.4, 3.5]
+
+
+async def test_validate_local_auto_protocol_falls_through_transport_failure(
+    hass, monkeypatch
+):
+    """An unreachable candidate must not prevent auto from trying the next one."""
+    attempted: list[float] = []
+
+    class VersionClient:
+        def __init__(self, version):
+            self.version = version
+
+        def status(self):
+            attempted.append(self.version)
+            if self.version == 3.4:
+                raise TuyaError("device busy")
+            return {"104": True}
+
+    async def no_wait(_seconds):
+        return None
+
+    monkeypatch.setattr(
+        config_flow.tuya,
+        "LocalClient",
+        lambda _device_id, _key, _host, version: VersionClient(version),
+    )
+    monkeypatch.setattr(config_flow.asyncio, "sleep", no_wait)
+
+    found = await config_flow.validate_local(
+        hass, {**SALT_INPUT, "version": "auto"}
+    )
+
+    assert found == 3.5
+    assert attempted == [3.4, 3.5]
+
+
+async def test_validate_local_explicit_protocol_stops_on_auth_reject(hass, monkeypatch):
+    """An explicit version is authoritative and must not silently rotate."""
+    attempted: list[float] = []
+
+    class RejectedClient:
+        def __init__(self, version):
+            self.version = version
+
+        def status(self):
+            attempted.append(self.version)
+            raise config_flow.tuya.TuyaAuthError("bad key")
+
+    monkeypatch.setattr(
+        config_flow.tuya,
+        "LocalClient",
+        lambda _device_id, _key, _host, version: RejectedClient(version),
+    )
+
+    with pytest.raises(config_flow.tuya.TuyaAuthError):
+        await config_flow.validate_local(hass, {**SALT_INPUT, "version": "3.4"})
+
+    assert attempted == [3.4]
+
+
+async def test_validate_local_auto_protocol_reports_auth_after_all_reject(hass, monkeypatch):
+    """Auto may call credentials invalid only after every protocol says 914."""
+    attempted: list[float] = []
+
+    class RejectedClient:
+        def __init__(self, version):
+            self.version = version
+
+        def status(self):
+            attempted.append(self.version)
+            raise config_flow.tuya.TuyaAuthError("key or version")
+
+    monkeypatch.setattr(
+        config_flow.tuya,
+        "LocalClient",
+        lambda _device_id, _key, _host, version: RejectedClient(version),
+    )
+
+    with pytest.raises(config_flow.tuya.TuyaAuthError):
+        await config_flow.validate_local(hass, {**SALT_INPUT, "version": "auto"})
+
+    assert attempted == config_flow.VERSION_CANDIDATES
+
+
 # --- manual fallback ---
 
 async def test_manual_requires_at_least_one_device(hass):
@@ -279,6 +397,50 @@ async def test_manual_tuya_pump_success_keeps_control_metadata(hass, monkeypatch
     }
 
 
+async def test_manual_auto_protocol_persists_proven_version_and_entry_loads(
+    hass, monkeypatch
+):
+    """A 3.5-only local entry must not restart runtime detection at 3.4."""
+
+    class Protocol35Client:
+        def __init__(self, _device_id, _key, _host, version):
+            self.version = version
+
+        def status(self):
+            if self.version == 3.4:
+                raise config_flow.tuya.TuyaAuthError("key or version")
+            return {"104": True}
+
+        def set_version(self, version):
+            self.version = version
+
+    monkeypatch.setattr(config_flow.tuya, "LocalClient", Protocol35Client)
+    r = await _to_manual(hass)
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"has_sensor": False, "has_salt": False, "has_pump": True}
+    )
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"pump_mode": "tuya"}
+    )
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {
+            **SALT_INPUT,
+            "device_id": "pump35",
+            "host": "1.2.3.5",
+            "version": "auto",
+            "pump_on_dp": "104",
+        },
+    )
+
+    assert r["type"] == FlowResultType.CREATE_ENTRY
+    assert r["data"]["pump"]["version"] == 3.5
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.pump._client.version == 3.5
+
+
 async def test_duplicate_aborts(hass, mock_tinytuya):
     existing = MockConfigEntry(domain=DOMAIN, data={"sensor": SENSOR_INPUT}, unique_id="sdev")
     existing.add_to_hass(hass)
@@ -292,12 +454,15 @@ async def test_duplicate_aborts(hass, mock_tinytuya):
 
 
 async def test_reauth_updates_local_key(hass, monkeypatch):
-    """A rotated local key: reauth form -> new key validated -> entry updated."""
-    entry = MockConfigEntry(domain=DOMAIN, data={"salt": SALT_INPUT}, unique_id="saltdev", version=2)
+    """Reauth stores both the rotated key and an auto-detected protocol."""
+    auto_salt = {**SALT_INPUT, "version": None}
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"salt": auto_salt}, unique_id="saltdev", version=2
+    )
     entry.add_to_hass(hass)
 
     async def ok(hass_, ui):
-        return None
+        return 3.5
 
     monkeypatch.setattr(config_flow, "validate_local", ok)
     r = await entry.start_reauth_flow(hass)
@@ -306,6 +471,7 @@ async def test_reauth_updates_local_key(hass, monkeypatch):
     assert r["type"] == FlowResultType.ABORT
     assert r["reason"] == "reauth_successful"
     assert entry.data["salt"]["local_key"] == "NEWKEY"
+    assert entry.data["salt"]["version"] == 3.5
 
 
 async def test_reauth_updates_standalone_cloud_secret(hass, monkeypatch):
