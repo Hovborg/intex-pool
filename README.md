@@ -187,6 +187,24 @@ Life / Tuya app account linked. Enter those and the integration will:
 Then pick the discovered **saltwater system**, **water sensor** and/or **Tuya pump** you own.
 Alternatively, link any existing Home Assistant switch as your sand-filter pump.
 
+### Link the Tuya account and choose the exact region
+
+Tuya's supported developer-cloud flow is:
+
+1. Create a **Smart Home** cloud project at `iot.tuya.com` and keep **IoT Core** active.
+2. Open the project, go to **Devices → Link App Account**, and add an app account.
+3. Scan the authorization QR code with **Tuya Smart** or **Smart Life**. Wait for the
+   authorization to propagate, then confirm that the pool device appears under **All Devices**.
+4. In Intex Pool, select the data center used by that exact project:
+   `eu` (Central Europe), `eu-w` (Western Europe), `us` (Western America),
+   `us-e` (Eastern America), `cn`, `in`, or `sg`.
+
+Tuya's documented account-linking flow uses Tuya Smart or Smart Life. A device that exists
+only in the Intex Link app may therefore not appear in a Tuya developer project. Before moving
+or re-pairing equipment, check what vendor-app automations or device relationships you rely on.
+Re-pairing rotates the device's local key, so any existing local Home Assistant setup must be
+re-authenticated afterward.
+
 > 🔁 The water sensor sleeps and reports about once an hour — tap **Refresh measurement** to
 > force a fresh reading.
 
@@ -198,6 +216,11 @@ key** and **IP** by hand (get them with [tinytuya](https://github.com/jasonacox/
 Protocol version can be left on **auto**. Note: local devices still need their local key,
 which for these `rs` devices ultimately comes from the Tuya cloud — so the cloud path is
 usually simplest.
+
+The manual IP field is the device's current private **LAN IP**, not an address shown for a
+cloud service. Reserve that address in DHCP when possible. **Auto** tries protocol versions
+3.4, 3.5, 3.3, and 3.1 once each, then stores the version that answered successfully. This
+keeps later Home Assistant startups on the proven version.
 </details>
 
 ## 🔧 Keeping it running
@@ -232,6 +255,10 @@ delete and re-add the integration:
 - ☁️ **Tuya cloud trial expired?** The free IoT Core trial eventually lapses; renew it for
   free at [iot.tuya.com](https://iot.tuya.com) → Cloud → your project → **View Details** →
   extend trial. The integration surfaces auth failures as a re-authentication prompt.
+- 🌍 **Cloud project returns no devices?** Confirm that IoT Core is active, the app account is
+  linked to the project, the device is visible under All Devices, authorization has had time
+  to propagate, and Intex Pool uses the exact project data center. Central and Western Europe
+  use different endpoints (`eu` and `eu-w`).
 - 📉 **No measurement-history backfill**: Tuya's device-log APIs do not return data-point
   report history on the free IoT Core tier (verified live — only online/offline events come
   back), so readings taken while Home Assistant was down cannot be recovered. History

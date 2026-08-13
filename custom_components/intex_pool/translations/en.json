@@ -11,7 +11,7 @@
           "manual": "Set up manually instead (no cloud)"
         },
         "data_description": {
-          "region": "The data center of your Tuya IoT project (eu, us, cn or in).",
+          "region": "The exact data center of your Tuya IoT project: eu (Central Europe), eu-w (Western Europe), us (Western America), us-e (Eastern America), cn, in or sg.",
           "access_id": "The Access ID/Client ID from your project's overview page on iot.tuya.com.",
           "access_secret": "The Access Secret/Client Secret from the same page.",
           "manual": "Skip cloud discovery and type device IDs, keys and IPs yourself."
@@ -82,7 +82,7 @@
           "device_id": "The chlorinator's Tuya device id.",
           "local_key": "The device's local key — it rotates when the device is re-paired in the app.",
           "host": "The device's LAN IP (a DHCP reservation is recommended).",
-          "version": "Tuya protocol version — leave on auto unless you know it.",
+          "version": "Tuya protocol version. Auto tries 3.4, 3.5, 3.3 and 3.1 once each, then stores the version that responds.",
           "model": "Shown on the device page — pick your model or type your own."
         }
       },
@@ -104,6 +104,10 @@
           "model": "Model (optional)"
         },
         "data_description": {
+          "device_id": "The pump's Tuya device id.",
+          "local_key": "The device's local key; it rotates when the device is re-paired in the app.",
+          "host": "The pump's current LAN IP, not a cloud/app address. A DHCP reservation is recommended.",
+          "version": "Tuya protocol version. Auto tries 3.4, 3.5, 3.3 and 3.1 once each, then stores the version that responds.",
           "pump_on_dp": "The data point that switches the pump on/off (104 on Intex SX-series pumps).",
           "model": "Shown on the device page — pick your model or type your own."
         }
@@ -150,7 +154,7 @@
     },
     "error": {
       "cannot_connect": "Failed to connect — check the details and that the device is reachable.",
-      "invalid_auth": "Credentials rejected — the local key or cloud secret is wrong (the local key changes when the device is re-paired).",
+      "invalid_auth": "Credentials or local protocol rejected. For a local device, check its current local key, device ID, LAN IP and protocol; auto tries every supported version. For cloud access, check the Access Secret.",
       "need_reauth_value": "Enter at least one new local key or cloud secret.",
       "need_creds": "Enter your Tuya cloud Access ID and secret, or tick “set up manually”.",
       "device_offline": "That device wasn't found on your network — make sure it's powered on and on the same LAN as Home Assistant.",

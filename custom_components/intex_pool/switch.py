@@ -34,7 +34,7 @@ from .entity import (
     coordinator_for,
     device_id_for,
     pump_device_info,
-    write_slots_guarded,
+    update_slots_guarded,
 )
 from .models import IntexPoolConfigEntry
 
@@ -323,23 +323,26 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
             attrs["suspended"] = self._suspended
         return attrs
 
-    def _slots(self) -> list[dict]:
-        return (self.coordinator.data or {}).get("slots") or schedule.decode_schedules("")
-
     async def async_turn_off(self, **kwargs) -> None:
-        slots = self._slots()
-        slot = slots[self._index]
-        remembered = _slot_fields(slot) if slot.get("active") else self._remembered
-        new = schedule.set_slot(slots, self._index, clear=True)
-        restoring = self._is_boost and bool(self._suspended)
-        if restoring:
-            # Boost released: bring the suspended timed schedules back.
-            for idx, rec in self._suspended.items():
-                new = _apply(new, int(idx), rec)
+        remembered = self._remembered
+        restoring = False
+
+        def mutate(slots: list[dict]) -> list[dict]:
+            nonlocal remembered, restoring
+            slot = slots[self._index]
+            remembered = _slot_fields(slot) if slot.get("active") else self._remembered
+            new = schedule.set_slot(slots, self._index, clear=True)
+            restoring = self._is_boost and bool(self._suspended)
+            if restoring:
+                # Boost released: bring the suspended timed schedules back.
+                for idx, rec in self._suspended.items():
+                    new = _apply(new, int(idx), rec)
+            return new
+
         # Write FIRST — only commit the remembered/suspended bookkeeping once
         # the cloud write succeeded, so a failed write can't leave the entity
         # believing the slot was cleared/restored.
-        await write_slots_guarded(self.coordinator, new, self.entity_id)
+        await update_slots_guarded(self.coordinator, mutate, self.entity_id)
         self._remembered = remembered
         if restoring:
             self._suspended = {}
@@ -349,28 +352,33 @@ class IntexScheduleSlotSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         # Restore the remembered schedule, or create a sensible default the user
         # can then edit. Slot 0 defaults to a Boost cycle (on=0, long duration,
         # no start time); the timed slots default to a daily run.
-        slots = self._slots()
-        if self._is_boost:
-            default = {"on": 0, "hour": 0, "minute": 0, "duration": 48, "days": 0}
-        else:
-            default = {"on": 1, "hour": 12, "minute": 0, "duration": 2, "days": 0xFF}
-        new = _apply(slots, self._index, self._remembered or default)
         snapshot: dict[str, dict] | None = None
-        if self._is_boost:
-            # Suspend (remember + clear) every active timed schedule so the UI
-            # shows them off and they don't run against the boost cycle. Only
-            # overwrite the remembered set when there is actually something to
-            # remember, so a second turn-on (timed slots already cleared) can't
-            # wipe the suspended schedules.
-            snapshot = {
-                str(i): _slot_fields(slots[i])
-                for i in range(1, schedule.SLOT_COUNT)
-                if slots[i].get("active")
-            }
-            for i in range(1, schedule.SLOT_COUNT):
-                new = schedule.set_slot(new, i, clear=True)
+
+        def mutate(slots: list[dict]) -> list[dict]:
+            nonlocal snapshot
+            if self._is_boost:
+                default = {"on": 0, "hour": 0, "minute": 0, "duration": 48, "days": 0}
+            else:
+                default = {
+                    "on": 1, "hour": 12, "minute": 0, "duration": 2, "days": 0xFF,
+                }
+            new = _apply(slots, self._index, self._remembered or default)
+            if self._is_boost:
+                # Suspend (remember + clear) every active timed schedule so the
+                # UI shows them off and they don't run against the boost cycle.
+                # Only overwrite the remembered set when there is actually
+                # something to remember, so a second turn-on cannot wipe it.
+                snapshot = {
+                    str(i): _slot_fields(slots[i])
+                    for i in range(1, schedule.SLOT_COUNT)
+                    if slots[i].get("active")
+                }
+                for i in range(1, schedule.SLOT_COUNT):
+                    new = schedule.set_slot(new, i, clear=True)
+            return new
+
         # Write FIRST — commit the suspended snapshot only on success.
-        await write_slots_guarded(self.coordinator, new, self.entity_id)
+        await update_slots_guarded(self.coordinator, mutate, self.entity_id)
         if self._is_boost and snapshot:
             self._suspended = snapshot
         self.async_write_ha_state()

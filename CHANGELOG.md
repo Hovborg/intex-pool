@@ -6,6 +6,28 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.21.2] - 2026-08-13
+
+### Fixed
+- Manual local setup's protocol `auto` mode now tries every supported candidate
+  (3.4, 3.5, 3.3, and 3.1) before treating TinyTuya Err 914 as rejected
+  credentials. This fixes valid SX2100 setups that work on 3.5 but were rejected
+  when the previous setup check tried only 3.4. The proven version is persisted
+  for runtime startup, and auto uses one quick attempt per candidate instead of
+  multiplying the socket timeout by each candidate's retry budget.
+- Tuya cloud setup now exposes Western Europe, Eastern America, and Singapore in
+  addition to the existing regions, matching TinyTuya 1.20's distinct endpoints.
+- Schedule field edits are now atomic read-modify-write operations. Concurrent
+  slot, duration, time, Boost, or service edits can no longer derive two full
+  blobs from the same stale state and silently discard the first change. Known
+  pre-write cloud shadows are ignored until Tuya reflects the write or returns
+  a genuinely different external update.
+
+### Documentation
+- Added the Tuya Smart/Smart Life account-linking, IoT Core, exact data-center,
+  authorization propagation, LAN-IP, and local-key rotation troubleshooting
+  reported across issues #13 and #18.
+
 ## [0.21.1] - 2026-08-04
 
 ### Documentation

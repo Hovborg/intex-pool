@@ -1,6 +1,7 @@
 """Base entity + platform helpers for Intex Pool."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.exceptions import HomeAssistantError
@@ -62,6 +63,26 @@ async def write_slots_guarded(
     """
     try:
         await coordinator.async_write_slots(slots)
+    except HomeAssistantError:
+        raise
+    except Exception as err:
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="schedule_write_failed",
+            translation_placeholders={"name": what, "error": str(err)},
+        ) from err
+
+
+async def update_slots_guarded(
+    coordinator: ScheduleCoordinator,
+    mutator: Callable[
+        [list[dict[str, Any]]], list[dict[str, Any]]
+    ],
+    what: str,
+) -> list[dict[str, Any]]:
+    """Atomically mutate schedule slots and translate cloud-write failures."""
+    try:
+        return await coordinator.async_update_slots(mutator)
     except HomeAssistantError:
         raise
     except Exception as err:

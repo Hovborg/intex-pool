@@ -1,4 +1,6 @@
 """Schedule coordinator + sensor tests (fake cloud, no network)."""
+import asyncio
+
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.intex_pool import schedule
@@ -19,6 +21,14 @@ class FakeCloudSched:
 
     def issue(self, device_id, code, value):
         self.issued.append((device_id, code, value))
+
+
+class SettlingCloudSched(FakeCloudSched):
+    """Fake a cloud that reflects a completed write on the following refresh."""
+
+    def issue(self, device_id, code, value):
+        super().issue(device_id, code, value)
+        self.raw = value
 
 
 def _coord(hass, raw):
@@ -57,6 +67,66 @@ async def test_schedule_write_round_trips(hass):
     assert (did, code) == ("saltid", "skdl_salt")
     decoded = schedule.decode_schedules(blob)
     assert (decoded[4]["hour"], decoded[4]["minute"], decoded[4]["duration"]) == (23, 30, 4)
+
+
+async def test_concurrent_schedule_mutations_preserve_both_edits(hass, monkeypatch):
+    """Two simultaneous editors must not derive full blobs from the same old state."""
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    client = SettlingCloudSched("")
+    coord = ScheduleCoordinator(hass, entry, client, "saltid", 600)
+    await coord.async_refresh()
+
+    async def no_wait(_seconds):
+        return None
+
+    monkeypatch.setattr(
+        "custom_components.intex_pool.coordinator.asyncio.sleep", no_wait
+    )
+
+    await asyncio.gather(
+        coord.async_update_slots(
+            lambda slots: schedule.set_slot(slots, 1, on=True, hour=3, duration=2)
+        ),
+        coord.async_update_slots(
+            lambda slots: schedule.set_slot(slots, 2, on=True, hour=5, duration=4)
+        ),
+    )
+
+    final = coord.data["slots"]
+    assert final[1]["active"] is True
+    assert (final[1]["hour"], final[1]["duration"]) == (3, 2)
+    assert final[2]["active"] is True
+    assert (final[2]["hour"], final[2]["duration"]) == (5, 4)
+
+
+async def test_lagging_cloud_readback_cannot_undo_optimistic_schedule(hass, monkeypatch):
+    """A known pre-write cloud blob must not become the next editor's base."""
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    client = FakeCloudSched("")
+    coord = ScheduleCoordinator(hass, entry, client, "saltid", 600)
+    await coord.async_refresh()
+
+    async def no_wait(_seconds):
+        return None
+
+    monkeypatch.setattr(
+        "custom_components.intex_pool.coordinator.asyncio.sleep", no_wait
+    )
+
+    await coord.async_update_slots(
+        lambda slots: schedule.set_slot(slots, 1, on=True, hour=3, duration=2)
+    )
+    assert coord.data["slots"][1]["active"] is True
+
+    await coord.async_update_slots(
+        lambda slots: schedule.set_slot(slots, 2, on=True, hour=5, duration=4)
+    )
+
+    written = schedule.decode_schedules(client.issued[-1][2])
+    assert written[1]["active"] is True
+    assert written[2]["active"] is True
 
 
 async def test_schedule_slot_switches(hass):
