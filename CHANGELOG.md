@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.21.2] - 2026-08-13
+
 ### Fixed
 - Manual local setup's protocol `auto` mode now tries every supported candidate
   (3.4, 3.5, 3.3, and 3.1) before treating TinyTuya Err 914 as rejected
