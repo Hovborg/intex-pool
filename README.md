@@ -100,7 +100,10 @@ editors (Tuya mode).
 ## 📸 The card adapts to what you have
 
 It shows only the sections for the equipment you own — chemistry-only, full, or pump-only.
-Saltwater and pump schedules are detected and labelled independently:
+Saltwater and pump schedules are detected and labelled independently. When both
+temperature readings are available, the header shows **Temp WA** (water analyzer)
+and **Temp salt** (saltwater system). With one reading it shows **Temp**. The
+existing `sensor_temp` and `salt_temp` card options can override either entity:
 
 <div align="center">
 <img src="docs/images/card-variants.png" width="820" alt="The card adapts: sensor only, all three, pump only" />
@@ -189,6 +192,9 @@ Alternatively, link any existing Home Assistant switch as your sand-filter pump.
 
 ### Link the Tuya account and choose the exact region
 
+See the [step-by-step Water Analyzer and local-device setup guide](docs/tuya-setup.md)
+for app migration, credential fields, LAN addresses and protocol troubleshooting.
+
 Tuya's supported developer-cloud flow is:
 
 1. Create a **Smart Home** cloud project at `iot.tuya.com` and keep **IoT Core** active.
@@ -209,7 +215,7 @@ re-authenticated afterward.
 > force a fresh reading.
 
 <details>
-<summary>🔧 Manual setup (fallback, no cloud)</summary>
+<summary>🔧 Manual setup (local devices can run without cloud)</summary>
 
 Tick **“set up manually”** in the first step and enter each device's **device id**, **local
 key** and **IP** by hand (get them with [tinytuya](https://github.com/jasonacox/tinytuya)).
@@ -221,6 +227,7 @@ The manual IP field is the device's current private **LAN IP**, not an address s
 cloud service. Reserve that address in DHCP when possible. **Auto** tries protocol versions
 3.4, 3.5, 3.3, and 3.1 once each, then stores the version that answered successfully. This
 keeps later Home Assistant startups on the proven version.
+Manual Water Analyzer setup still requires cloud credentials and its cloud device ID.
 </details>
 
 ## 🔧 Keeping it running

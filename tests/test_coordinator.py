@@ -114,6 +114,14 @@ async def test_sensor_refresh_measure_presses_refresh_switch(hass):
     assert cloud.issued[-1] == ("devid", "refresh_switch", True)
 
 
+async def test_sensor_refresh_measure_uses_reported_saltwater_retest(hass):
+    cloud = FakeCloud()
+    coord = SensorCoordinator(hass, _entry(hass), cloud, "saltdev", 120)
+    coord.async_set_updated_data({"retest_switch": False, "water_tempture_c": 24})
+    await coord.async_refresh_measure()
+    assert cloud.issued == [("saltdev", "retest_switch", True)]
+
+
 async def test_sensor_failure(hass):
     cloud = FakeCloud()
     cloud.fail = True

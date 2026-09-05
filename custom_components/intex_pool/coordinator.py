@@ -230,6 +230,8 @@ class SensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         client: CloudClient,
         device_id: str,
         interval: int,
+        *,
+        local_salt: SaltCoordinator | None = None,
     ) -> None:
         super().__init__(
             hass, _LOGGER, name="Intex water sensor", config_entry=entry,
@@ -237,6 +239,7 @@ class SensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self._client = client
         self._device_id = device_id
+        self._local_salt = local_salt
         self._auth_failures = _AuthFailures(hass, entry, "sensor")
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -266,8 +269,15 @@ class SensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self.async_request_refresh()
 
     async def async_refresh_measure(self) -> None:
-        """Force the sleeping sensor to take a fresh measurement now."""
-        await self.async_issue("refresh_switch", True)
+        """Request a measurement using this physical device's supported path."""
+        if self._local_salt is not None:
+            # Only wired for matching device IDs by _build_data. Reuse the
+            # local coordinator's I/O lock and the salt unit's Re-test DP.
+            await self._local_salt.async_set_dp(107, True)
+            await self.async_request_refresh()
+            return
+        code = "retest_switch" if "retest_switch" in (self.data or {}) else "refresh_switch"
+        await self.async_issue(code, True)
 
 
 class ScheduleCoordinator(DataUpdateCoordinator[dict[str, Any]]):

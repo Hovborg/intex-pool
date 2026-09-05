@@ -15,6 +15,35 @@ PUMP_TUYA = {"pump_mode": "tuya", "device_id": "pumpdev", "local_key": "k",
              "host": "1.2.3.5", "version": 3.5, "pump_on_dp": "1"}
 
 
+async def test_shared_saltwater_sensor_refresh_uses_local_retest(hass, mock_tinytuya):
+    from custom_components.intex_pool import _build_data
+
+    entry = MockConfigEntry(domain=DOMAIN, data={
+        "salt": SALT, "sensor": {**SENSOR, "device_id": SALT["device_id"]},
+    })
+    entry.add_to_hass(hass)
+    data = await _build_data(hass, entry)
+    calls = []
+    data.salt._client.set_value = lambda dp, value: calls.append((dp, value))
+    await data.sensor.async_refresh_measure()
+    assert calls == [(107, True)]
+
+
+async def test_separate_analyzer_refresh_never_retests_salt(hass, mock_tinytuya):
+    from custom_components.intex_pool import _build_data
+
+    entry = MockConfigEntry(domain=DOMAIN, data={"salt": SALT, "sensor": SENSOR})
+    entry.add_to_hass(hass)
+    data = await _build_data(hass, entry)
+    local_calls = []
+    cloud_calls = []
+    data.salt._client.set_value = lambda dp, value: local_calls.append((dp, value))
+    data.sensor._client.issue = lambda *args: cloud_calls.append(args)
+    await data.sensor.async_refresh_measure()
+    assert local_calls == []
+    assert cloud_calls == [("sdev", "refresh_switch", True)]
+
+
 async def _setup(hass, data):
     entry = MockConfigEntry(domain=DOMAIN, data=data, unique_id="uid-" + "-".join(data))
     entry.add_to_hass(hass)

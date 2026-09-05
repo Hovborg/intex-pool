@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+- Measurement refresh for a cloud sensor sharing the local saltwater device ID
+  now uses local Re-test DP 107. Cloud-only saltwater schemas use `retest_switch`;
+  separate Water Analyzers retain their own cloud refresh. Failed repair commands
+  leave the form open with a retry message (#20).
+
+### Added
+- The card header shows both analyzer and saltwater temperatures with distinct
+  labels when both readings exist, while keeping one tile for a shared entity (#22).
+
+### Documentation
+- Added a dedicated Water Analyzer/local-device setup guide, credential mapping
+  and the limits of app migration. Clarified that manual analyzer setup still
+  needs cloud credentials. Protocol-auto and region fixes for #13/#18 already
+  shipped in 0.21.2 and remain covered by regression tests.
+
+### Build
+- Updated esbuild from 0.28.1 to 0.28.2, matching dependency PR #21, and rebuilt
+  the shipped card bundle.
+
 ## [0.21.2] - 2026-08-13
 
 ### Fixed

@@ -33,13 +33,12 @@ async def async_setup_entry(
 
 class IntexButton(IntexPoolEntity, ButtonEntity):
     async def async_press(self) -> None:
-        # Device-aware write: a local coordinator (salt/pump) writes the DP over
-        # the LAN (async_set_dp), a cloud coordinator (sensor) issues a property
-        # (async_issue). This keeps the sensor refresh button on the cloud path
-        # while the salt re-test button hits the local device.
+        # Measurement requests share the repair flow's device-aware routing.
         source = self.entity_description.source
         try:
-            if hasattr(self.coordinator, "async_set_dp"):
+            if self.entity_description.key == "refresh":
+                await self.coordinator.async_refresh_measure()
+            elif hasattr(self.coordinator, "async_set_dp"):
                 await self.coordinator.async_set_dp(source, True)
             else:
                 await self.coordinator.async_issue(source, True)

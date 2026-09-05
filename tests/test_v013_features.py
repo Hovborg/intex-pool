@@ -231,3 +231,22 @@ async def test_stale_repair_flow_triggers_refresh(hass, mock_tinytuya, monkeypat
     result = await flow.async_step_confirm({})
     assert result["type"] == "create_entry"
     assert refreshes == [1]
+
+
+async def test_stale_repair_keeps_form_open_when_measurement_command_fails(
+    hass, mock_tinytuya, monkeypatch,
+):
+    from custom_components.intex_pool.repairs import async_create_fix_flow
+    from custom_components.intex_pool.tuya import TuyaError
+
+    entry = await _setup(hass, {"has_sensor": True, "sensor": SENSOR})
+
+    async def rejected():
+        raise TuyaError("command rejected")
+
+    monkeypatch.setattr(entry.runtime_data.sensor, "async_refresh_measure", rejected)
+    flow = await async_create_fix_flow(hass, "sensor_stale", {"entry_id": entry.entry_id})
+    flow.hass = hass
+    result = await flow.async_step_confirm({})
+    assert result["type"] == "form"
+    assert result["errors"] == {"base": "cannot_refresh"}
