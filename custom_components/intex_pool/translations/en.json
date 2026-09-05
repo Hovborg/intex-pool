@@ -571,6 +571,9 @@
             "title": "Force a fresh measurement",
             "description": "The newest measurement is from {last} — the sensor normally reports about once an hour. Confirming sends a refresh command that wakes the sensor for an immediate reading. Also check that the sensor is charged, in the water and online; if it never recovers, the device may have been re-paired with a new id (use Reconfigure)."
           }
+        },
+        "error": {
+          "cannot_refresh": "The measurement command failed. Check the device connection and try again. This issue remains open."
         }
       }
     },

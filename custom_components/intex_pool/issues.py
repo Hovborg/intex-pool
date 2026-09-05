@@ -155,7 +155,7 @@ def async_setup_issue_listeners(hass: HomeAssistant, entry: IntexPoolConfigEntry
                 ir.async_create_issue(
                     hass, DOMAIN, stale_issue,
                     # Fixable: the repair flow forces a fresh measurement
-                    # (refresh_switch) on confirm — see repairs.py.
+                    # through the device-aware coordinator — see repairs.py.
                     is_fixable=True,
                     severity=ir.IssueSeverity.WARNING,
                     translation_key="sensor_stale",

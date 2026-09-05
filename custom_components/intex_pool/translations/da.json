@@ -657,6 +657,9 @@
             "title": "Tving en frisk måling",
             "description": "Den nyeste måling er fra {last} — sensoren rapporterer normalt cirka én gang i timen. Bekræftelse sender en opdaterings-kommando, der vækker sensoren til en øjeblikkelig aflæsning. Tjek også at sensoren er opladet, ligger i vandet og er online; kommer den aldrig tilbage, kan enheden være re-parret med et nyt id (brug Omkonfigurér)."
           }
+        },
+        "error": {
+          "cannot_refresh": "Målingen kunne ikke startes. Kontrollér enhedens forbindelse og prøv igen. Problemet forbliver åbent."
         }
       }
     },

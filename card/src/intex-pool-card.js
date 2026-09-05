@@ -327,7 +327,10 @@ class IntexPoolCard extends LitElement {
   render() {
     if (!this._hass || !this._config) return nothing;
     const c = this._roles();
-    const tempId = this._has(c.sensor_temp) ? c.sensor_temp : c.salt_temp;
+    const temperatures = [
+      [c.sensor_temp, "Temp WA"], [c.salt_temp, "Temp salt"],
+    ].filter(([id], index, all) =>
+      this._has(id) && all.findIndex(([other]) => other === id) === index);
 
     const tiles = [
       this._has(c.ph_sensor)
@@ -340,7 +343,9 @@ class IntexPoolCard extends LitElement {
       this._has(c.fc_sensor)
         ? this._tile(c.fc_sensor, { label: "Cl₂", digits: 2, unit: "ppm", lo: 1, hi: 3 })
         : nothing,
-      this._has(tempId) ? this._tile(tempId, { label: "Temp", digits: 1, unit: "°", lo: 10, hi: 35 }) : nothing,
+      ...temperatures.map(([id, label]) => this._tile(id, {
+        label: temperatures.length > 1 ? label : "Temp", digits: 1, unit: "°", lo: 10, hi: 35,
+      })),
       this._has(c.salinity) ? this._tile(c.salinity, { label: "Salt", lo: 800, hi: 1800 }) : nothing,
     ].filter((t) => t !== nothing);
 

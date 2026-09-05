@@ -195,7 +195,12 @@ async def _build_data(hass: HomeAssistant, entry: IntexPoolConfigEntry) -> Intex
                 f"Tuya cloud unreachable: {type(err).__name__}: {err}"
             ) from err
         data.sensor = SensorCoordinator(
-            hass, entry, cloud, sensor["device_id"], cloud_interval
+            hass, entry, cloud, sensor["device_id"], cloud_interval,
+            local_salt=(
+                data.salt
+                if salt and salt["device_id"] == sensor["device_id"]
+                else None
+            ),
         )
     elif cloud_cfg := entry.data.get(CONF_CLOUD):
         # Pump-only and salt-only cloud discovery still needs the shared Tuya

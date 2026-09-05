@@ -1,0 +1,4 @@
+# Source maps embed source bytes; keep card builds identical on Windows/Linux.
+*.js text eol=lf
+*.mjs text eol=lf
+*.map text eol=lf

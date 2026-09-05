@@ -60,6 +60,13 @@ async def _sensor(hass, props):
     return coord, client
 
 
+async def test_refresh_button_uses_saltwater_measurement_command(hass):
+    coord, client = await _sensor(hass, {"retest_switch": False, "water_tempture_c": 24})
+    button = IntexButton(coord, _d(const.BUTTONS, "refresh"), "sid")
+    await button.async_press()
+    assert client.issued == [("retest_switch", True)]
+
+
 def _d(table, key):
     return next(d for d in table if d.key == key)
 

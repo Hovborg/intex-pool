@@ -1,9 +1,7 @@
 """Repair flows: user-fixable issues from the Repairs dashboard.
 
-Currently one fixable issue: stale analyzer data. Confirming the repair
-forces a fresh measurement (the cloud ``refresh_switch`` property wakes the
-sleeping sensor) — the issue then clears itself on the next poll once the
-measurement lands.
+Currently one fixable issue: stale sensor data. The coordinator routes the
+measurement request to the matching device's local re-test or cloud property.
 """
 from __future__ import annotations
 
@@ -13,6 +11,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 
 from .models import IntexPoolData
+from .tuya import TuyaError
 
 
 class StaleSensorRepairFlow(RepairsFlow):
@@ -35,7 +34,12 @@ class StaleSensorRepairFlow(RepairsFlow):
         if entry is not None and entry.state is ConfigEntryState.LOADED:
             data: IntexPoolData = entry.runtime_data
             if data.sensor is not None:
-                await data.sensor.async_refresh_measure()
+                try:
+                    await data.sensor.async_refresh_measure()
+                except (TuyaError, OSError, TimeoutError):
+                    return self.async_show_form(
+                        step_id="confirm", errors={"base": "cannot_refresh"}
+                    )
         # Creating the entry closes the flow and removes the issue; it will be
         # re-raised by the listener if the measurement never arrives.
         return self.async_create_entry(title="", data={})
