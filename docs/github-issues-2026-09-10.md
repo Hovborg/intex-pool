@@ -24,6 +24,9 @@ list was stale; the GitHub API supplied the current states.
 
 ## Additional dashboard findings
 
+- Visual review at 320 pixels found clipped status badges in side-by-side cards
+  despite the outer card reporting no overflow. The header now wraps, and the
+  browser matrix asserts that individual header children also fit.
 - Sections previously reserved three rows regardless of schedule length. With a
   seven-row schedule the first card ended at y466.19 and the next started at
   y272: 194.19 pixels of overlap. Content-based row sizing now places the next

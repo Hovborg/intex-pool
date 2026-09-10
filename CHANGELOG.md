@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format is based on
 ## [0.21.3] - 2026-09-10
 
 ### Fixed
+- Narrow horizontal/grid cards wrap the header instead of squeezing or clipping
+  the status badge. The browser matrix checks header children as well as card width.
 - Updated the ppm unit to Home Assistant's current UnitOfRatio API, retaining
   the equivalent unit on older supported Home Assistant versions.
 - Calibration and pool-volume/unit changes now immediately refresh the published

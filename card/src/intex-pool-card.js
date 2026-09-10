@@ -416,16 +416,20 @@ class IntexPoolCard extends LitElement {
 
   static styles = css`
     ha-card { padding: 12px 14px; }
-    .head { display: flex; align-items: center; gap: 8px; }
+    .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .logo {
       --mdc-icon-size: 22px; color: var(--text-primary-color, #fff);
       background: var(--primary-color); border-radius: 9px; padding: 4px;
-      box-sizing: content-box; width: 22px; height: 22px;
+      box-sizing: content-box; width: 22px; height: 22px; flex-shrink: 0;
     }
-    .title { font-size: 1.05rem; font-weight: 600; flex: 1; letter-spacing: .01em; }
+    .title {
+      font-size: 1.05rem; font-weight: 600; flex: 1 1 60px; min-width: 0;
+      letter-spacing: .01em; overflow-wrap: anywhere;
+    }
     .status {
       font-size: .7rem; font-weight: 600; padding: 3px 9px; border-radius: 999px;
-      color: var(--text-primary-color, #fff); white-space: nowrap; max-width: 50%;
+      color: var(--text-primary-color, #fff); white-space: nowrap; max-width: 100%;
+      flex-shrink: 0; margin-left: auto; box-sizing: border-box;
       overflow: hidden; text-overflow: ellipsis;
     }
     .status.ok { background: var(--success-color, #2e9e5b); }

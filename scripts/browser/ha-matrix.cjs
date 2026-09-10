@@ -103,10 +103,16 @@ async function main() {
                 height: outer.height,
                 innerHeight: inner.height,
                 overflow: element.shadowRoot.querySelector("ha-card").scrollWidth > inner.width + 1,
+                headerOverflow: [...element.shadowRoot.querySelectorAll(".head > *")].some((item) => {
+                  const rect = item.getBoundingClientRect();
+                  return rect.right > inner.right + 1 || rect.left < inner.left - 1
+                    || item.scrollWidth > item.clientWidth + 1;
+                }),
               };
             }),
           );
-          assert(geometry.every((item) => item.width > 0 && !item.overflow));
+          assert(geometry.every((item) => item.width > 0 && !item.overflow && !item.headerOverflow),
+            JSON.stringify({ width, dashboard, viewPath, geometry }));
           results.push({ width, dashboard, viewPath, cards: await cards.count(), geometry });
 
           if (viewPath === "sections" || viewPath === "wrappers") {
