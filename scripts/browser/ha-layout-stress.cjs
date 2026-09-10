@@ -7,14 +7,15 @@ const {
   assertAuthenticatedIdentity,
   getChromium,
   getTestUrl,
-  loadAuth,
+  loadFreshAuth,
+  installTestAuth,
   requestJson,
 } = require("./common.cjs");
 
 const baseUrl = getTestUrl();
 
 async function main() {
-  const auth = loadAuth(baseUrl);
+  const auth = await loadFreshAuth(baseUrl);
   const config = await assertAuthenticatedIdentity(baseUrl, auth.access_token);
 
   await requestJson(baseUrl, "/api/states/sensor.test_schedules", {
@@ -38,10 +39,7 @@ async function main() {
   const browser = await getChromium().launch({ headless: true, channel: "chrome" });
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
-    await page.addInitScript(
-      (savedAuth) => localStorage.setItem("hassTokens", JSON.stringify(savedAuth)),
-      auth,
-    );
+    await installTestAuth(page, auth, baseUrl);
     // The editor regression replaces storage views; bootstrap from stable YAML.
     await page.goto(`${baseUrl}/pool-yaml/sections`);
     await page.locator("intex-pool-card").waitFor();
