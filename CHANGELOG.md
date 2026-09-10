@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Documentation
+- Documented the HACS 2.0.5 icon placeholder limitation and its upstream tracking;
+  the bundled Intex Pool brand images already work through HA's local brands API.
 - Reorganized the README around installation and equipment-specific setup paths.
 - Added installation, dashboard, feature and troubleshooting guides with complete
   card options, supported action examples and clear local/cloud distinctions.
