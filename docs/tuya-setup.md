@@ -1,7 +1,13 @@
 # Connect an Intex Water Analyzer or local pool device
 
+[Overview](../README.md) · [Installation](installation.md) · [Dashboard guide](dashboard.md) · [Troubleshooting](troubleshooting.md)
+
 The Water Analyzer uses a Tuya **developer cloud project**. The saltwater
 system and a Tuya pump can use local LAN control.
+
+For a pump already controlled by an HA switch, use the
+[existing-switch setup](installation.md#b-existing-pump-switch--no-tuya-account-for-this-path)
+instead. That path does not need a Tuya developer account.
 
 ## Do not mix up the two Tuya connections
 
@@ -107,7 +113,8 @@ request cannot silently become an empty or partial device list. Transient token
 renewal failures are retried on a later poll. Cloud HTTP calls have a 5-second
 connection timeout and 15-second read timeout per request.
 
-Issue #13's reporter later confirmed that access worked after IoT Core renewal
+One participant in [issue #13](https://github.com/Hovborg/intex-pool/issues/13#issuecomment-5208333042)
+later confirmed that access worked after IoT Core renewal
 had propagated. That confirms their account recovery; it does not verify
 Water Analyzer-to-chlorinator automation after changing mobile apps.
 
@@ -144,3 +151,7 @@ a new reading actually arrived.
 Setup context and user reports: [#13](https://github.com/Hovborg/intex-pool/issues/13),
 [#18](https://github.com/Hovborg/intex-pool/issues/18),
 [#20](https://github.com/Hovborg/intex-pool/issues/20).
+
+Next: [add the dashboard card](dashboard.md), read about
+[schedules and calculated values](features.md), or follow the
+[symptom-based troubleshooting guide](troubleshooting.md).

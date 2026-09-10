@@ -1,359 +1,151 @@
 <div align="center">
 
-<img src="custom_components/intex_pool/brand/icon.png" width="100" alt="Intex Pool logo" />
+<img src="custom_components/intex_pool/brand/icon.png" width="88" alt="Intex Pool logo" />
 
 # Intex Pool for Home Assistant
 
-**A native Home Assistant integration + a compact, adaptive dashboard card for Intex / AGP (Tuya-based) pool equipment.**
+**Your pool readings and controls, together in one adaptive dashboard card.**
 
-Water-quality sensor · saltwater system · any-brand sand-filter pump — set up from the UI, no MQTT, no YAML.
+Water Analyzer · saltwater system · sand-filter pump<br>
+Set up through the Home Assistant UI. YAML is optional.
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=flat-square)](https://github.com/hacs/integration)
-[![Release](https://img.shields.io/github/v/release/Hovborg/intex-pool?style=flat-square&color=0aa2e0)](https://github.com/Hovborg/intex-pool/releases)
-[![Validate](https://img.shields.io/github/actions/workflow/status/Hovborg/intex-pool/validate.yaml?style=flat-square&label=HACS%20validate)](https://github.com/Hovborg/intex-pool/actions/workflows/validate.yaml)
-[![hassfest](https://img.shields.io/github/actions/workflow/status/Hovborg/intex-pool/hassfest.yaml?style=flat-square&label=hassfest)](https://github.com/Hovborg/intex-pool/actions/workflows/hassfest.yaml)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=flat-square)](https://www.hacs.xyz/docs/faq/custom_repositories/)
+[![Release](https://img.shields.io/github/v/release/Hovborg/intex-pool?style=flat-square&color=0aa2e0)](https://github.com/Hovborg/intex-pool/releases/latest)
+[![Tests](https://img.shields.io/github/actions/workflow/status/Hovborg/intex-pool/tests.yaml?style=flat-square&label=tests)](https://github.com/Hovborg/intex-pool/actions/workflows/tests.yaml)
+[![HACS validation](https://img.shields.io/github/actions/workflow/status/Hovborg/intex-pool/validate.yaml?style=flat-square&label=HACS)](https://github.com/Hovborg/intex-pool/actions/workflows/validate.yaml)
 [![License: MIT](https://img.shields.io/github/license/Hovborg/intex-pool?style=flat-square)](LICENSE)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-dark.png" />
-  <img src="docs/images/card-light.png" width="430" alt="Intex Pool dashboard card" />
+  <img src="docs/images/card-light.png" width="476" alt="Intex Pool 0.21.3 with water readings, separate analyzer and saltwater temperatures, and power, chlorine and pump controls" />
 </picture>
 
-<br/>
+*The shipped v0.21.3 card, rendered in Home Assistant 2026.9.1 with demo readings.*
 
-[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Hovborg&repository=intex-pool&category=integration)
+[Install](#install-in-five-steps) · [Choose your setup](#choose-your-setup) · [Guides](#guides) · [Get help](#get-help)
+
+[![Open Intex Pool in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Hovborg&repository=intex-pool&category=integration)
 
 </div>
 
----
+## Install in five steps
 
-## ✨ Why this exists
+You need **Home Assistant 2025.8 or newer** and [HACS](https://www.hacs.xyz/docs/use/download/download/).
+The current card was browser-tested on **HA 2026.9.1**. Check your equipment in the
+[compatibility guide](docs/compatibility.md) before changing its app or connection.
 
-Tuya-based pool equipment can expose incomplete or unfamiliar entities in a
-general-purpose integration. **Intex Pool** provides pool-specific names and
-controls, local LAN access for supported pumps and saltwater systems, developer
-cloud access for the Water Analyzer, and a matching dashboard card. See the
-device compatibility guide for the models and functions verified so far.
+1. **Add the repository.** Use the HACS button above, or open HACS → menu →
+   **Custom repositories** and add `https://github.com/Hovborg/intex-pool` as an **Integration** repository.
+2. **Download Intex Pool**, then restart Home Assistant.
+3. **Add the integration:** Settings → Devices & services → Add integration → **Intex Pool**.
+4. **Choose your connection.** Use a [Tuya developer cloud project](docs/tuya-setup.md)
+   for a Water Analyzer or device discovery. For an existing pump switch, tick
+   **Set up manually instead**, choose **Sand filter pump**, then **Existing Home
+   Assistant entity** and select the switch.
+5. **Add the card.** Fully reload the browser or Companion App. Edit a customizable
+   dashboard → Add card → **Intex Pool**, check the selected entities, and save.
 
-## 🧩 Supported equipment
+**Already installed?** Update in HACS, restart HA, then fully reload every browser/app
+that displays the card. The integration includes the card; it is one download.
 
-Pick **any combination** — one, two, or all three:
+The [installation guide](docs/installation.md) includes manual installation,
+first-run checks, updates and removal.
 
-| | Device | Connection | What you get |
-|---|---|---|---|
-| 💧 | **Water quality sensor** (AGP Smart Sensor / Water Analyzer) | Tuya cloud | pH, ORP, free chlorine, temp, battery · writable pH/ORP targets · refresh button |
-| 🧂 | **Saltwater system** (Intex/AGP QS-series) | Local LAN | Power & chlorine switches, salinity, water temp, self-clean & temp-unit selects, decoded status/alarm/error |
-| 🌀 | **Sand-filter pump** | Local Tuya **or any HA switch** | On/off + Tuya timer schedules, or linked power / energy |
+## Choose your setup
 
-> 🔌 **Any brand of pump works.** Not a Tuya device? Link any existing HA switch (Shelly,
-> Zigbee relay, …) and it joins the pool card alongside the Intex gear.
+Configure any supported combination. You do not need all three types of equipment.
 
-> 🔄 **Pump auto mode.** With a linked pump, a **Pump auto mode** switch makes the pump follow
-> the saltwater system: it runs while chlorination is on and continues for **one hour**
-> after production stops before switching off — no separate automation needed.
+| Equipment you have | Connection and requirements | Available functions |
+| --- | --- | --- |
+| **Water Analyzer** — WA510 / supported AGP sensor | Tuya developer cloud project, linked app account, active API access | pH, ORP, free-chlorine reference, temperature, battery, targets and measurement refresh |
+| **Supported Tuya saltwater system** — QS-series | Local LAN with device ID, local key and IP; optional cloud access for schedules | Power, chlorine production, salinity, temperature, self-cleaning, status and alarms |
+| **Supported Tuya pump** — for example SX2100 | Local LAN; optional cloud access for schedules | Pump control, device status and available schedule entities |
+| **Pump controlled by an existing HA switch** — Shelly, Zigbee relay or another integration | Select that working switch; no Tuya account needed for this path | Manual control, optional power/energy sensors and linked-pump auto mode when a supported saltwater coordinator is present |
+| **Non-Wi-Fi chlorinator on a relay** | Select its HA switch in the card after Intex Pool is configured | Manual power control; see [relay setup](docs/dashboard.md#external-pump-and-saltwater-relays) for scope and prerequisites |
 
-<details>
-<summary>📋 Full entity reference</summary>
+**Seeing a device in the official HA Tuya integration does not link it to Intex Pool.**
+The two integrations authenticate separately. Follow the [Tuya guide](docs/tuya-setup.md)
+for account linking, exact data-center selection and local keys.
 
-**Water sensor (cloud):** pH, ORP, free chlorine (reference only), water temperature, battery,
-**Last measurement** timestamp, pH/ORP/chlorine indicators, **ORP trend**, maintenance,
-error code, link status, connectivity, **Measurement schedules** · pH target & ORP target
-numbers · reporting-cadence & temperature-unit selects · stabilizer (CYA) flag switch ·
-**Refresh measurement** button · **Error** event · pH/ORP calibration-coefficient diagnostics
-(disabled by default).
+## A card that fits your equipment
 
-**Saltwater system (local):** power & chlorine-production switches (a second, unverified
-"Chlorine production 2" switch ships disabled), salinity, water temperature, cell runtime,
-**cell wear**, time remaining, status, **Alarm** (sensor + event), error code, **Cold water**
-guard, **Action required** roll-up (with `reasons`), mesh/pump-mesh status, connectivity ·
-self-clean & temperature-unit selects · **Re-test now** button · **Schedules** sensor +
-per-slot toggle/duration/start-time entities (slot 0 = **Boost**) · **Salt to add** advisor
-(enable by setting your pool volume under ⋮ → Configure).
+The card uses the entities available to it. It can show chemistry readings, saltwater
+controls, a pump, or a combination. Tap a reading for HA's entity details; use the
+buttons for the configured switches and measurement refresh.
 
-**Pump:** on/off switch (Tuya mode) or your own linked switch + **Pump auto mode** and a
-**Pump switch** selector (entity mode), connectivity and **Schedules** sensor + per-slot
-editors (Tuya mode).
-</details>
+![Current card examples: Water Analyzer, analyzer with saltwater system and pump, and linked pump only](docs/images/card-variants.png)
 
-> 🧂 **Salt dose advisor.** Set your pool volume (the **Pool volume** entity on the device
-> page, or **⋮ → Configure**; litres or US gallons via the **Volume unit** select) and the
-> **Salt to add** sensor tells you how many kg reach the target salinity (default 950 ppm,
-> the QS-series optimum) — or, above 1800 ppm, how much water to drain per the manual.
-> Advisory only; it never actuates anything.
+The full card distinguishes **Temp WA** from **Temp salt**. A single temperature
+appears as **Temp**. Pump and saltwater schedules have separate headings when present.
+Missing or unavailable equipment does not create substitute readings.
 
-> ⚖️ **LSI water balance.** Enter your latest test-strip/drop-kit results in the
-> **Total alkalinity / Calcium hardness / Cyanuric acid (test)** entities and the **LSI**
-> sensor computes the Langelier Saturation Index live from the (calibrated) pH and water
-> temperature — with a **Water balance** sensor interpreting it (balanced −0.3…+0.3 per
-> CDC MAHC; corrosive below, scaling above). For saltwater pools the TDS term
-> automatically uses the live salinity. Math follows the published industry tables
-> (Taylor watergram / CDC MAHC / Wojtowicz).
+### Pick a style
 
-> 🧪 **Calibrate against your own test.** Took a strip or drop test? Call
-> **`intex_pool.calibrate`** with what it showed (e.g. `parameter: ph`,
-> `reference_value: 7.4`) and the pH reading is aligned via a software offset — the raw
-> value stays in the `raw_value` attribute. Guardrails reject offsets beyond ±0.5 pH
-> (that's clean-and-recalibrate territory), and the offsets auto-reset when you run the
-> real buffer calibration in the Intex app. A drop test kit is the recommended reference —
-> strips are coarse (±0.3–0.5 pH). The app's buffer-powder calibration every 4 months
-> remains the authoritative baseline; this is the drift bridge in between.
+Choose **Variant** in the visual editor: `auto` follows your HA theme; `light`, `dark`,
+`ocean` and `midnight` select a fixed appearance.
 
-## 📸 The card adapts to what you have
-
-It shows only the sections for the equipment you own — chemistry-only, full, or pump-only.
-Saltwater and pump schedules are detected and labelled independently. When both
-temperature readings are available, the header shows **Temp WA** (water analyzer)
-and **Temp salt** (saltwater system). With one reading it shows **Temp**. The
-existing `sensor_temp` and `salt_temp` card options can override either entity:
-
-<div align="center">
-<img src="docs/images/card-variants.png" width="820" alt="The card adapts: sensor only, all three, pump only" />
-</div>
-
-The card is served **by the integration itself** — no separate HACS plugin to install. After
-installing or updating through HACS, **restart Home Assistant and fully reload the browser tab
-or companion app** so its frontend module is loaded. Then add **“Intex Pool”** from the card
-picker; it auto-detects your entities.
-
-If it still does not appear in the picker, first verify that
-`/intex_pool/intex-pool-card.js` opens on your Home Assistant host. As a fallback, add that URL
-as a **JavaScript module** under **Settings → Dashboards → Resources**, reload the frontend,
-and use the YAML card type shown below.
-
-## Home Assistant dashboard compatibility
-
-Version **0.21.3** was checked in an isolated **Home Assistant 2026.9.1** instance
-using the real frontend: **Sections, Masonry, Panel and Sidebar**, in both YAML
-and UI-managed dashboards. Browser checks also cover vertical/horizontal stacks,
-grid, conditional cards and subviews at desktop and mobile widths. Sections uses
-the content height, so long schedules do not overlap the next card.
-
-The visual editor saves flat configuration and reads cards saved by the older
-nested editor. Explicitly cleared entity fields stay cleared. Automatic module
-loading and a manually registered resource do not duplicate the picker entry.
-See the [issue and dashboard verification report](docs/github-issues-2026-09-10.md)
-for the tested matrix, exact versions and physical-device limitations.
-
-## External pump and saltwater switches
-
-A pump linked during integration setup is detected from the **Pump switch** selector.
-That selector references the existing switch; it does not create a second pump switch.
-You can also choose the existing entity under **Edit card → Sand filter pump → Pump switch**.
-If a configured switch is unavailable, restore its underlying integration before using it.
-
-For a non-Wi-Fi saltwater system controlled by a Shelly or another relay, select its
-existing switch under **Edit card → Saltwater system → Power switch**. Any HA switch is
-accepted. Use **Chlorination switch** only for a switch that actually controls chlorine
-production; relay power alone does not confirm production.
+![The same current card in Dark, Ocean and Midnight styles](docs/images/card-styles.png)
 
 ```yaml
 type: custom:intex-pool-card
-power_switch: switch.saltwater_relay
-pump_switch: switch.pool_pump
+variant: ocean
 ```
 
-The relay-only card also works without a Tuya saltwater device configured in the
-integration. The integration must still be configured and loaded to serve the card;
-installing its files through HACS alone is not enough. For a pool with an existing
-pump switch, choose **Set up manually → Sand filter pump → Existing Home Assistant
-entity**, select that pump switch, then add the card and choose the saltwater relay.
-This provides manual switching only: no salinity or temperature readings,
-Intex schedules, or automatic pump interlock are inferred from the relay. Keep the
-chlorinator's required water circulation in place. Clear any irrelevant auto-detected
-saltwater fields when using a relay instead of a configured Tuya device.
+Auto-detection is a starting point. Select your own entities in the editor, especially
+if you have more than one pool. The [dashboard guide](docs/dashboard.md) explains every
+card option, manual switches, blank fields and YAML examples.
 
-## 🎨 Choose your look
+### Dashboard compatibility
 
-A **`variant`** option lets you pick the style right in the card editor — `auto` (follows your
-Home Assistant theme), `light`, `dark`, and two designed dark looks: **ocean** (teal gradient)
-and **midnight** (deep indigo):
+The v0.21.3 card was checked in an actual HA 2026.9.1 frontend across:
 
-<div align="center">
-<img src="docs/images/card-styles.png" width="860" alt="Dark style variants: dark, ocean, midnight" />
-</div>
+| Dashboard setup | Checked |
+| --- | --- |
+| UI-managed and YAML dashboards | Sections, Masonry, Panel and Sidebar |
+| Container cards and navigation | Vertical stack, horizontal stack, grid, conditional card and subview |
+| Display widths | Desktop 1280 px; mobile 390 px and 320 px |
+| Editing and long content | Save/reload, explicit selections and clears, long schedules without overlap |
 
-```yaml
-type: custom:intex-pool-card
-variant: ocean   # auto | light | dark | ocean | midnight
-```
+These checks cover native, customizable Lovelace views. They do not claim support
+for every third-party layout or built-in page that cannot host custom cards.
+See [dashboard examples](docs/dashboard.md) and the [full verification report](docs/github-issues-2026-09-10.md).
 
-## 🗓️ Schedules
+## More than a dashboard
 
-The saltwater system's built-in schedules live only in the cloud as an encoded blob, so they're
-normally invisible. This integration **decodes them**: a read-only **Schedules** sensor shows
-how many are active and lists each (daily/one-time, time, duration, on/boost). Each slot also gets
-its own **toggle**, **duration** and **start-time** entities under the device, so you can turn a
-schedule on/off and retune it without the service call.
+- **Device entities and schedules:** use HA's device pages for targets, maintenance,
+  status, available schedule controls and measurement refresh.
+- **Linked-pump auto mode:** with a supported local saltwater coordinator, a linked
+  pump can follow chlorine production and continue for one hour afterward. See
+  [how auto mode behaves](docs/features.md#linked-pump-auto-mode) before enabling it.
+- **Calibration and calculated values:** software pH/ORP offsets, pool volume, a salt
+  estimate and LSI water-balance indicators are described in the
+  [feature guide](docs/features.md). These are informational tools, not automatic dosing.
 
-> **Slot 0 = Boost.** The first slot is the device's **Boost** cycle. It runs for a set number of
-> hours rather than at a clock time (the app ignores a start time for it), so it's exposed as
-> **Boost** + **Boost duration** only — no start-time entity. Turning **Boost on suspends your
-> timed schedules** (they're remembered, then restored when Boost is turned off) — mirroring how
-> the unit reverts to its normal schedule after a boost completes, and confirmed against the
-> device's Tuya thing-model (`working_indicator` reports `boost`).
+## Guides
 
-You can also **edit** any slot from HA with the **`intex_pool.set_schedule`** service (writes back via the cloud):
+| I want to… | Read this |
+| --- | --- |
+| Install, update, or remove Intex Pool | [Installation and first-run checks](docs/installation.md) |
+| Connect Tuya devices or recover cloud/local access | [Tuya setup and account linking](docs/tuya-setup.md) |
+| Add or customize the card, relays, and dashboard layouts | [Dashboard guide and configuration reference](docs/dashboard.md) |
+| Use schedules, auto mode, calibration, and calculated entities | [Features and everyday use](docs/features.md) |
+| Solve a problem or provide a useful bug report | [Troubleshooting](docs/troubleshooting.md) |
 
-```yaml
-service: intex_pool.set_schedule
-data:
-  slot: 4          # 0–6
-  enable: true     # off behaves like the boost cycle
-  hour: 22
-  minute: 0
-  duration: 2
-  days: 255        # 255 = every day, 0 = one-time (then set month/date)
-```
+[Supported models and evidence](docs/compatibility.md) ·
+[Release notes](CHANGELOG.md) · [Developer guide](CONTRIBUTING.md)
 
-> Schedules are cloud-only. Cloud discovery keeps the credentials for a pump-only or
-> saltwater-only setup; manual local setup still controls the device but has no schedules.
-> Use **Reconfigure** and enter Tuya cloud credentials to enable them. If Tuya is offline
-> while Home Assistant starts, local controls stay available and the schedule entities
-> recover automatically on a later poll. The byte format round-trips exactly; the exact
-> units of duration/days are best-effort.
+## Get help
 
-## 🚀 Installation
+Start with [troubleshooting](docs/troubleshooting.md). If the problem persists,
+[open an issue](https://github.com/Hovborg/intex-pool/issues/new/choose) with your
+HA and Intex Pool versions, device model, connection path and a description of what
+you expected. For card problems, include the dashboard layout and card YAML.
+Review diagnostics and screenshots for private details before sharing them.
 
-[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Hovborg&repository=intex-pool&category=integration)
+The project is tested with both offline regressions and isolated HA browser checks;
+the [compatibility guide](docs/compatibility.md) distinguishes that evidence from
+physical-device verification. Support for another model depends on its actual data points.
 
-1. Click the button above (or HACS → ⋮ → **Custom repositories** → `https://github.com/Hovborg/intex-pool`, category **Integration**).
-2. Download **Intex Pool** in HACS and **restart Home Assistant**.
-3. **Settings → Devices & Services → Add Integration → Intex Pool**.
-4. Enter your Tuya developer-cloud credentials and pick your devices. For an
-   existing pump switch without cloud, choose **Set up manually** and link that switch.
-5. Reload the browser or Companion App, edit a dashboard, and choose
-   **Add card → Intex Pool**. Check the detected entities in the card editor.
+## License
 
-## ⚙️ Setup — the easy way (cloud auto-discovery)
-
-You need a **Tuya developer-cloud project** at [iot.tuya.com](https://iot.tuya.com)
-(region, Access ID, Access Secret), an active IoT Core plan/API authorization,
-and your Smart Life / Tuya app account linked. Trial access can expire or exhaust
-its quota. Enter the project credentials and the integration will:
-
-- 🔑 **fetch your devices and their local keys automatically** (no `tinytuya wizard`), and
-- 📡 **scan your network for their IPs + protocol version automatically** (no IP typing).
-
-Then pick the discovered **saltwater system**, **water sensor** and/or **Tuya pump** you own.
-Alternatively, link any existing Home Assistant switch as your sand-filter pump.
-
-### Link the Tuya account and choose the exact region
-
-See the [step-by-step Water Analyzer and local-device setup guide](docs/tuya-setup.md)
-for app migration, credential fields, LAN addresses and protocol troubleshooting.
-
-Tuya's supported developer-cloud flow is:
-
-1. Create a **Smart Home** cloud project at `iot.tuya.com` and keep **IoT Core** active.
-2. Open the project, go to **Devices → Link App Account**, and add an app account.
-3. Scan the authorization QR code with **Tuya Smart** or **Smart Life**. Wait for the
-   authorization to propagate, then confirm that the pool device appears under **All Devices**.
-4. In Intex Pool, select the data center used by that exact project:
-   `eu` (Central Europe), `eu-w` (Western Europe), `us` (Western America),
-   `us-e` (Eastern America), `cn`, `in`, or `sg`.
-
-Tuya's documented account-linking flow uses Tuya Smart or Smart Life. A device that exists
-only in the Intex Link app may therefore not appear in a Tuya developer project. Before moving
-or re-pairing equipment, check what vendor-app automations or device relationships you rely on.
-Re-pairing rotates the device's local key, so any existing local Home Assistant setup must be
-re-authenticated afterward.
-
-> 🔁 The water sensor sleeps and reports about once an hour — tap **Refresh measurement** to
-> force a fresh reading.
-
-<details>
-<summary>🔧 Manual setup (local devices can run without cloud)</summary>
-
-Tick **“set up manually”** in the first step and enter each device's **device id**, **local
-key** and **IP** by hand (get them with [tinytuya](https://github.com/jasonacox/tinytuya)).
-Protocol version can be left on **auto**. Note: local devices still need their local key,
-which for these `rs` devices ultimately comes from the Tuya cloud — so the cloud path is
-usually simplest.
-
-The manual IP field is the device's current private **LAN IP**, not an address shown for a
-cloud service. Reserve that address in DHCP when possible. **Auto** tries protocol versions
-3.4, 3.5, 3.3, and 3.1 once each, then stores the version that answered successfully. This
-keeps later Home Assistant startups on the proven version.
-Manual Water Analyzer setup still requires cloud credentials and its cloud device ID.
-</details>
-
-## 🔧 Keeping it running
-
-Pools get re-paired and gear gets replaced — both are handled from the UI, with no need to
-delete and re-add the integration:
-
-- 🔑 **Local key changed?** Re-pairing a device in the Tuya / Smart Life app rotates its
-  **local key**, which breaks the local connection (saltwater system or a Tuya pump). Home
-  Assistant then starts **re-authentication** automatically — just type the new local key
-  (and, for the cloud sensor, the access secret). Each local device has its own key field,
-  so any combination works.
-- 🔁 **Replaced a device?** When you swap a physical unit, the new one gets a new Tuya id.
-  Open **Settings → Devices & Services → Intex Pool → ⋮ → Reconfigure** to re-run discovery
-  and pick the new device. The integration entry is updated **in place**. Unchanged
-  devices retain their entity identities; a replacement with a new Tuya id creates new
-  entities, so update dashboards and automations that referenced the old ones. History
-  is not automatically joined to the replacement. Unchanged devices keep their stored
-  IP/key when the LAN scan cannot find them; a successful scan refreshes those details.
-  The old device can then be deleted from its device page.
-- ⏱️ **Polling intervals** are tunable under **⋮ → Configure** (local default 15 s, cloud
-  default 120 s — well inside the Tuya free-tier API quota).
-
-## 🩺 Troubleshooting
-
-- 🚨 **Repairs**: actionable problems show up in **Settings → Repairs** — saltwater alarms
-  (low flow E90, salt out of range E91/E92, electrode/temperature faults, …) with the
-  manual's fix steps, a **maintenance** reminder when the sensor probes need cleaning or
-  calibration, and a **stale data** warning when the sensor (which reports ~1×/hour) hasn't
-  measured for hours.
-- 📄 **Diagnostics**: the integration page's **Download diagnostics** includes the raw device
-  data for bug reports — local keys and cloud credentials are redacted automatically.
-- ⏰ **Alarm/error events**: `event.…_alarm` and `event.…_error` fire on every transition, so
-  you can build notifications without templating against the enum sensors.
-- ☁️ **Tuya cloud trial expired?** The free IoT Core trial eventually lapses; renew it for
-  free at [iot.tuya.com](https://iot.tuya.com) → Cloud → your project → **View Details** →
-  extend trial. The integration surfaces auth failures as a re-authentication prompt.
-- 🌍 **Cloud project returns no devices?** Confirm that IoT Core is active, the app account is
-  linked to the project, the device is visible under All Devices, authorization has had time
-  to propagate, and Intex Pool uses the exact project data center. Central and Western Europe
-  use different endpoints (`eu` and `eu-w`).
-- 📉 **No measurement-history backfill**: Tuya's device-log APIs do not return data-point
-  report history on the free IoT Core tier (verified live — only online/offline events come
-  back), so readings taken while Home Assistant was down cannot be recovered. History
-  accumulates normally in HA's own recorder while it runs.
-
-<details>
-<summary>🗑️ Removing the integration</summary>
-
-**Settings → Devices & Services → Intex Pool → ⋮ → Delete.** This removes the entry, its
-devices and entities. To finish the cleanup, remove the HACS download (HACS → Intex Pool →
-remove) and restart Home Assistant. Nothing is left on the devices themselves — they keep
-working in the Intex Link / Smart Life app.
-</details>
-
-## 🧪 Compatibility
-
-Built and **live-verified** against the **AGP / Intex QS-series saltwater chlorinator**
-(QS1600 Plus) and the **AGP Smart Sensor / Water Analyzer (WA510 and T3U)**. Other Intex/Tuya pool models connect the
-same way, but their data-point numbering may differ — some entities could be missing or
-wrong. Have a different model? [Open an issue](https://github.com/Hovborg/intex-pool/issues)
-with your device's data points and it can be added. The sand-filter pump works with **any**
-brand via the “existing switch” link. See the evidence levels and known caveats in the
-[compatibility matrix](docs/compatibility.md).
-
-## 🛠️ Development
-
-```bash
-# Python tests (Home Assistant integration)
-pip install pytest-homeassistant-custom-component tinytuya
-pytest -q
-
-# Dashboard card (Lit + esbuild)
-cd card && npm ci && npm test && npm run build
-
-# Release metadata + generated bundle
-python scripts/verify_release.py
-```
-
-## 📄 License
-
-MIT © Brian Hovborg Mikkelsen — not affiliated with Intex or AGP.
+MIT © Brian Hovborg Mikkelsen. Not affiliated with Intex, AGP or Tuya.

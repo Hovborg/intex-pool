@@ -10,6 +10,19 @@ permissions:
   contents: read
 
 jobs:
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install documentation parser
+        run: pip install "PyYAML>=6,<7"
+      - name: Check links, images, heading anchors and YAML examples
+        run: python scripts/check_docs.py
+
   pytest:
     runs-on: ubuntu-latest
     steps:

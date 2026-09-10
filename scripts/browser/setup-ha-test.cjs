@@ -10,7 +10,7 @@ const {
   assertAuthenticatedIdentity,
   assertDockerFixture,
   getTestUrl,
-  loadAuth,
+  loadFreshAuth,
   requestJson,
 } = require("./common.cjs");
 
@@ -46,7 +46,7 @@ async function main() {
 
   const onboarding = await api("/api/onboarding");
   if (onboarding.some((step) => step.step === "user" && step.done)) {
-    token = loadAuth(baseUrl);
+    token = await loadFreshAuth(baseUrl);
   } else {
     const user = await api("/api/onboarding/users", {
       name: "Pool Test",

@@ -90,7 +90,7 @@ Home Assistant instance was used.
 
 This is 30 dashboard/width cases. It covers Home Assistant's native customizable
 Lovelace views. Built-in pages that do not host arbitrary cards (for example,
-Map or Energy) and every third-party custom view are not a blanket compatibility
+Energy) and every third-party custom view are not a blanket compatibility
 claim. Native mobile app WebViews and physical devices need their own checks.
 
 The first minimal fixture omitted Recorder, which intermittently produced a

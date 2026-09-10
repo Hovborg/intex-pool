@@ -1,5 +1,7 @@
 # Device and protocol compatibility
 
+[Overview](../README.md) · [Installation](installation.md) · [Tuya setup](tuya-setup.md) · [Features](features.md)
+
 This matrix separates behaviour verified on physical equipment from mappings
 derived from a Tuya thing model or from protocol captures. Please keep that
 distinction when reporting or adding a device.
@@ -7,9 +9,19 @@ distinction when reporting or adding a device.
 | Device / model | Connection | Verified behaviour | Remaining caveats |
 |---|---|---|---|
 | AGP / Intex QS1600 Plus | Local Tuya + optional cloud schedules | Local status and controls; `skdl_salt` decode/encode round-trip; schedule writes and readback | The second chlorine-production datapoint (DP102) is not hardware-verified and stays disabled by default. Duration/day labels are best-effort even though the raw 56-byte blob round-trips exactly. |
-| AGP Smart Sensor / Water Analyzer WA510 and T3U | Tuya cloud | pH, ORP, free chlorine reference, temperature, battery, refresh, targets and measurement-window schedule | Tuya's free-tier log API does not provide datapoint history for backfill. |
+| AGP Smart Sensor / Water Analyzer WA510 | Tuya cloud | Project-reported hardware support for pH, ORP, free-chlorine reference, temperature, battery, refresh, targets and measurement-window schedule | The analyzer temperature-unit selector's boolean polarity is not physically verified. The integration does not backfill measurements recorded while HA was offline. |
 | Intex SX2100 sand-filter pump | Local Tuya + optional cloud schedule | Master power DP104; DP106 filtration OFF→ON physically started the motor from `sleep`/E93 on 2026-07-14 (about 1.2 W to 207 W); status/alarm/runtime mappings; `skdl_filter` schedule read/write path and per-slot editors | The tested unit briefly made its local entities unavailable during the DP106 restart before read-back recovered. Other firmware may behave differently; verify after dependency or firmware changes. |
-| Any-brand linked pump | Existing Home Assistant switch | Linked on/off control, optional power/energy entities and pump-auto interlock | Safety and electrical suitability remain the responsibility of the linked switch/relay installation. |
+| Any-brand linked pump | Existing Home Assistant switch | Linked on/off control and optional power/energy entities; switch service/state behavior checked in an isolated HA instance | Pump auto mode requires a local saltwater coordinator in the same entry. A linked switch's state alone does not prove water circulation. |
+| Non-Wi-Fi saltwater system on an HA relay | Existing Home Assistant switch selected in the card | Manual relay control through the v0.21.3 card; selector and service/state roundtrip checked with a test switch | No separate saltwater relay setup mode, telemetry, device schedules or automatic pump interlock. Intex Pool must already be configured and loaded. |
+
+Earlier documentation also named **T3U**, but this repository does not retain
+model-specific evidence sufficient to place it in the physically verified list.
+Treat it as unconfirmed until a model/firmware report and observed data points are available.
+The WA510 compatibility discussion is recorded in [issue #10](https://github.com/Hovborg/intex-pool/issues/10).
+
+The physical observations above are historical project evidence, not a fresh
+hardware test of v0.21.3. The current [verification report](github-issues-2026-09-10.md)
+separately records the complete offline suite and actual HA 2026.9.1 browser checks.
 
 ## Dependency verification status
 

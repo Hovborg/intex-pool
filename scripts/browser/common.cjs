@@ -29,6 +29,7 @@ function getTestUrl() {
   assert.equal(url.pathname, "/", "HASS_TEST_URL must contain only the origin");
   assert.equal(url.search, "", "HASS_TEST_URL must not contain a query string");
   assert.equal(url.hash, "", "HASS_TEST_URL must not contain a fragment");
+  if (url.hostname === "localhost") url.hostname = "127.0.0.1";
   return url.origin;
 }
 
@@ -36,18 +37,25 @@ async function requestJson(baseUrl, requestPath, options = {}) {
   const response = await fetch(`${baseUrl}${requestPath}`, {
     ...options,
     signal: AbortSignal.timeout(30_000),
+    redirect: "error",
   });
   const body = await response.text();
   if (!response.ok) {
     throw new Error(`${requestPath} returned HTTP ${response.status}`);
   }
-  return body ? JSON.parse(body) : null;
+  if (!body) return null;
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error(`${requestPath} returned invalid JSON`);
+  }
 }
 
 function docker(...args) {
   return childProcess.execFileSync("docker", args, {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    timeout: 30_000,
   });
 }
 
@@ -81,11 +89,11 @@ function assertDockerFixture(baseUrl) {
     ),
   );
   const bindings = ports["8123/tcp"] || [];
-  const loopbackAddresses = new Set(["127.0.0.1", "::1"]);
+  const requestedAddress = url.hostname === "[::1]" ? "::1" : "127.0.0.1";
   assert(
     bindings.some(
       (binding) =>
-        loopbackAddresses.has(binding.HostIp) && binding.HostPort === requestedPort,
+        binding.HostIp === requestedAddress && binding.HostPort === requestedPort,
     ),
     `Container ${TEST_CONTAINER} must bind 8123/tcp to loopback port ${requestedPort}`,
   );
@@ -118,10 +126,56 @@ async function assertAuthenticatedIdentity(baseUrl, accessToken) {
 }
 
 function loadAuth(baseUrl) {
-  const auth = JSON.parse(fs.readFileSync(AUTH_FILE, "utf8"));
+  let auth;
+  try {
+    auth = JSON.parse(fs.readFileSync(AUTH_FILE, "utf8"));
+  } catch {
+    throw new Error(`Cannot read saved test authentication: ${AUTH_FILE}`);
+  }
+  assert(auth && typeof auth === "object", "Invalid saved test authentication");
   assert(auth.access_token, `Missing access token in ${AUTH_FILE}`);
-  assert.equal(new URL(auth.hassUrl).origin, baseUrl, "Saved test auth belongs to another URL");
+  let savedOrigin;
+  try {
+    savedOrigin = new URL(auth.hassUrl).origin;
+  } catch {
+    throw new Error("Saved test authentication has an invalid HA URL");
+  }
+  assert.equal(savedOrigin, baseUrl, "Saved test auth belongs to another URL");
   return auth;
+}
+
+async function loadFreshAuth(baseUrl) {
+  assertDockerFixture(baseUrl);
+  const auth = loadAuth(baseUrl);
+  if (Number(auth.expires) > Date.now() + 60_000) return auth;
+  assert(auth.refresh_token, "Test session expired; no saved refresh token is available");
+  const renewed = await requestJson(baseUrl, "/auth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: auth.refresh_token,
+      client_id: auth.clientId || `${baseUrl}/`,
+    }),
+  });
+  const lifetime = Number(renewed.expires_in);
+  assert(typeof renewed.access_token === "string" && renewed.access_token
+    && Number.isFinite(lifetime) && lifetime > 0, "Invalid test-session renewal");
+  // Keep the verified origin/client and original refresh token. A token endpoint
+  // does not get to redirect the later browser session through extra JSON fields.
+  const fresh = { ...auth, access_token: renewed.access_token,
+    expires_in: lifetime, expires: Date.now() + lifetime * 1000 };
+  await assertAuthenticatedIdentity(baseUrl, fresh.access_token);
+  fs.writeFileSync(AUTH_FILE, JSON.stringify(fresh), { mode: 0o600 });
+  return fresh;
+}
+
+async function installTestAuth(page, auth, baseUrl) {
+  await page.addInitScript(({ savedAuth, expectedOrigin }) => {
+    if (location.origin === expectedOrigin) {
+      localStorage.setItem("hassTokens", JSON.stringify(savedAuth));
+    }
+  }, { savedAuth: auth, expectedOrigin: baseUrl });
 }
 
 function artifactPath(filename) {
@@ -145,5 +199,7 @@ module.exports = {
   getChromium,
   getTestUrl,
   loadAuth,
+  loadFreshAuth,
+  installTestAuth,
   requestJson,
 };

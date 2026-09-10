@@ -8,13 +8,14 @@ const {
   assertAuthenticatedIdentity,
   getChromium,
   getTestUrl,
-  loadAuth,
+  loadFreshAuth,
+  installTestAuth,
 } = require("./common.cjs");
 
 const baseUrl = getTestUrl();
 
 async function main() {
-  const auth = loadAuth(baseUrl);
+  const auth = await loadFreshAuth(baseUrl);
   const config = await assertAuthenticatedIdentity(baseUrl, auth.access_token);
   const chromium = getChromium();
   const browser = await chromium.launch({ headless: true, channel: "chrome" });
@@ -23,10 +24,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.addInitScript(
-      (savedAuth) => localStorage.setItem("hassTokens", JSON.stringify(savedAuth)),
-      auth,
-    );
+    await installTestAuth(page, auth, baseUrl);
     await page.goto(`${baseUrl}/pool-yaml/masonry`);
     await page.locator("intex-pool-card").waitFor({ timeout: 30_000 });
 

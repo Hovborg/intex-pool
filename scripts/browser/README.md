@@ -67,6 +67,33 @@ Screenshots and the matrix JSON remain under `.spike`. The harness was proven
 against Home Assistant `2026.9.1` with frontend `20260826.6`; the result files
 record the Home Assistant version reported by the actual test instance.
 
+Expired access tokens are renewed from the saved fixture refresh token. The scripts
+check the authenticated test-instance identity before saving renewed credentials.
+Keep the auth file private; deleting it also removes the saved login for this fixture.
+
+## Documentation images
+
+After initializing the fixture above, run from the repository root with the same
+URL/auth/Playwright environment variables:
+
+```powershell
+node scripts\browser\capture-doc-images.cjs
+node scripts\browser\capture-setup-images.cjs
+```
+
+The first script renders the **shipped card** inside the actual HA frontend with
+synthetic states and disabled service calls. It writes the four appearance images,
+the equipment/style galleries, mobile view and schedule view to `docs/images`.
+It waits for icon paths/fonts and checks that cards do not overflow.
+
+The second opens and cancels the integration's real setup flow, then creates or
+updates only the fixture's `pool-docs` dashboard to capture the native card editor.
+It never submits cloud credentials or completes a device setup. These images also
+go to `docs/images`; inspect every changed image before committing it.
+
+Update the [image provenance](../../docs/images/README.md) when the captured
+integration/frontend version changes. Auth and diagnostic artifacts stay in `.spike`.
+
 To use another disposable loopback port, change the host side of `--publish`
 (for example, to `127.0.0.1:18124:8123`), then set the overrides before setup
 and keep the same values for every command:

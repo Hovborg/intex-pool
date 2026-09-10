@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Documentation
+- Reorganized the README around installation and equipment-specific setup paths.
+- Added installation, dashboard, feature and troubleshooting guides with complete
+  card options, supported action examples and clear local/cloud distinctions.
+- Refreshed the screenshot gallery from the v0.21.3 card in HA 2026.9.1 using
+  explicitly labelled demo data; documented screenshot reproduction.
+- Corrected cloud-plan promises, schedule-action scope, advisory entity descriptions,
+  device-evidence claims and developer commands.
+- Added local-link, heading-anchor, image and YAML-example checks. Browser helpers
+  renew expired sessions in the isolated fixture so documented reruns keep working.
+
 ## [0.21.3] - 2026-09-10
 
 ### Fixed
