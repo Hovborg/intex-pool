@@ -29,10 +29,11 @@ Water-quality sensor · saltwater system · any-brand sand-filter pump — set u
 
 ## ✨ Why this exists
 
-Home Assistant's official Tuya integration maps these `rs`-category pool devices to empty
-`climate` shells; LocalTuya / tuya-local have no working profile; and the water sensor is
-cloud-only. **Intex Pool** talks to each device the way that actually works and gives you
-clean, named entities — plus a card that looks good out of the box.
+Tuya-based pool equipment can expose incomplete or unfamiliar entities in a
+general-purpose integration. **Intex Pool** provides pool-specific names and
+controls, local LAN access for supported pumps and saltwater systems, developer
+cloud access for the Water Analyzer, and a matching dashboard card. See the
+device compatibility guide for the models and functions verified so far.
 
 ## 🧩 Supported equipment
 
@@ -48,8 +49,8 @@ Pick **any combination** — one, two, or all three:
 > Zigbee relay, …) and it joins the pool card alongside the Intex gear.
 
 > 🔄 **Pump auto mode.** With a linked pump, a **Pump auto mode** switch makes the pump follow
-> the saltwater system: it runs while chlorination is on and stops when it's off — no
-> automation needed.
+> the saltwater system: it runs while chlorination is on and continues for **one hour**
+> after production stops before switching off — no separate automation needed.
 
 <details>
 <summary>📋 Full entity reference</summary>
@@ -119,6 +120,48 @@ If it still does not appear in the picker, first verify that
 as a **JavaScript module** under **Settings → Dashboards → Resources**, reload the frontend,
 and use the YAML card type shown below.
 
+## Home Assistant dashboard compatibility
+
+Version **0.21.3** was checked in an isolated **Home Assistant 2026.9.1** instance
+using the real frontend: **Sections, Masonry, Panel and Sidebar**, in both YAML
+and UI-managed dashboards. Browser checks also cover vertical/horizontal stacks,
+grid, conditional cards and subviews at desktop and mobile widths. Sections uses
+the content height, so long schedules do not overlap the next card.
+
+The visual editor saves flat configuration and reads cards saved by the older
+nested editor. Explicitly cleared entity fields stay cleared. Automatic module
+loading and a manually registered resource do not duplicate the picker entry.
+See the [issue and dashboard verification report](docs/github-issues-2026-09-10.md)
+for the tested matrix, exact versions and physical-device limitations.
+
+## External pump and saltwater switches
+
+A pump linked during integration setup is detected from the **Pump switch** selector.
+That selector references the existing switch; it does not create a second pump switch.
+You can also choose the existing entity under **Edit card → Sand filter pump → Pump switch**.
+If a configured switch is unavailable, restore its underlying integration before using it.
+
+For a non-Wi-Fi saltwater system controlled by a Shelly or another relay, select its
+existing switch under **Edit card → Saltwater system → Power switch**. Any HA switch is
+accepted. Use **Chlorination switch** only for a switch that actually controls chlorine
+production; relay power alone does not confirm production.
+
+```yaml
+type: custom:intex-pool-card
+power_switch: switch.saltwater_relay
+pump_switch: switch.pool_pump
+```
+
+The relay-only card also works without a Tuya saltwater device configured in the
+integration. The integration must still be configured and loaded to serve the card;
+installing its files through HACS alone is not enough. For a pool with an existing
+pump switch, choose **Set up manually → Sand filter pump → Existing Home Assistant
+entity**, select that pump switch, then add the card and choose the saltwater relay.
+This provides manual switching only: no salinity or temperature readings,
+Intex schedules, or automatic pump interlock are inferred from the relay. Keep the
+chlorinator's required water circulation in place. Clear any irrelevant auto-detected
+saltwater fields when using a relay instead of a configured Tuya device.
+
 ## 🎨 Choose your look
 
 A **`variant`** option lets you pick the style right in the card editor — `auto` (follows your
@@ -176,13 +219,17 @@ data:
 1. Click the button above (or HACS → ⋮ → **Custom repositories** → `https://github.com/Hovborg/intex-pool`, category **Integration**).
 2. Download **Intex Pool** in HACS and **restart Home Assistant**.
 3. **Settings → Devices & Services → Add Integration → Intex Pool**.
-4. Enter your Tuya cloud credentials and pick your devices (see below).
+4. Enter your Tuya developer-cloud credentials and pick your devices. For an
+   existing pump switch without cloud, choose **Set up manually** and link that switch.
+5. Reload the browser or Companion App, edit a dashboard, and choose
+   **Add card → Intex Pool**. Check the detected entities in the card editor.
 
 ## ⚙️ Setup — the easy way (cloud auto-discovery)
 
-You only need **Tuya IoT developer-cloud credentials** once: a free project at
-[iot.tuya.com](https://iot.tuya.com) (region, Access ID, Access secret) with your Smart
-Life / Tuya app account linked. Enter those and the integration will:
+You need a **Tuya developer-cloud project** at [iot.tuya.com](https://iot.tuya.com)
+(region, Access ID, Access Secret), an active IoT Core plan/API authorization,
+and your Smart Life / Tuya app account linked. Trial access can expire or exhaust
+its quota. Enter the project credentials and the integration will:
 
 - 🔑 **fetch your devices and their local keys automatically** (no `tinytuya wizard`), and
 - 📡 **scan your network for their IPs + protocol version automatically** (no IP typing).
@@ -242,9 +289,12 @@ delete and re-add the integration:
   so any combination works.
 - 🔁 **Replaced a device?** When you swap a physical unit, the new one gets a new Tuya id.
   Open **Settings → Devices & Services → Intex Pool → ⋮ → Reconfigure** to re-run discovery
-  and pick the new device. The existing entry is updated **in place** — your entity ids and
-  history are kept, and unchanged devices keep their stored IP/key (no re-scan needed). The
-  old device can then be deleted from its device page.
+  and pick the new device. The integration entry is updated **in place**. Unchanged
+  devices retain their entity identities; a replacement with a new Tuya id creates new
+  entities, so update dashboards and automations that referenced the old ones. History
+  is not automatically joined to the replacement. Unchanged devices keep their stored
+  IP/key when the LAN scan cannot find them; a successful scan refreshes those details.
+  The old device can then be deleted from its device page.
 - ⏱️ **Polling intervals** are tunable under **⋮ → Configure** (local default 15 s, cloud
   default 120 s — well inside the Tuya free-tier API quota).
 

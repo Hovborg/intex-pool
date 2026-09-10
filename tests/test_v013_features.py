@@ -76,12 +76,19 @@ async def test_pool_volume_number_and_unit_select(hass, mock_tinytuya):
     # advisor picks the new volume up live — no reload involved
     advisor = ents["saltdev_salt_to_add"]
     assert advisor.extra_state_attributes["pool_volume_l"] == 9150
+    await hass.async_block_till_done()
+    assert hass.states.get(advisor.entity_id).attributes["pool_volume_l"] == 9150
+    assert hass.states.get(advisor.entity_id).state == "0.0"
 
     await unit.async_select_option("gallon")
     assert entry.options["volume_unit"] == "gallon"
     assert volume.native_unit_of_measurement == "gal"
     assert volume.native_value == 9150  # number NOT converted, by design
     assert advisor.extra_state_attributes["pool_volume_l"] == round(9150 * 3.785411784)
+    await hass.async_block_till_done()
+    assert hass.states.get(advisor.entity_id).attributes["pool_volume_l"] == round(
+        9150 * 3.785411784
+    )
 
 
 async def test_salt_advisor_math_and_status(hass, mock_tinytuya):

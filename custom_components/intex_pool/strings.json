@@ -159,7 +159,9 @@
       "need_creds": "Enter your Tuya cloud Access ID and secret, or tick “set up manually”.",
       "device_offline": "That device wasn't found on your network — make sure it's powered on and on the same LAN as Home Assistant.",
       "no_device": "Select at least one device.",
-      "no_devices": "No devices found for these credentials. Tick “set up manually instead” to enter them by hand, or double-check the region and Access ID/secret."
+      "no_devices": "Tuya responded, but this project has no accessible devices. Check All Devices, the linked Smart Life account and exact data center. Manual Water Analyzer setup still requires cloud access.",
+      "cloud_subscription": "The Tuya cloud plan or API subscription is missing, expired or out of quota. Check IoT Core and authorized APIs in Tuya Developer Platform. Retry once access is active; manual setup cannot bypass this.",
+      "cloud_permission": "The Tuya project cannot access this device or API. Check the linked Smart Life account, authorized APIs and exact data center (eu = Central Europe, eu-w = Western Europe)."
     },
     "abort": {
       "already_configured": "This device is already configured.",
@@ -209,6 +211,17 @@
       "options": {
         "ph": "pH",
         "orp": "ORP (advanced)"
+      }
+    },
+    "region": {
+      "options": {
+        "eu": "Central Europe (eu)",
+        "eu-w": "Western Europe (eu-w)",
+        "us": "Western America (us)",
+        "us-e": "Eastern America (us-e)",
+        "cn": "China (cn)",
+        "in": "India (in)",
+        "sg": "Singapore (sg)"
       }
     }
   },

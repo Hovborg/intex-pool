@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from threading import Lock
+from types import FunctionType
 from typing import Any
 
 import tinytuya
@@ -33,29 +34,79 @@ class TuyaAuthError(TuyaError):
     """
 
 
+class TuyaSubscriptionError(TuyaError):
+    """Cloud plan or API subscription expired; changing credentials cannot fix it."""
+
+
+class TuyaPermissionError(TuyaError):
+    """Project is not authorized for the requested device or API."""
+
+
 # tinytuya local error code for "Check device key or version".
 _LOCAL_AUTH_ERR = {"914"}
 # Tuya cloud response codes for bad sign / token / permission (auth, not transport).
-_CLOUD_AUTH_CODES = {1004, 1010, 1011, 1100, 1106, 2406, 28841002}
+_CLOUD_AUTH_CODES = {1001, 1004, 1005}
+_CLOUD_TOKEN_CODES = {1002, 1010, 1011, 1012, 1400}
+_CLOUD_PERMISSION_CODES = {1106, 2406, 28841105}
+_CLOUD_SUBSCRIPTION_CODES = {
+    28841001, 28841002, 28841003, 28841004,
+    28841101, 28841102, 28841103, 28841104, 28841106,
+}
+
+
+def _cloud_code(resp: Any) -> int | None:
+    try:
+        return int(resp.get("code")) if isinstance(resp, dict) else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _check_cloud(resp: Any, what: str) -> None:
     """Raise the right error from a Tuya cloud response (auth vs transport).
 
-    Only the response ``code``/``msg`` fields are quoted — never the full body,
-    which can carry request-signature material on auth failures.
+    Only the numeric code is quoted. Remote messages and bodies can contain
+    credentials or request-signature material, even on authentication failures.
     """
-    if isinstance(resp, dict) and resp.get("success"):
+    if isinstance(resp, dict) and resp.get("success") is True:
         return
-    if isinstance(resp, dict):
-        code = resp.get("code")
-        msg = f"{what} failed: code={code} msg={str(resp.get('msg'))[:120]}"
-    else:
-        code = None
-        msg = f"{what} failed: unexpected response ({type(resp).__name__})"
+    code = _cloud_code(resp)
+    msg = f"{what} failed: code={code}" if code is not None else f"{what} failed: invalid response"
+    if code in _CLOUD_SUBSCRIPTION_CODES:
+        raise TuyaSubscriptionError(msg)
+    if code in _CLOUD_PERMISSION_CODES:
+        raise TuyaPermissionError(msg)
     if code in _CLOUD_AUTH_CODES:
         raise TuyaAuthError(msg)
     raise TuyaError(msg)
+
+
+def _bounded_cloud_transport(method):
+    """Scope HTTP timeouts to our pinned TinyTuya client, without global patches.
+
+    TinyTuya 1.20 has no transport/timeout injection and calls its module's
+    requests object directly. Rebind only this method's globals; retain the
+    vendor's signing, query encoding, defaults and closure unchanged.
+    """
+    requests_module = method.__globals__["requests"]
+
+    class BoundedRequests:
+        def __getattr__(self, name):
+            return getattr(requests_module, name)
+
+        def get(self, *args, **kwargs):
+            kwargs.setdefault("timeout", (5, 15))
+            return requests_module.get(*args, **kwargs)
+
+        def request(self, *args, **kwargs):
+            kwargs.setdefault("timeout", (5, 15))
+            return requests_module.request(*args, **kwargs)
+
+    scoped = FunctionType(
+        method.__code__, {**method.__globals__, "requests": BoundedRequests()},
+        method.__name__, method.__defaults__, method.__closure__,
+    )
+    scoped.__kwdefaults__ = method.__kwdefaults__
+    return scoped
 
 
 def scan_lan(timeout: int = 5) -> dict[str, tuple[str, float | None]]:
@@ -134,18 +185,41 @@ class CloudClient:
     """Tuya developer-cloud access (for cloud-only devices like the battery sensor)."""
 
     def __init__(self, region: str, access_id: str, access_secret: str) -> None:
+        if not all(isinstance(value, str) and value.strip() for value in (region, access_id, access_secret)):
+            # TinyTuya otherwise falls back to a local tinytuya.json account.
+            raise TuyaAuthError("cloud credentials missing")
+        vendor_transport = getattr(tinytuya.Cloud, "_tuyaplatform", None)
+        bounded_transport = _bounded_cloud_transport(vendor_transport) if vendor_transport else None
+
+        class CheckedCloud(tinytuya.Cloud):
+            """Preserve errors before TinyTuya reduces token and device replies."""
+
+            def _tuyaplatform(self, *args, **kwargs):
+                response = bounded_transport(self, *args, **kwargs)
+                uri = str(args[0] if args else kwargs.get("uri", ""))
+                is_token_request = uri.lstrip("/").startswith("token")
+                if _cloud_code(response) in _CLOUD_TOKEN_CODES and not is_token_request:
+                    # TinyTuya only recognizes some English token messages.
+                    # Retry one rejected request using the API code instead.
+                    self._gettoken()
+                    response = bounded_transport(self, *args, **kwargs)
+                _check_cloud(response, "cloud request")
+                if is_token_request:
+                    result = response.get("result")
+                    token = result.get("access_token") if isinstance(result, dict) else None
+                    if not isinstance(token, str) or not token:
+                        raise TuyaError("cloud token unavailable")
+                return response
+
         # NOTE: constructing tinytuya.Cloud performs a blocking token fetch —
         # build this inside an executor job, never on the event loop.
-        self._cloud = tinytuya.Cloud(
+        self._cloud = CheckedCloud(
             apiRegion=region, apiKey=access_id, apiSecret=access_secret
         )
-        # tinytuya.Cloud does NOT raise on rejected credentials — it leaves
-        # token=None and stashes the API reply in .error. Surface that here so
-        # setup/config-flow can tell bad creds (reauth) from a dead link
-        # (retry); otherwise the auth branch downstream is unreachable.
-        if getattr(self._cloud, "token", None) is None:
-            err = getattr(self._cloud, "error", None)
-            raise TuyaAuthError(f"cloud auth failed: {str(err)[:160]}")
+        # Raw token failures are classified above. An absent token alone is
+        # not evidence of invalid credentials, and .error may contain secrets.
+        if not isinstance(getattr(self._cloud, "token", None), str) or not self._cloud.token:
+            raise TuyaError("cloud token unavailable")
         # Sensor and schedule coordinators share this client but run their
         # blocking work in separate executor threads. tinytuya.Cloud mutates
         # request/signature state, so overlapping calls can return ``None``.
@@ -154,7 +228,15 @@ class CloudClient:
     def _request(self, path: str, post: dict[str, Any] | None = None) -> Any:
         """Serialize access to the shared, stateful tinytuya cloud client."""
         with self._request_lock:
+            self._ensure_token()
             return self._cloud.cloudrequest(path, post=post)
+
+    def _ensure_token(self) -> None:
+        """Retry a failed token renewal on the next poll, under the request lock."""
+        if not isinstance(getattr(self._cloud, "token", None), str) or not self._cloud.token:
+            self._cloud._gettoken()
+            if not isinstance(getattr(self._cloud, "token", None), str) or not self._cloud.token:
+                raise TuyaError("cloud token unavailable")
 
     def list_devices(self) -> list[dict[str, Any]]:
         """List the project's devices with their local keys (for auto-discovery).
@@ -162,10 +244,15 @@ class CloudClient:
         Returns ``[{id, name, key, category, product_id}, ...]`` — the local
         ``key`` lets setup skip manual key extraction entirely.
         """
-        devs = self._cloud.getdevices(verbose=False)
+        # The non-verbose TinyTuya list drops success/code/msg, making an
+        # expired IoT Core plan indistinguishable from an empty project (#13).
+        with self._request_lock:
+            self._ensure_token()
+            response = self._cloud.getdevices(verbose=True)
+        _check_cloud(response, "cloud getdevices")
+        devs = response.get("result")
         if not isinstance(devs, list):
-            _check_cloud(devs, "cloud getdevices")  # raises auth vs transport
-            raise TuyaError(f"cloud getdevices failed: {str(devs)[:160]}")
+            raise TuyaError("cloud getdevices failed: expected a device list")
         return [
             {
                 "id": d.get("id"),
@@ -175,7 +262,7 @@ class CloudClient:
                 "product_id": d.get("product_id"),
             }
             for d in devs
-            if d.get("id")
+            if isinstance(d, dict) and d.get("id")
         ]
 
     def properties(self, device_id: str) -> dict[str, Any]:
@@ -189,7 +276,10 @@ class CloudClient:
         path = f"/v2.0/cloud/thing/{device_id}/shadow/properties"
         resp = self._request(path)
         _check_cloud(resp, "cloud properties")
-        props = (resp.get("result") or {}).get("properties", []) or []
+        result = resp.get("result")
+        props = result.get("properties") if isinstance(result, dict) else None
+        if not isinstance(props, list) or any(not isinstance(p, dict) for p in props):
+            raise TuyaError("cloud properties failed: expected a properties list")
         out: dict[str, Any] = {p["code"]: p.get("value") for p in props if p.get("code")}
         out["_times"] = {
             p["code"]: p.get("time") for p in props if p.get("code") and p.get("time")

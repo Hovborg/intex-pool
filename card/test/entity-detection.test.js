@@ -46,6 +46,51 @@ test("detectEntities keeps salt and pump schedules separate", async () => {
 });
 
 
+test("detectEntities resolves the linked external pump switch from the Intex selector", async () => {
+  const { detectEntities } = await detectionModule();
+  const hass = {
+    entities: {
+      "select.pool_pump_switch": {
+        platform: "intex_pool", device_id: "pump", translation_key: "pump_switch_select",
+      },
+    },
+    states: {
+      "select.pool_pump_switch": { state: "switch.pool_pump", attributes: {} },
+      // The linked switch belongs to another integration and is deliberately
+      // absent from hass.entities: only its ordinary HA state is required.
+      "switch.pool_pump": { state: "off", attributes: {} },
+    },
+  };
+
+  assert.deepEqual(detectEntities(hass), { pump_switch: "switch.pool_pump" });
+});
+
+
+test("detectEntities follows a changed pump selector state with the same registry", async () => {
+  const { detectEntities } = await detectionModule();
+  const entities = {
+    "select.pool_pump_switch": {
+      platform: "intex_pool", device_id: "pump", translation_key: "pump_switch_select",
+    },
+  };
+  const hass = {
+    entities,
+    states: {
+      "select.pool_pump_switch": { state: "switch.first_pump", attributes: {} },
+      "switch.first_pump": { state: "off", attributes: {} },
+    },
+  };
+
+  assert.equal(detectEntities(hass).pump_switch, "switch.first_pump");
+
+  hass.states = {
+    "select.pool_pump_switch": { state: "switch.second_pump", attributes: {} },
+    "switch.second_pump": { state: "on", attributes: {} },
+  };
+  assert.equal(detectEntities(hass).pump_switch, "switch.second_pump");
+});
+
+
 test("entitySuggestion populates the card for an Intex entity", async () => {
   const { entitySuggestion } = await detectionModule();
   const hass = hassFixture();

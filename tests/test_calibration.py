@@ -175,3 +175,5 @@ async def test_action_required_uses_calibrated_ph(hass, mock_tinytuya):
         blocking=True,
     )
     assert "ph_high" not in rollup.extra_state_attributes["reasons"]
+    await hass.async_block_till_done()
+    assert "ph_high" not in hass.states.get(rollup.entity_id).attributes["reasons"]

@@ -50,11 +50,12 @@ class FakeCloud:
         return {"success": True, "result": {}}
 
     def getdevices(self, verbose=False):
-        return [
+        devices = [
             {"id": "d1", "name": "AGP Salt", "key": "k1", "category": "rs", "product_id": "p1"},
             {"id": "d2", "name": "Other", "local_key": "k2", "category": "dj"},
             {"name": "no-id-skip"},
         ]
+        return {"success": True, "result": devices} if verbose else devices
 
 
 def _fake_scan(forcescan, timeout):
@@ -212,3 +213,28 @@ def test_cloud_auth_code_raises_auth(fake_tinytuya, monkeypatch):
     )
     with pytest.raises(tuya.TuyaAuthError):
         client.properties("devid")
+
+
+@pytest.mark.parametrize("code", [28841002, 28841102, "28841002", "28841102"])
+def test_cloud_expired_plan_is_not_an_empty_device_list(fake_tinytuya, monkeypatch, code):
+    """TinyTuya's non-verbose list discards API failure metadata (#13)."""
+    monkeypatch.setattr(
+        FakeCloud, "getdevices",
+        lambda self, verbose=False: (
+            {"success": False, "code": code, "msg": "subscription expired", "result": []}
+            if verbose else []
+        ),
+    )
+    client = tuya.CloudClient("eu-w", "id", "secret")
+    with pytest.raises(tuya.TuyaError) as exc:
+        client.list_devices()
+    assert type(exc.value).__name__ == "TuyaSubscriptionError"
+    assert not isinstance(exc.value, tuya.TuyaAuthError)
+
+
+def test_cloud_empty_authorized_project_remains_empty(fake_tinytuya, monkeypatch):
+    monkeypatch.setattr(
+        FakeCloud, "getdevices",
+        lambda self, verbose=False: {"success": True, "result": []} if verbose else [],
+    )
+    assert tuya.CloudClient("eu", "id", "secret").list_devices() == []

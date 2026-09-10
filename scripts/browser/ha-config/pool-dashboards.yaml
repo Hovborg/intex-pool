@@ -1,0 +1,79 @@
+title: Pool dashboard compatibility
+views:
+  - title: Masonry
+    path: masonry
+    type: masonry
+    cards:
+      - type: custom:intex-pool-card
+        title: Masonry Pool
+        pump_switch: switch.pool_pump
+        power_switch: switch.saltwater_relay
+  - title: Sections
+    path: sections
+    type: sections
+    sections:
+      - type: grid
+        cards:
+          - type: custom:intex-pool-card
+            title: Sections Pool
+            pump_switch: switch.pool_pump
+            power_switch: switch.saltwater_relay
+  - title: Panel
+    path: panel
+    type: panel
+    cards:
+      - type: custom:intex-pool-card
+        title: Panel Pool
+        pump_switch: switch.pool_pump
+        power_switch: switch.saltwater_relay
+  - title: Sidebar
+    path: sidebar
+    type: sidebar
+    cards:
+      - type: custom:intex-pool-card
+        title: Sidebar Pool
+        pump_switch: switch.pool_pump
+        power_switch: switch.saltwater_relay
+  - title: Wrappers
+    path: wrappers
+    type: masonry
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:intex-pool-card
+            title: Vertical stack Pool
+            pump_switch: switch.pool_pump
+      - type: horizontal-stack
+        cards:
+          - type: custom:intex-pool-card
+            title: Horizontal stack Pool
+            pump_switch: switch.pool_pump
+          - type: custom:intex-pool-card
+            title: Second horizontal Pool
+            power_switch: switch.saltwater_relay
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: custom:intex-pool-card
+            title: Grid Pool
+            pump_switch: switch.pool_pump
+          - type: custom:intex-pool-card
+            title: Second grid Pool
+            power_switch: switch.saltwater_relay
+      - type: conditional
+        conditions:
+          - entity: switch.pool_pump
+            state_not: unavailable
+        card:
+          type: custom:intex-pool-card
+          title: Conditional Pool
+          pump_switch: switch.pool_pump
+  - title: Subview
+    path: detail
+    subview: true
+    type: masonry
+    cards:
+      - type: custom:intex-pool-card
+        title: Subview Pool
+        pump_switch: switch.pool_pump

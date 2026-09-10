@@ -36,38 +36,52 @@ function makeDiscriminators() {
 
 const DISCRIMINATORS = makeDiscriminators();
 let detectionCache = null;
+const PUMP_SWITCH_SELECT_KEY = "pump_switch_select";
 
 
 export function detectEntities(hass) {
   const entities = hass?.entities || {};
-  if (detectionCache?.ref === entities) return detectionCache.result;
+  if (detectionCache?.ref !== entities) {
+    const detected = {};
+    const pumpSwitchSelectors = [];
+    const entitiesByDevice = {};
+    for (const [entityId, entity] of Object.entries(entities)) {
+      if (entity.platform !== "intex_pool") continue;
+      (entitiesByDevice[entity.device_id || "_"] ??= []).push({
+        entityId,
+        translationKey: entity.translation_key,
+      });
+    }
 
-  const detected = {};
-  const entitiesByDevice = {};
-  for (const [entityId, entity] of Object.entries(entities)) {
-    if (entity.platform !== "intex_pool") continue;
-    (entitiesByDevice[entity.device_id || "_"] ??= []).push({
-      entityId,
-      translationKey: entity.translation_key,
-    });
+    for (const deviceEntities of Object.values(entitiesByDevice)) {
+      let role = "pump";
+      if (deviceEntities.some((entity) => DISCRIMINATORS.salt.has(entity.translationKey))) {
+        role = "salt";
+      } else if (
+        deviceEntities.some((entity) => DISCRIMINATORS.sensor.has(entity.translationKey))
+      ) {
+        role = "sensor";
+      }
+      for (const { entityId, translationKey } of deviceEntities) {
+        if (translationKey === PUMP_SWITCH_SELECT_KEY) {
+          pumpSwitchSelectors.push(entityId);
+          continue;
+        }
+        const configKey = ROLE_MAP[role]?.[translationKey];
+        if (configKey && !detected[configKey]) detected[configKey] = entityId;
+      }
+    }
+
+    detectionCache = { ref: entities, detected, pumpSwitchSelectors };
   }
 
-  for (const deviceEntities of Object.values(entitiesByDevice)) {
-    let role = "pump";
-    if (deviceEntities.some((entity) => DISCRIMINATORS.salt.has(entity.translationKey))) {
-      role = "salt";
-    } else if (
-      deviceEntities.some((entity) => DISCRIMINATORS.sensor.has(entity.translationKey))
-    ) {
-      role = "sensor";
-    }
-    for (const { entityId, translationKey } of deviceEntities) {
-      const configKey = ROLE_MAP[role]?.[translationKey];
-      if (configKey && !detected[configKey]) detected[configKey] = entityId;
+  const detected = { ...detectionCache.detected };
+  for (const selectorId of detectionCache.pumpSwitchSelectors) {
+    const selected = hass?.states?.[selectorId]?.state;
+    if (selected?.startsWith("switch.") && hass?.states?.[selected]) {
+      detected.pump_switch ??= selected;
     }
   }
-
-  detectionCache = { ref: entities, result: detected };
   return detected;
 }
 
