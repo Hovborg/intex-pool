@@ -151,6 +151,9 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         self._sync_task = None
         self._off_unsub = None          # pending after-run timer
         self._last_prod: bool | None = None
+        self._pending_stop_token: int | None = None
+        self._afterrun_owed = False
+        self._afterrun_token = 0
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -179,36 +182,88 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
             self._sync_task = self.hass.async_create_task(self._sync())
         super()._handle_coordinator_update()
 
+    def _production_state(self) -> bool | None:
+        """Return a known DP103 boolean; failed polls and invalid values are unknown."""
+        if not self.coordinator.last_update_success or not self.coordinator.data:
+            return None
+        raw = self.coordinator.data.get(SALT_PROD_DP)
+        if isinstance(raw, str):
+            if raw.strip().lower() not in ("true", "false", "on", "off", "0", "1"):
+                return None
+        elif not isinstance(raw, (bool, int, float)) or raw not in (0, 1):
+            return None
+        return decode.as_bool(raw)
+
     async def _sync(self) -> None:
-        if not self._pump_switch:
+        if (
+            not self._attr_is_on or not self._pump_switch
+            or self._pump_switch == self.entity_id
+        ):
+            self._cancel_afterrun()
             return
-        prod_on = bool(self.coordinator.data and self.coordinator.data.get(SALT_PROD_DP))
+        prod_on = self._production_state()
+        if prod_on is None:
+            # Pause any pending stop without forgetting an after-run already
+            # owed. A recovered False state starts a fresh full circulation hour.
+            self._cancel_afterrun()
+            return
         was_on, self._last_prod = self._last_prod, prod_on
         if prod_on:
             self._cancel_afterrun()
+            self._afterrun_owed = False
             await self._pump_call(True)
-        elif was_on:
+        elif was_on or self._afterrun_owed:
             # Production just stopped: keep circulating, then stop the pump.
-            if self._off_unsub is None:
+            self._afterrun_owed = True
+            if self._off_unsub is None and self._pending_stop_token is None:
+                self._afterrun_token += 1
+                token = self._afterrun_token
+
+                @callback
+                def afterrun_done(now) -> None:
+                    self._afterrun_done(now, token)
+
                 self._off_unsub = async_call_later(
-                    self.hass, PUMP_AFTERRUN_S, self._afterrun_done
+                    self.hass, PUMP_AFTERRUN_S, afterrun_done,
                 )
-        elif self._off_unsub is None:
+        elif self._off_unsub is None and self._pending_stop_token is None:
             # Steady not-producing state with no after-run owed.
             await self._pump_call(False)
 
     @callback
-    def _afterrun_done(self, _now) -> None:
+    def _afterrun_done(self, _now, token: int | None = None) -> None:
+        if token is not None and token != self._afterrun_token:
+            return
         self._off_unsub = None
-        if self._attr_is_on:
-            self.hass.async_create_task(self._pump_call(False))
+        if self._attr_is_on and self._production_state() is False:
+            self._pending_stop_token = self._afterrun_token
+            self.hass.async_create_task(self._finish_afterrun(self._afterrun_token))
+
+    async def _finish_afterrun(self, token: int) -> None:
+        try:
+            await self._pump_call(False, token)
+        finally:
+            if self._pending_stop_token == token:
+                self._pending_stop_token = None
 
     def _cancel_afterrun(self) -> None:
+        # Also invalidate a callback or stop coroutine already queued by HA.
+        self._afterrun_token += 1
+        self._pending_stop_token = None
         if self._off_unsub is not None:
             self._off_unsub()
             self._off_unsub = None
 
-    async def _pump_call(self, on: bool) -> None:
+    async def _pump_call(self, on: bool, token: int | None = None) -> None:
+        if (
+            not self._attr_is_on or not self._pump_switch
+            or self._pump_switch == self.entity_id
+            or (token is not None and token != self._afterrun_token)
+            or self._production_state() is not on
+        ):
+            return
+        if not on:
+            self._afterrun_owed = False
         try:
             await self.hass.services.async_call(
                 "switch", "turn_on" if on else "turn_off",
@@ -221,17 +276,22 @@ class IntexPumpAutoSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
             )
 
     async def async_turn_on(self, **kwargs) -> None:
+        if not self._attr_is_on:
+            self._last_prod = None  # evaluate afresh when enabling from off
+            self._afterrun_owed = False
+            self._cancel_afterrun()
         self._attr_is_on = True
-        self._last_prod = None  # evaluate afresh (no stale after-run owed)
         self.async_write_ha_state()
         await self._sync()
 
     async def async_turn_off(self, **kwargs) -> None:
         self._cancel_afterrun()
         self._attr_is_on = False
+        self._afterrun_owed = False
         self.async_write_ha_state()
 
     async def async_will_remove_from_hass(self) -> None:
+        self._attr_is_on = False
         self._cancel_afterrun()
         await super().async_will_remove_from_hass()
 

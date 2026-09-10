@@ -26,7 +26,6 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.components.switch import SwitchEntityDescription
 from homeassistant.const import (
-    CONCENTRATION_PARTS_PER_MILLION,
     PERCENTAGE,
     EntityCategory,
     Platform,
@@ -36,6 +35,13 @@ from homeassistant.const import (
 )
 
 from . import decode
+
+try:
+    from homeassistant.const import UnitOfRatio
+except ImportError:  # Home Assistant versions before UnitOfRatio was added.
+    UNIT_PARTS_PER_MILLION = "ppm"
+else:
+    UNIT_PARTS_PER_MILLION = UnitOfRatio.PARTS_PER_MILLION
 
 DOMAIN = "intex_pool"
 
@@ -194,7 +200,7 @@ SENSORS: tuple[IntexSensorDescription, ...] = (
     # Saltwater (local DPs)
     IntexSensorDescription(
         key="salinity", translation_key="salinity", device=DEVICE_SALT, source="109",
-        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        native_unit_of_measurement=UNIT_PARTS_PER_MILLION,
         state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0,
     ),
     IntexSensorDescription(
@@ -275,7 +281,7 @@ SENSORS: tuple[IntexSensorDescription, ...] = (
     ),
     IntexSensorDescription(
         key="free_chlorine", translation_key="free_chlorine", device=DEVICE_SENSOR, source="fc_number",
-        scale=0.01, native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        scale=0.01, native_unit_of_measurement=UNIT_PARTS_PER_MILLION,
         state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2,
     ),
     IntexSensorDescription(

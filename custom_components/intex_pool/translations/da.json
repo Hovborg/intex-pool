@@ -159,7 +159,9 @@
       "need_creds": "Indtast din Tuya cloud Access ID og secret, eller sæt flueben i “opsæt manuelt”.",
       "device_offline": "Enheden blev ikke fundet på dit netværk — sørg for at den er tændt og på samme LAN som Home Assistant.",
       "no_device": "Vælg mindst én enhed.",
-      "no_devices": "Ingen enheder fundet med disse oplysninger. Sæt flueben i “opsæt manuelt” for at indtaste dem selv, eller tjek region og Access ID/secret."
+      "no_devices": "Tuya svarede, men projektet indeholder ingen tilgængelige enheder. Tjek All Devices, den tilknyttede Smart Life-konto og datacenteret. Manuel opsætning kræver stadig cloud-adgang til vandmåleren.",
+      "cloud_subscription": "Tuya-cloudabonnementet eller API-adgangen er udløbet, mangler eller har opbrugt sin kvote. Tjek IoT Core og de autoriserede APIer i Tuya Developer Platform. Prøv igen, når adgangen er aktiv; manuel opsætning omgår ikke dette.",
+      "cloud_permission": "Tuya-projektet har ikke adgang til enheden eller APIet. Tjek tilknyttet Smart Life-konto, autoriserede APIer og det præcise datacenter (eu = Centraleuropa, eu-w = Vesteuropa)."
     },
     "abort": {
       "already_configured": "Denne enhed er allerede konfigureret.",
@@ -209,6 +211,17 @@
       "options": {
         "ph": "pH",
         "orp": "ORP (avanceret)"
+      }
+    },
+    "region": {
+      "options": {
+        "eu": "Centraleuropa (eu)",
+        "eu-w": "Vesteuropa (eu-w)",
+        "us": "Vestamerika (us)",
+        "us-e": "Østamerika (us-e)",
+        "cn": "Kina (cn)",
+        "in": "Indien (in)",
+        "sg": "Singapore (sg)"
       }
     }
   },

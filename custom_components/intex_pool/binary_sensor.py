@@ -8,6 +8,7 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
@@ -25,6 +26,7 @@ from .const import (
     PH_MIN,
     SALT_MAX_PPM,
     SALT_MIN_PPM,
+    SIGNAL_OPTIONS_UPDATED,
     STALE_AFTER_HOURS,
 )
 from .entity import IntexPoolEntity, coordinator_for, device_id_for, device_info_for
@@ -115,6 +117,14 @@ class IntexActionRequired(BinarySensorEntity):
                 self.async_on_remove(
                     coordinator.async_add_listener(self._handle_update)
                 )
+        coordinator = self._data.sensor or self._data.salt
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                SIGNAL_OPTIONS_UPDATED.format(coordinator.config_entry.entry_id),
+                self._handle_update,
+            )
+        )
 
     @callback
     def _handle_update(self) -> None:

@@ -4,19 +4,48 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/) and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.21.3] - 2026-09-10
 
 ### Fixed
+- Updated the ppm unit to Home Assistant's current UnitOfRatio API, retaining
+  the equivalent unit on older supported Home Assistant versions.
+- Calibration and pool-volume/unit changes now immediately refresh the published
+  Action required and Salt to add states instead of waiting for the next poll.
+- Pump auto mode no longer treats missing/failed chlorination status as off.
+  Interrupted after-run timers resume for a full hour after known status returns;
+  stale callbacks, disabled auto mode and self-targeting cannot switch the pump.
+- Cloud setup now preserves Tuya subscription and permission errors instead of
+  reporting an empty device list or a wrong secret (#13). Token renewal recovers
+  from transient failures, handles token error codes, and bounds HTTP requests.
+  Partial discovery and malformed property/token replies are rejected.
+- Reconfigure respects explicit device removal, preserves model labels for
+  unchanged devices, and updates the entry identity without accepting duplicates.
+- Loading both the automatic module and a manual dashboard resource no longer
+  duplicates the card-picker entry.
+- Sections uses content height so long schedule cards do not overlap following
+  cards. Masonry reports the measured card height for column balancing.
+- The visual editor now writes flat card fields as required by the card, and
+  existing nested editor configurations are read correctly. This fixes selected
+  pump/saltwater/chemistry entities not affecting the card preview (#25).
+- Linked external pump switches are discovered through the integration's pump
+  selector, including changes to its selected switch (#25).
 - Measurement refresh for a cloud sensor sharing the local saltwater device ID
   now uses local Re-test DP 107. Cloud-only saltwater schemas use `retest_switch`;
   separate Water Analyzers retain their own cloud refresh. Failed repair commands
   leave the form open with a retry message (#20).
 
 ### Added
+- The card editor accepts any Home Assistant switch for saltwater power or
+  chlorination, including Shelly relays (#24). This is manual relay control;
+  it does not create saltwater telemetry, device schedules, or a pump interlock.
 - The card header shows both analyzer and saltwater temperatures with distinct
   labels when both readings exist, while keeping one tile for a shared entity (#22).
 
 ### Documentation
+- Tuya regions have readable data-center labels. Setup errors now explain account,
+  subscription and API authorization recovery in English and Danish.
+- Integration debug no longer enables TinyTuya's raw credential-bearing logs;
+  cloud exceptions contain numeric error codes rather than remote payloads.
 - Added a dedicated Water Analyzer/local-device setup guide, credential mapping
   and the limits of app migration. Clarified that manual analyzer setup still
   needs cloud credentials. Protocol-auto and region fixes for #13/#18 already

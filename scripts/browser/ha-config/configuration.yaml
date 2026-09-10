@@ -1,0 +1,53 @@
+homeassistant:
+  name: Intex Pool compatibility test
+  latitude: 0
+  longitude: 0
+  elevation: 0
+  unit_system: metric
+  time_zone: Europe/Copenhagen
+
+frontend:
+api:
+config:
+recorder:
+
+input_boolean:
+  pool_pump:
+    name: Test pump
+  salt_relay:
+    name: Test saltwater relay
+
+template:
+  - switch:
+      - name: Pool pump
+        unique_id: test_pool_pump
+        state: "{{ is_state('input_boolean.pool_pump', 'on') }}"
+        turn_on:
+          action: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.pool_pump
+        turn_off:
+          action: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.pool_pump
+      - name: Saltwater relay
+        unique_id: test_saltwater_relay
+        state: "{{ is_state('input_boolean.salt_relay', 'on') }}"
+        turn_on:
+          action: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.salt_relay
+        turn_off:
+          action: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.salt_relay
+
+lovelace:
+  mode: storage
+  dashboards:
+    pool-yaml:
+      mode: yaml
+      title: Pool YAML tests
+      icon: mdi:pool
+      show_in_sidebar: true
+      filename: pool-dashboards.yaml

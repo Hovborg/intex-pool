@@ -11,14 +11,14 @@ body:
     attributes:
       label: Intex Pool version
       description: HACS → Intex Pool, or the `version` in manifest.json.
-      placeholder: "0.10.0"
+      placeholder: "0.21.3"
     validations:
       required: true
   - type: input
     id: ha_version
     attributes:
       label: Home Assistant version
-      placeholder: "2025.x.x"
+      placeholder: "2026.9.1"
     validations:
       required: true
   - type: input
@@ -35,6 +35,18 @@ body:
       description: What did you expect, and what happened instead?
     validations:
       required: true
+  - type: input
+    id: setup_path
+    attributes:
+      label: Connection and setup path
+      description: Cloud or local, discovery or manual, mobile app, and selected Tuya data center. Leave out credentials.
+      placeholder: "Water Analyzer / Smart Life / cloud discovery / Central Europe (eu)"
+  - type: input
+    id: dashboard_setup
+    attributes:
+      label: Dashboard and browser (for card problems)
+      description: UI or YAML dashboard, view layout, browser or Companion App, and whether the problem also appears in card preview.
+      placeholder: "UI dashboard / Sections / Chrome / also broken in preview"
   - type: textarea
     id: logs
     attributes:

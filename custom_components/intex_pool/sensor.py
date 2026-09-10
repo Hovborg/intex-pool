@@ -320,6 +320,16 @@ class IntexSaltDoseSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"{device_id}_salt_to_add"
         self._attr_device_info = device_info_for(DEVICE_SALT, device_id)
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                SIGNAL_OPTIONS_UPDATED.format(self._entry.entry_id),
+                self._handle_coordinator_update,
+            )
+        )
+
     def _salinity(self) -> float | None:
         raw = (self.coordinator.data or {}).get("109")
         try:

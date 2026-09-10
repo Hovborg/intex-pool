@@ -82,7 +82,7 @@ CONF_PUMP_LOCAL_KEY = "pump_local_key"  # reauth: the Tuya pump's own key field
 STEP_USER = vol.Schema(
     {
         vol.Optional(CONF_REGION, default=DEFAULT_REGION): selector.SelectSelector(
-            selector.SelectSelectorConfig(options=_REGION_OPTIONS)
+            selector.SelectSelectorConfig(options=_REGION_OPTIONS, translation_key="region")
         ),
         vol.Optional(CONF_ACCESS_ID, default=""): str,
         vol.Optional(CONF_ACCESS_SECRET, default=""): selector.TextSelector(
@@ -103,7 +103,7 @@ STEP_MANUAL = vol.Schema(
 STEP_SENSOR = vol.Schema(
     {
         vol.Required(CONF_REGION, default=DEFAULT_REGION): selector.SelectSelector(
-            selector.SelectSelectorConfig(options=_REGION_OPTIONS)
+            selector.SelectSelectorConfig(options=_REGION_OPTIONS, translation_key="region")
         ),
         vol.Required(CONF_ACCESS_ID): str,
         vol.Required(CONF_ACCESS_SECRET): selector.TextSelector(
@@ -118,7 +118,7 @@ STEP_SENSOR = vol.Schema(
 STEP_RECONFIGURE_USER = vol.Schema(
     {
         vol.Optional(CONF_REGION, default=DEFAULT_REGION): selector.SelectSelector(
-            selector.SelectSelectorConfig(options=_REGION_OPTIONS)
+            selector.SelectSelectorConfig(options=_REGION_OPTIONS, translation_key="region")
         ),
         vol.Optional(CONF_ACCESS_ID, default=""): str,
         vol.Optional(CONF_ACCESS_SECRET, default=""): selector.TextSelector(
@@ -271,6 +271,17 @@ async def discover(hass: HomeAssistant, creds: dict) -> tuple[list[dict], dict]:
     return devices, scan
 
 
+def _cloud_error_key(error: tuya.TuyaError) -> str:
+    """Point to account recovery without treating every cloud failure as a bad key."""
+    if isinstance(error, tuya.TuyaSubscriptionError):
+        return "cloud_subscription"
+    if isinstance(error, tuya.TuyaPermissionError):
+        return "cloud_permission"
+    if isinstance(error, tuya.TuyaAuthError):
+        return "invalid_auth"
+    return "cannot_connect"
+
+
 class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle setup (cloud auto-discovery, or manual fallback)."""
 
@@ -303,6 +314,8 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
                 try:
                     self._devices, self._scan = await discover(self.hass, self._creds)
+                except tuya.TuyaError as err:
+                    errors["base"] = _cloud_error_key(err)
                 except Exception:  # noqa: BLE001
                     errors["base"] = "cannot_connect"
                 else:
@@ -357,8 +370,8 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                         cand = {**cloud, CONF_ACCESS_SECRET: secret}
                         await validate_cloud(self.hass, cand)
                         new_data[CONF_CLOUD] = cand
-                except tuya.TuyaAuthError:
-                    errors["base"] = "invalid_auth"
+                except tuya.TuyaError as err:
+                    errors["base"] = _cloud_error_key(err)
                 except Exception:  # noqa: BLE001
                     errors["base"] = "cannot_connect"
                 else:
@@ -392,6 +405,9 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
             self._creds = creds
             try:
                 self._devices, self._scan = await discover(self.hass, self._creds)
+            except tuya.TuyaError as err:
+                self._reconfigure_error = _cloud_error_key(err)
+                return await self.async_step_reconfigure_user()
             except Exception:  # noqa: BLE001
                 self._reconfigure_error = "cannot_connect"
                 return await self.async_step_reconfigure_user()
@@ -423,6 +439,8 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
                 try:
                     self._devices, self._scan = await discover(self.hass, self._creds)
+                except tuya.TuyaError as err:
+                    errors["base"] = _cloud_error_key(err)
                 except Exception:  # noqa: BLE001
                     errors["base"] = "cannot_connect"
                 else:
@@ -494,6 +512,17 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 if not any(k in data for k in (DEVICE_SALT, DEVICE_SENSOR, DEVICE_PUMP)):
                     errors["base"] = "no_device"
                 else:
+                    # A scan refreshes connection details, not the user's model
+                    # label. Preserve it only for the same physical device.
+                    if self._reconfigure_entry is not None:
+                        for device, cfg in data.items():
+                            previous = self._reconfigure_entry.data.get(device) or {}
+                            if (
+                                cfg.get(CONF_DEVICE_ID)
+                                and cfg[CONF_DEVICE_ID] == previous.get(CONF_DEVICE_ID)
+                                and CONF_MODEL in previous
+                            ):
+                                data[device] = {**cfg, CONF_MODEL: previous[CONF_MODEL]}
                     pump_cfg = data.get(DEVICE_PUMP) or {}
                     if DEVICE_SENSOR not in data and (
                         DEVICE_SALT in data
@@ -608,7 +637,16 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_show_form(
                     step_id="manual", data_schema=schema, errors={"base": "no_device"}
                 )
-            self._flags = user_input
+            # Existing devices are preselected for editing. Explicit removal
+            # must win without asking the user to re-enter that device first.
+            self._flags = {
+                **user_input,
+                **{
+                    f"has_{device}": False
+                    for flag, device in REMOVE_FLAGS.items()
+                    if user_input.get(flag)
+                },
+            }
             self._data = {}
             return await self._async_next()
         return self.async_show_form(step_id="manual", data_schema=schema)
@@ -653,7 +691,17 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
                 previous_cloud = _cloud_credentials(self._reconfigure_entry.data)
                 if len(previous_cloud) == 3:
                     data[CONF_CLOUD] = previous_cloud
-            return self.async_update_reload_and_abort(self._reconfigure_entry, data=data)
+            # The identity follows the final device set, including devices kept
+            # by manual reconfiguration. Check for another entry before saving
+            # either identity or data, so a replacement cannot create a duplicate.
+            self._data = data
+            unique_id = self._compute_uid()
+            existing = await self.async_set_unique_id(unique_id)
+            if existing is not None and existing.entry_id != self._reconfigure_entry.entry_id:
+                return self.async_abort(reason="already_configured")
+            return self.async_update_reload_and_abort(
+                self._reconfigure_entry, data=data, unique_id=unique_id,
+            )
         await self.async_set_unique_id(self._compute_uid())
         self._abort_if_unique_id_configured()
         return self.async_create_entry(title="Intex Pool", data=self._data)
@@ -674,8 +722,8 @@ class IntexPoolConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 await validate_sensor(self.hass, user_input)
-            except tuya.TuyaAuthError:
-                errors["base"] = "invalid_auth"
+            except tuya.TuyaError as err:
+                errors["base"] = _cloud_error_key(err)
             except Exception:  # noqa: BLE001
                 errors["base"] = "cannot_connect"
             else:

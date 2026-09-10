@@ -191,14 +191,14 @@ async def test_standalone_cloud_schedule_recovers_without_entry_reload(
     """A later coordinator poll must recover schedules after startup outage."""
     working_cloud = mock_tinytuya.tinytuya.Cloud
 
-    class FlakyCloud:
+    class FlakyCloud(working_cloud):
         attempts = 0
 
-        def __new__(cls, *args, **kwargs):
-            cls.attempts += 1
-            if cls.attempts == 1:
+        def __init__(self, *args, **kwargs):
+            FlakyCloud.attempts += 1
+            if FlakyCloud.attempts == 1:
                 raise RuntimeError("Tuya cloud temporarily offline")
-            return working_cloud(*args, **kwargs)
+            super().__init__(*args, **kwargs)
 
     mock_tinytuya.tinytuya.Cloud = FlakyCloud
     entry = await _setup(
@@ -231,12 +231,12 @@ async def test_standalone_schedules_share_one_recovered_cloud_client(
     """Salt and pump schedules must not perform duplicate token fetches."""
     working_cloud = mock_tinytuya.tinytuya.Cloud
 
-    class CountingCloud:
+    class CountingCloud(working_cloud):
         attempts = 0
 
-        def __new__(cls, *args, **kwargs):
-            cls.attempts += 1
-            return working_cloud(*args, **kwargs)
+        def __init__(self, *args, **kwargs):
+            CountingCloud.attempts += 1
+            super().__init__(*args, **kwargs)
 
     mock_tinytuya.tinytuya.Cloud = CountingCloud
     entry = await _setup(
@@ -273,7 +273,7 @@ async def test_standalone_cloud_auth_starts_reauth_but_keeps_local_pump(
         error: ClassVar[dict] = {"code": 1004, "msg": "bad sign"}
 
         def __init__(self, *args, **kwargs):
-            pass
+            mock_tinytuya._check_cloud(self.error, "cloud token")
 
     monkeypatch.setattr(
         MockConfigEntry,

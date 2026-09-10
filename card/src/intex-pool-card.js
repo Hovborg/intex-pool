@@ -81,6 +81,10 @@ class IntexPoolCard extends LitElement {
     return { ...detectEntities(hass) };
   }
 
+  static getConfigElement() {
+    return document.createElement("intex-pool-card-editor");
+  }
+
   static getConfigForm() {
     const ent = (d) => ({ selector: { entity: { domain: d, integration: "intex_pool" } } });
     const any = (d) => ({ selector: { entity: { domain: d } } });
@@ -95,20 +99,20 @@ class IntexPoolCard extends LitElement {
           { value: "midnight", label: "Midnight (deep dark)" },
         ] } } },
         // Fix 8 — unique name keys on expandable sections
-        { type: "expandable", name: "water_chemistry", title: "Water chemistry", schema: [
+        { type: "expandable", name: "water_chemistry", title: "Water chemistry", flatten: true, schema: [
           { name: "ph_sensor", ...ent("sensor") }, { name: "orp_sensor", ...ent("sensor") },
           { name: "fc_sensor", ...ent("sensor") }, { name: "sensor_temp", ...ent("sensor") },
           { name: "battery", ...ent("sensor") }, { name: "refresh_button", ...ent("button") },
           { name: "orp_trend", ...ent("sensor") }, { name: "last_measurement", ...ent("sensor") },
         ] },
         // Fix 4 — removed pump_power / pump_energy
-        { type: "expandable", name: "salt_system", title: "Saltwater system", schema: [
-          { name: "power_switch", ...ent("switch") }, { name: "chlorination_switch", ...ent("switch") },
+        { type: "expandable", name: "salt_system", title: "Saltwater system", flatten: true, schema: [
+          { name: "power_switch", ...any("switch") }, { name: "chlorination_switch", ...any("switch") },
           { name: "salinity", ...ent("sensor") }, { name: "salt_status", ...ent("sensor") },
           { name: "salt_alarm", ...ent("sensor") }, { name: "salt_temp", ...ent("sensor") },
           { name: "schedules_sensor", ...ent("sensor") },
         ] },
-        { type: "expandable", name: "pump", title: "Sand filter pump (any brand)", schema: [
+        { type: "expandable", name: "pump", title: "Sand filter pump (any brand)", flatten: true, schema: [
           { name: "pump_switch", ...any("switch") },
           { name: "pump_schedules_sensor", ...ent("sensor") },
         ] },
@@ -118,7 +122,7 @@ class IntexPoolCard extends LitElement {
 
   setConfig(config) {
     if (!config) throw new Error("Invalid configuration");
-    this._config = config;
+    this._config = normalizeConfig(config);
   }
 
   set hass(hass) {
@@ -130,10 +134,13 @@ class IntexPoolCard extends LitElement {
   }
 
   getCardSize() {
-    return 3;
+    const height = this.shadowRoot?.querySelector("ha-card")?.getBoundingClientRect().height;
+    return height ? Math.ceil(height / 50) : 3;
   }
   getGridOptions() {
-    return { rows: 3, columns: 12, min_columns: 6 };
+    // Schedule rows and narrow cards have variable height. A fixed row count
+    // makes the following Sections card overlap this card's content.
+    return { columns: 12, min_columns: 6 };
   }
 
   _paletteStyle() {
@@ -496,6 +503,68 @@ class IntexPoolCard extends LitElement {
   `;
 }
 
+// The old generic editor stored user choices inside its named sections while
+// retaining flat auto-detected stub fields. The nested choices are the user's
+// overrides. Lift only known fields and discard the legacy containers once.
+function normalizeConfig(config) {
+  const result = { ...config };
+  for (const section of IntexPoolCard.getConfigForm().schema.filter((item) => item.schema)) {
+    const legacy = config[section.name];
+    if (legacy && typeof legacy === "object" && !Array.isArray(legacy)) {
+      for (const field of section.schema) {
+        if (Object.hasOwn(legacy, field.name)) result[field.name] = legacy[field.name];
+      }
+    }
+    delete result[section.name];
+  }
+  return result;
+}
+
+class IntexPoolCardEditor extends LitElement {
+  static properties = { hass: { attribute: false }, _config: { state: true } };
+
+  setConfig(config) {
+    this._config = normalizeConfig(config);
+  }
+
+  _formData() {
+    return { ...detectEntities(this.hass), ...this._config };
+  }
+
+  _valueChanged(event) {
+    event.stopPropagation();
+    const previous = this._formData();
+    // ha-form emits its complete data object, including unknown top-level keys.
+    const config = { ...event.detail.value };
+    for (const section of IntexPoolCard.getConfigForm().schema.filter((item) => item.schema)) {
+      for (const field of section.schema) {
+        // An empty entity assignment deliberately overrides auto-detection.
+        if (Object.hasOwn(previous, field.name) && !event.detail.value[field.name]) {
+          config[field.name] = "";
+        }
+      }
+    }
+    this._config = config;
+    fireEvent(this, "config-changed", { config });
+  }
+
+  render() {
+    if (!this.hass || !this._config) return nothing;
+    return html`<ha-form
+      .hass=${this.hass}
+      .data=${this._formData()}
+      .schema=${IntexPoolCard.getConfigForm().schema}
+      .computeLabel=${(field) => ({ ph_sensor: "pH sensor", orp_sensor: "ORP sensor", fc_sensor: "Free chlorine sensor" }[field.name]
+        || field.name.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase()))}
+      @value-changed=${this._valueChanged}
+    ></ha-form>`;
+  }
+}
+
+if (!customElements.get("intex-pool-card-editor")) {
+  customElements.define("intex-pool-card-editor", IntexPoolCardEditor);
+}
+
 function fireEvent(node, type, detail) {
   const ev = new Event(type, { bubbles: true, composed: true });
   ev.detail = detail;
@@ -507,14 +576,16 @@ if (!customElements.get("intex-pool-card")) {
 }
 
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "intex-pool-card",
-  name: "Intex Pool",
-  description: "Compact pool card for chemistry, chlorinator, pump, and schedules.",
-  preview: true,
-  documentationURL: "https://github.com/Hovborg/intex-pool",
-  getEntitySuggestion: entitySuggestion,
-});
+if (!window.customCards.some((card) => card.type === "intex-pool-card")) {
+  window.customCards.push({
+    type: "intex-pool-card",
+    name: "Intex Pool",
+    description: "Compact pool card for chemistry, chlorinator, pump, and schedules.",
+    preview: true,
+    documentationURL: "https://github.com/Hovborg/intex-pool",
+    getEntitySuggestion: entitySuggestion,
+  });
+}
 
 console.info(`%c INTEX-POOL-CARD %c v${CARD_VERSION} `,
   "color:#fff;background:#0288d1;font-weight:700;border-radius:3px 0 0 3px;padding:2px 4px",
