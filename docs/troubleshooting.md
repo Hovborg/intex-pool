@@ -7,6 +7,7 @@
 | Symptom | Start here |
 | --- | --- |
 | Intex Pool is missing from Add integration | [Installation and restart steps](installation.md#install-through-hacs) |
+| HACS shows “Icon not available” | [HACS logo limitation](#hacs-shows-icon-not-available) |
 | Card is missing or says “Custom element doesn't exist” | [Card resource loading](dashboard.md#card-not-found-or-custom-element-doesnt-exist) |
 | Card exists but the pump/control is missing | Check the original switch's state, then [select it in the card](dashboard.md#external-pump-and-saltwater-relays) |
 | Wrong pool/device appears in the card | [Override auto-detection and clear unrelated fields](dashboard.md#showing-only-selected-equipment) |
@@ -16,6 +17,30 @@
 Start with the path that is failing: Tuya developer cloud, local LAN control,
 schedule access, or measurement refresh. They use different credentials and a
 successful check on one path does not prove another path works.
+
+## HACS shows “Icon not available”
+
+Intex Pool includes `brand/icon.png` and `brand/icon@2x.png`. Home Assistant
+2026.3 and newer can serve these locally, including logo and dark-mode fallbacks.
+This was verified with v0.21.3 in HA 2026.9.1.
+
+**As checked on 2026-09-10, stable HACS 2.0.5 still requests integration icons
+from the external Home Assistant brands CDN.** The `intex_pool` domain is absent
+there, so the CDN returns an “Icon not available” placeholder with HTTP 200.
+The local icons can therefore work under **Settings → Devices & services** while
+the HACS list still shows the placeholder. Reinstalling Intex Pool or clearing
+the browser cache does not add the missing image to that external service.
+
+The upstream [HACS issue #5402](https://github.com/hacs/integration/issues/5402)
+tracks this limitation. [HACS frontend PR #949](https://github.com/hacs/frontend/pull/949)
+proposes using HA's authenticated local brands API for installed integrations;
+it was still open on the date above. The separate case of showing icons before
+installation also needs HACS-side support.
+
+Home Assistant no longer accepts custom-integration icons into its central
+brands repository. The earlier [Intex Pool logo PR](https://github.com/home-assistant/brands/pull/10489)
+was closed for that reason. The supported Intex Pool files are already included;
+this HACS display issue remains dependent on an upstream HACS update.
 
 ## Cloud setup
 

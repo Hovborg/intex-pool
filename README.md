@@ -136,6 +136,8 @@ See [dashboard examples](docs/dashboard.md) and the [full verification report](d
 
 ## Get help
 
+**HACS shows “Icon not available”?** See the [known HACS logo limitation](docs/troubleshooting.md#hacs-shows-icon-not-available).
+
 Start with [troubleshooting](docs/troubleshooting.md). If the problem persists,
 [open an issue](https://github.com/Hovborg/intex-pool/issues/new/choose) with your
 HA and Intex Pool versions, device model, connection path and a description of what
